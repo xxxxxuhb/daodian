@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
+import { downloadDir, join } from "@tauri-apps/api/path";
 import { computed, ref, watch } from "vue";
+import { utils as xlsxUtils, write as writeWorkbook } from "xlsx";
 import { testDeepSeek } from "../../api/ai";
+import { loadLibrary } from "../../api/library";
 import { testWebhook } from "../../api/settings";
 import { useCalendar } from "../../data/useCalendar";
 import { useSettings } from "../../data/useSettings";
@@ -19,6 +23,8 @@ const newHoliday = ref("");
 const newWorkday = ref("");
 const testingWebhook = ref<"feishu" | "wecom" | "">("");
 const testingDeepSeek = ref(false);
+const exportingRecords = ref(false);
+const exportStatus = ref("");
 const externalEnabled = computed(
   () =>
     draft.value.calendar.enabled ||
@@ -143,6 +149,109 @@ async function testAi() {
     }).catch(() => undefined);
     testingDeepSeek.value = false;
   }
+}
+
+async function exportAllRecords() {
+  exportingRecords.value = true;
+  exportStatus.value = "";
+  try {
+    const date = new Date().toISOString().slice(0, 10);
+    const defaultPath = await join(
+      await downloadDir(),
+      `到点全部记录-${date}.xlsx`,
+    );
+    const path = await saveDialog({
+      defaultPath,
+      filters: [{ name: "Excel 工作簿", extensions: ["xlsx"] }],
+    });
+    if (!path) return;
+    const library = await loadLibrary();
+    const todoHeaders = [
+      "ID", "标题", "备注", "到点时间", "优先级", "状态", "重复规则",
+      "提前提醒（分钟）", "创建时间", "更新时间",
+    ];
+    const todoRows = library.todos.map((todo) => ({
+      ID: todo.id,
+      标题: todo.title,
+      备注: todo.note,
+      到点时间: displayTime(todo.dueAt),
+      优先级: priorityLabel(todo.priority),
+      状态: todo.done ? "已完成" : todo.skipped ? "已跳过" : "未完成",
+      重复规则: todo.repeat ? JSON.stringify(todo.repeat) : "",
+      "提前提醒（分钟）": Math.round(todo.leadMs / 60_000),
+      创建时间: displayTime(todo.createdAt),
+      更新时间: displayTime(todo.updatedAt),
+    }));
+    const planHeaders = [
+      "计划ID", "计划标题", "计划备注", "优先级", "计划状态", "模板ID",
+      "阶段序号", "阶段ID", "阶段标题", "阶段时间", "阶段状态",
+      "依赖阶段ID", "依赖延迟（小时）", "创建时间", "更新时间",
+    ];
+    const planRows = library.plans.flatMap((plan) => {
+      const stages = plan.stages.length ? plan.stages : [null];
+      return stages.map((stage, index) => ({
+        计划ID: plan.id,
+        计划标题: plan.title,
+        计划备注: plan.note,
+        优先级: priorityLabel(plan.priority),
+        计划状态: plan.done ? "已完成" : "进行中",
+        模板ID: plan.templateId ?? "",
+        阶段序号: stage ? index + 1 : "",
+        阶段ID: stage?.id ?? "",
+        阶段标题: stage?.title ?? "",
+        阶段时间: displayTime(stage?.at ?? null),
+        阶段状态: stage ? (stage.done ? "已完成" : "未完成") : "",
+        依赖阶段ID: stage?.dependsOn?.stageId ?? "",
+        "依赖延迟（小时）": stage?.dependsOn ? stage.dependsOn.delayMs / 3_600_000 : "",
+        创建时间: displayTime(plan.createdAt),
+        更新时间: displayTime(plan.updatedAt),
+      }));
+    });
+    const workbook = xlsxUtils.book_new();
+    xlsxUtils.book_append_sheet(
+      workbook,
+      sheetWithWidths(todoRows, todoHeaders),
+      "待办",
+    );
+    xlsxUtils.book_append_sheet(
+      workbook,
+      sheetWithWidths(planRows, planHeaders),
+      "计划",
+    );
+    const output = writeWorkbook(workbook, {
+      type: "array",
+      bookType: "xlsx",
+      compression: true,
+    });
+    await writeFile(path, new Uint8Array(output));
+    exportStatus.value = `已导出 ${library.todos.length} 条待办、${library.plans.length} 份计划`;
+  } catch (cause) {
+    exportStatus.value = `导出失败：${cause instanceof Error ? cause.message : String(cause)}`;
+  } finally {
+    exportingRecords.value = false;
+  }
+}
+
+function displayTime(value: number | null) {
+  return value == null ? "" : new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
+
+function priorityLabel(value: "low" | "normal" | "high") {
+  return value === "high" ? "重要" : value === "low" ? "可缓" : "普通";
+}
+
+function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
+  const sheet = xlsxUtils.json_to_sheet(rows, { header: headers });
+  sheet["!cols"] = headers.map((header) => ({
+    wch: Math.min(
+      40,
+      Math.max(
+        header.length + 2,
+        ...rows.map((row) => String(row[header] ?? "").length + 2),
+      ),
+    ),
+  }));
+  return sheet;
 }
 </script>
 
@@ -364,6 +473,22 @@ async function testAi() {
             {{ draft.deepSeek.hasApiKey ? "已显示为掩码；输入新值即可替换。" : "请输入 API Key 后保存。" }}
             API Key 由 Windows DPAPI 加密保存，不会随设置读取返回明文。
           </p>
+        </section>
+
+        <section class="settings-section">
+          <h3>数据导出</h3>
+          <p class="settings-note">导出为 Excel 工作簿，分为“待办”和“计划”两个 Sheet，包含已完成记录、计划阶段及时间信息。</p>
+          <div class="settings-service__actions settings-export-actions">
+            <button
+              type="button"
+              class="btn btn--sm"
+              :disabled="exportingRecords"
+              @click="exportAllRecords"
+            >
+              {{ exportingRecords ? "导出中…" : "导出所有记录" }}
+            </button>
+          </div>
+          <p v-if="exportStatus" class="settings-note">{{ exportStatus }}</p>
         </section>
 
         <p v-if="externalEnabled" class="settings-consent">

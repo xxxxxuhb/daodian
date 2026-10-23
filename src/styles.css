@@ -499,7 +499,9 @@ button.dot{padding:0;cursor:pointer}
 .gantt .pin{cursor:grab;touch-action:none}
 .gantt .pin.is-locked{cursor:pointer}
 button.gantt__label{width:100%;border:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
-button.stage__grip{border:0;background:transparent;color:var(--ink-4);padding:2px 0 0;cursor:grab}
+button.stage__grip{border:0;background:transparent;color:var(--ink-4);padding:2px 0 0;cursor:grab;touch-action:none}
+button.stage__grip:active{cursor:grabbing}
+.stage.is-dragging{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);opacity:.8}
 .agenda{position:relative}
 .nowline{display:grid;grid-template-columns:46px 1fr;gap:8px;align-items:center;margin:8px 2px}
 .nowline i{font-style:normal;font-size:10px;color:var(--accent);text-align:right;font-weight:600}

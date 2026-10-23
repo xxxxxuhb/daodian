@@ -50,21 +50,40 @@ function setDelay(stage: StageDraft, value: string, unit = delayUnit(stage)) {
   stage.dependsOn.delayMs = Math.round(amount * (unit === "day" ? 86_400_000 : 3_600_000));
 }
 
-function onDragStart(index: number, event: DragEvent) {
-  dragFrom.value = index;
-  event.dataTransfer?.setData("text/plain", String(index));
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-}
-
-function onDrop(index: number, event: DragEvent) {
-  const from = Number(event.dataTransfer?.getData("text/plain") || dragFrom.value);
-  dragFrom.value = -1;
+function moveStage(from: number, index: number) {
   if (!Number.isInteger(from) || from < 0 || from === index) return;
   const next = props.draft.stages.slice();
   const [item] = next.splice(from, 1);
   if (!item) return;
   next.splice(index, 0, item);
   props.draft.stages = next;
+}
+
+function onPointerMove(event: PointerEvent) {
+  if (dragFrom.value < 0) return;
+  const target = document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>("[data-stage-index]");
+  const index = Number(target?.dataset.stageIndex);
+  if (!Number.isInteger(index) || index < 0 || index === dragFrom.value) return;
+  moveStage(dragFrom.value, index);
+  dragFrom.value = index;
+}
+
+function stopDragging() {
+  dragFrom.value = -1;
+  window.removeEventListener("pointermove", onPointerMove);
+  window.removeEventListener("pointerup", stopDragging);
+  window.removeEventListener("pointercancel", stopDragging);
+}
+
+function onGripPointerDown(index: number, event: PointerEvent) {
+  event.preventDefault();
+  dragFrom.value = index;
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", stopDragging);
+  window.addEventListener("pointercancel", stopDragging);
 }
 
 function onKey(event: KeyboardEvent) {
@@ -76,7 +95,10 @@ function onKey(event: KeyboardEvent) {
 }
 
 onMounted(() => window.addEventListener("keydown", onKey));
-onUnmounted(() => window.removeEventListener("keydown", onKey));
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKey);
+  stopDragging();
+});
 </script>
 
 <template>
@@ -123,8 +145,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
             v-for="(stage, index) in draft.stages"
             :key="stage.key"
             class="stage"
-            @dragover.prevent
-            @drop="onDrop(index, $event)"
+            :class="{ 'is-dragging': dragFrom === index }"
+            :data-stage-index="index"
           >
             <div class="stage__idx">{{ String(index + 1).padStart(2, "0") }}</div>
             <div>
@@ -178,7 +200,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
               <button class="icon-btn" type="button" aria-label="删除阶段" @click="removeStage(index)">
                 <Icon name="trash" small />
               </button>
-              <button class="stage__grip" type="button" draggable="true" aria-label="拖动排序" @dragstart="onDragStart(index, $event)">
+              <button class="stage__grip" type="button" aria-label="拖动排序" @pointerdown="onGripPointerDown(index, $event)">
                 <Icon name="grip" small />
               </button>
             </div>
