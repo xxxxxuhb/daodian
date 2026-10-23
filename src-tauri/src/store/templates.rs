@@ -93,6 +93,7 @@ fn persist(
     fs::write(path, raw).map_err(|err| err.to_string())
 }
 
+#[cfg(test)]
 fn stage(title: &str, day: i32, hour: u8, minute: u8) -> TemplateStage {
     TemplateStage {
         title: title.into(),
@@ -103,37 +104,7 @@ fn stage(title: &str, day: i32, hour: u8, minute: u8) -> TemplateStage {
 }
 
 fn builtins() -> Vec<PlanTemplate> {
-    vec![
-        PlanTemplate {
-            id: "release".into(),
-            label: "提测 → 发布 → 观察".into(),
-            stages: vec![
-                stage("提测", 0, 15, 0),
-                stage("发布", 1, 10, 0),
-                stage("观察", 3, 10, 0),
-            ],
-            built_in: true,
-            quick: false,
-        },
-        PlanTemplate {
-            id: "meeting".into(),
-            label: "周会改版".into(),
-            stages: vec![
-                stage("议程", 0, 9, 0),
-                stage("改版", 2, 14, 0),
-                stage("定稿", 4, 16, 0),
-            ],
-            built_in: true,
-            quick: false,
-        },
-        PlanTemplate {
-            id: "blank".into(),
-            label: "空计划".into(),
-            stages: Vec::new(),
-            built_in: true,
-            quick: false,
-        },
-    ]
+    Vec::new()
 }
 
 fn is_builtin_id(id: &str) -> bool {
@@ -304,13 +275,7 @@ mod tests {
         fs::write(&broken, "{not json").unwrap();
         assert!(load(&broken).0.is_empty());
         let _ = fs::remove_file(broken);
-        assert_eq!(
-            builtins()
-                .iter()
-                .map(|item| item.id.as_str())
-                .collect::<Vec<_>>(),
-            ["release", "meeting", "blank"]
-        );
+        assert!(builtins().is_empty());
     }
 
     #[test]

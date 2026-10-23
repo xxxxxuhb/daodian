@@ -72,7 +72,7 @@ const span = ref<"week" | "month">("week");
 const important = ref(false);
 const showAll = ref(false);
 const name = ref("");
-const templateId = ref("blank");
+const templateId = ref("");
 const undo = ref<{ plan: Plan; timer: number } | null>(null);
 const composer = ref<HTMLInputElement | null>(null);
 const draft = ref<PlanDraft | null>(null);
@@ -88,7 +88,7 @@ const doneStamp = ref("");
 const createTick = inject(createTickKey, null);
 const tier = inject(tierKey, computed(() => "wide" as const));
 const selectedTemplate = computed(
-  () => templates.value.find((item) => item.id === templateId.value) ?? templates.value[0],
+  () => templates.value.find((item) => item.id === templateId.value),
 );
 const customTemplates = computed(() => templates.value.filter((item) => !item.builtIn));
 const quickTemplates = computed(() => templates.value.filter((item) => item.quick));
@@ -204,18 +204,14 @@ async function commit() {
     return;
   }
   const template = selectedTemplate.value;
-  if (!template) {
-    error.value = "模板还没有加载好";
-    return;
-  }
-  const stages = stagesFromTemplate(template, now.value);
+  const stages = template ? stagesFromTemplate(template, now.value) : [];
   const ok = await run(async () => {
     const saved = await savePlan({
       id: null,
       title,
       note: "",
       priority: "normal",
-      templateId: templateId.value === "blank" ? null : templateId.value,
+      templateId: template?.id ?? null,
       stages,
     });
     await reload();
@@ -224,7 +220,7 @@ async function commit() {
   });
   if (!ok) return;
   name.value = "";
-  templateId.value = "blank";
+  templateId.value = "";
 }
 
 async function generateDraft() {
@@ -294,7 +290,7 @@ async function removeCustomTemplate(id: string) {
   await run(async () => {
     await deleteTemplate(id);
     await reloadTemplates();
-    if (templateId.value === id) templateId.value = "blank";
+    if (templateId.value === id) templateId.value = "";
   });
 }
 
@@ -666,6 +662,7 @@ async function removeDraft() {
           <button class="icon-btn" type="button" aria-label="关闭" @click="managingTemplates = false"><Icon name="x" small /></button>
         </div>
         <div class="drawer__body">
+          <p v-if="templates.length === 0" class="empty">还没有模板，可从计划菜单中另存。</p>
           <div v-for="item in templates" :key="item.id" class="template-manage-row">
             <strong v-if="item.builtIn">{{ item.label }}</strong>
             <div v-else class="input"><input v-model="templateNames[item.id]" maxlength="40" /></div>
@@ -691,7 +688,7 @@ async function removeDraft() {
             </label>
             <p>{{ templatePreview(item) }}</p>
           </div>
-          <p class="field__hint">勾选“快捷显示”的模板才会出现在新建计划下方；内置模板不能重命名或删除。</p>
+          <p class="field__hint">勾选“快捷显示”的模板才会出现在新建计划下方。</p>
         </div>
       </div>
     </Teleport>

@@ -3,31 +3,7 @@ import { atClock } from "../../domain/present";
 import { timeMeta } from "../../domain/time";
 import type { Plan, PlanTemplate, Priority, Stage, StageInput, TemplateStage } from "../../domain/types";
 
-export const BUILTIN_PLAN_TEMPLATES: PlanTemplate[] = [
-  {
-    id: "release",
-    label: "提测 → 发布 → 观察",
-    stages: [
-      { title: "提测", day: 0, hour: 15, minute: 0 },
-      { title: "发布", day: 1, hour: 10, minute: 0 },
-      { title: "观察", day: 3, hour: 10, minute: 0 },
-    ],
-    builtIn: true,
-    quick: false,
-  },
-  {
-    id: "meeting",
-    label: "周会改版",
-    stages: [
-      { title: "议程", day: 0, hour: 9, minute: 0 },
-      { title: "改版", day: 2, hour: 14, minute: 0 },
-      { title: "定稿", day: 4, hour: 16, minute: 0 },
-    ],
-    builtIn: true,
-    quick: false,
-  },
-  { id: "blank", label: "空计划", stages: [], builtIn: true, quick: false },
-];
+export const BUILTIN_PLAN_TEMPLATES: PlanTemplate[] = [];
 
 export function stagesFromTemplate(template: PlanTemplate, now: number): StageInput[] {
   return template.stages.map((stage) => ({
