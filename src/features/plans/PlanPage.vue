@@ -87,6 +87,7 @@ const templateNames = ref<Record<string, string>>({});
 const doneStamp = ref("");
 const createTick = inject(createTickKey, null);
 const tier = inject(tierKey, computed(() => "wide" as const));
+const axis = computed(() => axisRange(now.value, span.value));
 const selectedTemplate = computed(
   () => templates.value.find((item) => item.id === templateId.value),
 );
@@ -102,6 +103,12 @@ const shown = computed(() =>
   plans.value
     .filter((plan) => showAll.value || matchesPlan(plan, props.filter))
     .filter((plan) => !important.value || plan.priority === "high")
+    .filter((plan) => {
+      const dated = plan.stages.filter((stage) => stage.at != null);
+      return dated.length === 0 || dated.some(
+        (stage) => stage.at! >= axis.value.start && stage.at! < axis.value.end,
+      );
+    })
     .filter((plan) => planMatchesQuery(plan, props.query))
     .sort(comparePlans),
 );
@@ -127,7 +134,6 @@ const bars = computed(() => weekBars(plans.value, now.value));
 const stats = computed(() => weekStats(plans.value, now.value));
 const running = computed(() => plans.value.filter((plan) => !plan.done).length);
 const next = computed(() => upcoming(todos.value, plans.value, now.value));
-const axis = computed(() => axisRange(now.value, span.value));
 const nodes = computed(() => {
   const items: { key: string; at: number; time: string; title: string; meta: string }[] = [];
   for (const plan of shown.value) {
@@ -507,7 +513,14 @@ async function removeDraft() {
     </div>
 
     <div v-if="tier === 'mini'" class="toolbar mini-toolbar">
-      <button type="button" class="chip on" @click="span = 'week'">本周⌄</button>
+      <button
+        type="button"
+        class="chip on"
+        :aria-label="span === 'week' ? '切换到本月' : '切换到本周'"
+        @click="span = span === 'week' ? 'month' : 'week'"
+      >
+        {{ span === "week" ? "本周" : "本月" }}⌄
+      </button>
       <span class="grow"></span>
       <button type="button" class="chip" :class="{ on: important }" @click="important = !important">只看重要</button>
     </div>
@@ -565,7 +578,7 @@ async function removeDraft() {
         </p>
       </div>
 
-      <div v-else-if="tier !== 'mini'" class="toolbar">
+      <div v-if="tier !== 'mini'" class="toolbar">
         <button type="button" class="chip" :class="{ on: span === 'week' }" @click="span = 'week'">本周</button>
         <button type="button" class="chip" :class="{ on: span === 'month' }" @click="span = 'month'">本月</button>
         <span class="grow"></span>
