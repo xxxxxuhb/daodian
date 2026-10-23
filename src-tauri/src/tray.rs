@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tauri::{
-    AppHandle, LogicalSize, Manager,
+    AppHandle, Manager,
     menu::{Menu, MenuItem},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
 };
@@ -14,24 +14,6 @@ static UNREAD: AtomicBool = AtomicBool::new(false);
 static BLINKING: AtomicBool = AtomicBool::new(false);
 const TRAY_NORMAL: &[u8] = include_bytes!("../icons/32x32.png");
 const TRAY_DUE: &[u8] = include_bytes!("../icons/tray-due.png");
-
-fn toggle_mini(app: &AppHandle) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    let Ok(size) = window.inner_size() else {
-        return;
-    };
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let width = size.width as f64 / scale;
-    let next = if width < 720.0 {
-        LogicalSize::new(900.0, 600.0)
-    } else {
-        LogicalSize::new(380.0, 552.0)
-    };
-    let _ = window.set_size(next);
-    show_main(app);
-}
 
 pub fn show_main(app: &AppHandle) {
     mark_read(app);
@@ -132,7 +114,11 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             crate::logging::info(format_args!("tray menu event: {id}"));
             match id {
                 "show" => show_main(app),
-                "mini" => toggle_mini(app),
+                "mini" => {
+                    if let Err(err) = crate::window_state::toggle(app) {
+                        crate::logging::warn(format_args!("切换迷你窗失败: {err}"));
+                    }
+                }
                 "quit" => {
                     QUITTING.store(true, Ordering::SeqCst);
                     app.exit(0);

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { useSettings } from "../../data/useSettings";
 import { PRIORITIES } from "../../domain/priority";
 import { atClock } from "../../domain/present";
 import { LEADS, nextLabel, repeatLabel, type RepeatRule } from "../../domain/repeat";
@@ -9,6 +10,7 @@ import type { TodoDraft } from "./logic";
 
 const props = defineProps<{ draft: TodoDraft; now: number; saving: boolean; error: string; focusRepeat?: boolean }>();
 const emit = defineEmits<{ close: []; save: []; remove: []; toggle: []; skip: [] }>();
+const { settings } = useSettings();
 const repeatArea = ref<HTMLElement | null>(null);
 
 const none = computed(() => props.draft.dueAt == null);
@@ -23,7 +25,11 @@ const rules: { id: RepeatRule | "none"; label: string }[] = [
   { id: "monthEnd", label: "每月最后一天" },
   { id: "custom", label: "自定义" },
 ];
-const following = computed(() => nextLabel(props.draft.repeat, props.draft.dueAt));
+const following = computed(() => nextLabel(
+  props.draft.repeat,
+  props.draft.dueAt,
+  settings.value.repeat,
+));
 
 function localDateText(value: number): string {
   const date = new Date(value);
@@ -54,7 +60,9 @@ function setRepeat(id: RepeatRule | "none") {
     weekday: id === "weekly" ? new Date(props.draft.dueAt).getDay() : null,
     intervalDays: id === "custom" ? 2 : null,
     until: null,
-    skipWeekends: false,
+    skipWeekends: props.draft.id == null
+      ? settings.value.repeat.defaultSkipWeekends
+      : false,
   };
 }
 

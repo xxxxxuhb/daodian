@@ -1,27 +1,32 @@
 use super::model::Repeat;
 
 /// 完成这一次之后，下一次的本地时间。`offset_secs` 是本地时区相对 UTC 的秒数，中国是 28800。
-pub fn next_due(repeat: &Repeat, due_ms: i64, offset_secs: i64) -> Option<i64> {
+pub fn next_due(
+    repeat: &Repeat,
+    due_ms: i64,
+    offset_secs: i64,
+    holidays: &[String],
+    workdays: &[String],
+) -> Option<i64> {
     let local = due_ms + offset_secs * 1000;
     let days = local.div_euclid(86_400_000);
     let clock = local.rem_euclid(86_400_000);
     let mut next_days = match repeat.rule.as_str() {
         "daily" => days + 1,
         "weekly" => next_weekly(days, repeat.weekday),
-        "weekdays" => next_weekday(days),
+        "weekdays" => days + 1,
         "monthEnd" => next_month_end(days),
         "custom" => days + i64::from(repeat.interval_days.unwrap_or(1).max(1)),
         _ => return None,
     };
-    if repeat.skip_weekends {
-        if repeat.rule == "monthEnd" {
-            while matches!(weekday(next_days), 0 | 6) {
-                next_days -= 1;
-            }
-        } else {
-            while matches!(weekday(next_days), 0 | 6) {
-                next_days += 1;
-            }
+    let skip_weekends = repeat.skip_weekends || repeat.rule == "weekdays";
+    if repeat.rule == "monthEnd" {
+        while is_non_workday(next_days, skip_weekends, holidays, workdays) {
+            next_days -= 1;
+        }
+    } else {
+        while is_non_workday(next_days, skip_weekends, holidays, workdays) {
+            next_days += 1;
         }
     }
     let next = next_days * 86_400_000 + clock - offset_secs * 1000;
@@ -40,12 +45,22 @@ fn next_weekly(days: i64, wanted: Option<u8>) -> i64 {
     days + if delta == 0 { 7 } else { delta }
 }
 
-fn next_weekday(days: i64) -> i64 {
-    let mut cursor = days + 1;
-    while matches!(weekday(cursor), 0 | 6) {
-        cursor += 1;
+fn is_non_workday(
+    days: i64,
+    skip_weekends: bool,
+    holidays: &[String],
+    workdays: &[String],
+) -> bool {
+    let date = date_text(days);
+    if workdays.iter().any(|item| item == &date) {
+        return false;
     }
-    cursor
+    holidays.iter().any(|item| item == &date) || (skip_weekends && matches!(weekday(days), 0 | 6))
+}
+
+fn date_text(days: i64) -> String {
+    let (year, month, day) = civil_from_days(days);
+    format!("{year:04}-{month:02}-{day:02}")
 }
 
 fn next_month_end(days: i64) -> i64 {
@@ -143,10 +158,14 @@ mod tests {
         }
     }
 
+    fn next(repeat: &Repeat, due: i64) -> Option<i64> {
+        next_due(repeat, due, 0, &[], &[])
+    }
+
     #[test]
     fn weekly_steps_seven_days() {
         let due = days_from_civil(2026, 10, 23) * 86_400 * 1000 + 18 * 3_600_000;
-        let next = next_due(&repeat("weekly"), due, 0).unwrap();
+        let next = next(&repeat("weekly"), due).unwrap();
         assert_eq!(next - due, 7 * 86_400_000);
     }
 
@@ -154,7 +173,7 @@ mod tests {
     fn weekdays_skip_the_weekend() {
         let friday = days_from_civil(2026, 10, 23) * 86_400 * 1000;
         assert_eq!(weekday(days_from_civil(2026, 10, 23)), 5);
-        let next = next_due(&repeat("weekdays"), friday, 0).unwrap();
+        let next = next(&repeat("weekdays"), friday).unwrap();
         let next_days = next / 1000 / 86_400;
         assert_eq!(civil_from_days(next_days), (2026, 10, 26));
     }
@@ -162,7 +181,7 @@ mod tests {
     #[test]
     fn month_end_lands_on_the_last_day() {
         let due = days_from_civil(2026, 1, 31) * 86_400 * 1000 + 9 * 3_600_000;
-        let next = next_due(&repeat("monthEnd"), due, 0).unwrap();
+        let next = next(&repeat("monthEnd"), due).unwrap();
         let next_days = (next / 1000).div_euclid(86_400);
         assert_eq!(civil_from_days(next_days), (2026, 2, 28));
         assert_eq!(next.rem_euclid(86_400_000), 9 * 3_600_000);
@@ -171,7 +190,7 @@ mod tests {
     #[test]
     fn daily_preserves_local_clock_across_offset() {
         let due = days_from_civil(2026, 10, 23) * 86_400_000 + 17 * 3_600_000;
-        let next = next_due(&repeat("daily"), due, 8 * 3_600).unwrap();
+        let next = next_due(&repeat("daily"), due, 8 * 3_600, &[], &[]).unwrap();
         assert_eq!(next - due, 86_400_000);
     }
 
@@ -181,7 +200,7 @@ mod tests {
         let mut rule = repeat("custom");
         rule.interval_days = Some(1);
         rule.skip_weekends = true;
-        let next = next_due(&rule, friday, 0).unwrap();
+        let next = next(&rule, friday).unwrap();
         assert_eq!(civil_from_days(next.div_euclid(86_400_000)), (2026, 10, 26));
     }
 
@@ -190,8 +209,8 @@ mod tests {
         let due = days_from_civil(2026, 10, 23) * 86_400_000;
         let mut rule = repeat("daily");
         rule.until = Some(due + 86_400_000);
-        assert_eq!(next_due(&rule, due, 0), rule.until);
-        assert_eq!(next_due(&rule, rule.until.unwrap(), 0), None);
+        assert_eq!(next(&rule, due), rule.until);
+        assert_eq!(next(&rule, rule.until.unwrap()), None);
     }
 
     #[test]
@@ -199,7 +218,30 @@ mod tests {
         let january = days_from_civil(2026, 1, 31) * 86_400_000;
         let mut rule = repeat("monthEnd");
         rule.skip_weekends = true;
-        let next = next_due(&rule, january, 0).unwrap();
+        let next = next(&rule, january).unwrap();
         assert_eq!(civil_from_days(next.div_euclid(86_400_000)), (2026, 2, 27));
+    }
+
+    #[test]
+    fn holidays_are_skipped_without_weekend_flag() {
+        let due = days_from_civil(2026, 10, 22) * 86_400_000;
+        let holidays = vec!["2026-10-23".into()];
+        let next = next_due(&repeat("daily"), due, 0, &holidays, &[]).unwrap();
+        assert_eq!(civil_from_days(next.div_euclid(86_400_000)), (2026, 10, 24));
+    }
+
+    #[test]
+    fn adjusted_workday_overrides_weekend_and_holiday() {
+        let friday = days_from_civil(2026, 10, 23) * 86_400_000;
+        let saturday = "2026-10-24".to_string();
+        let next = next_due(
+            &repeat("weekdays"),
+            friday,
+            0,
+            std::slice::from_ref(&saturday),
+            std::slice::from_ref(&saturday),
+        )
+        .unwrap();
+        assert_eq!(civil_from_days(next.div_euclid(86_400_000)), (2026, 10, 24));
     }
 }

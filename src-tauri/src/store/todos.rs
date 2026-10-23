@@ -5,6 +5,7 @@ use crate::domain::{
     normalize_priority, now_ms, require_title,
 };
 use crate::remind;
+use crate::settings::SharedSettings;
 
 use super::{SharedStore, lock};
 
@@ -90,14 +91,27 @@ pub fn save_todo(
 pub fn set_todo_done(
     app: AppHandle,
     store: State<SharedStore>,
+    settings: State<SharedSettings>,
     id: String,
     done: bool,
 ) -> Result<Todo, String> {
+    let (holidays, workdays) = settings
+        .lock()
+        .map_err(|err| err.to_string())?
+        .repeat_calendar();
     let saved = {
         let mut guard = lock(&store)?;
         let now = now_ms();
         let saved = if done {
-            finish_occurrence(&mut guard.doc, &id, now, local_offset_secs(), false)?
+            finish_occurrence(
+                &mut guard.doc,
+                &id,
+                now,
+                local_offset_secs(),
+                false,
+                &holidays,
+                &workdays,
+            )?
         } else {
             reopen_occurrence(&mut guard.doc, &id, now)?
         };
@@ -112,11 +126,24 @@ pub fn set_todo_done(
 pub fn skip_todo_occurrence(
     app: AppHandle,
     store: State<SharedStore>,
+    settings: State<SharedSettings>,
     id: String,
 ) -> Result<Todo, String> {
+    let (holidays, workdays) = settings
+        .lock()
+        .map_err(|err| err.to_string())?
+        .repeat_calendar();
     let saved = {
         let mut guard = lock(&store)?;
-        let saved = finish_occurrence(&mut guard.doc, &id, now_ms(), local_offset_secs(), true)?;
+        let saved = finish_occurrence(
+            &mut guard.doc,
+            &id,
+            now_ms(),
+            local_offset_secs(),
+            true,
+            &holidays,
+            &workdays,
+        )?;
         guard.persist()?;
         saved
     };
@@ -173,6 +200,8 @@ fn finish_occurrence(
     now: i64,
     offset_secs: i64,
     skipped: bool,
+    holidays: &[String],
+    workdays: &[String],
 ) -> Result<Todo, String> {
     let index = doc
         .todos
@@ -204,7 +233,7 @@ fn finish_occurrence(
         });
     if !has_active {
         if let (Some(repeat), Some(due)) = (&source.repeat, source.due_at) {
-            if let Some(next) = next_due(repeat, due, offset_secs) {
+            if let Some(next) = next_due(repeat, due, offset_secs, holidays, workdays) {
                 doc.todos.push(Todo {
                     id: new_id(),
                     title: source.title,
@@ -286,8 +315,8 @@ mod tests {
             todos: vec![repeating_todo()],
             ..Document::default()
         };
-        finish_occurrence(&mut doc, "first", 2, 0, false).unwrap();
-        finish_occurrence(&mut doc, "first", 3, 0, false).unwrap();
+        finish_occurrence(&mut doc, "first", 2, 0, false, &[], &[]).unwrap();
+        finish_occurrence(&mut doc, "first", 3, 0, false, &[], &[]).unwrap();
         assert_eq!(doc.todos.iter().filter(|item| !item.done).count(), 1);
         assert_eq!(doc.todos.len(), 2);
     }
@@ -298,7 +327,7 @@ mod tests {
             todos: vec![repeating_todo()],
             ..Document::default()
         };
-        finish_occurrence(&mut doc, "first", 2, 0, false).unwrap();
+        finish_occurrence(&mut doc, "first", 2, 0, false, &[], &[]).unwrap();
         reopen_occurrence(&mut doc, "first", 3).unwrap();
         assert_eq!(doc.todos.iter().filter(|item| !item.done).count(), 1);
         assert_eq!(doc.todos.len(), 1);
@@ -311,9 +340,22 @@ mod tests {
             todos: vec![repeating_todo()],
             ..Document::default()
         };
-        let saved = finish_occurrence(&mut doc, "first", 2, 0, true).unwrap();
+        let saved = finish_occurrence(&mut doc, "first", 2, 0, true, &[], &[]).unwrap();
         assert!(saved.done);
         assert!(saved.skipped);
         assert_eq!(doc.todos.iter().filter(|item| !item.done).count(), 1);
+    }
+
+    #[test]
+    fn completing_uses_the_settings_holiday_calendar() {
+        let mut todo = repeating_todo();
+        todo.due_at = Some(0);
+        let mut doc = Document {
+            todos: vec![todo],
+            ..Document::default()
+        };
+        finish_occurrence(&mut doc, "first", 2, 0, false, &["1970-01-02".into()], &[]).unwrap();
+        let active = doc.todos.iter().find(|item| !item.done).unwrap();
+        assert_eq!(active.due_at, Some(2 * 86_400_000));
     }
 }

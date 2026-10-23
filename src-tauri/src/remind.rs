@@ -139,8 +139,15 @@ fn run_check(app: &AppHandle) -> Result<(), String> {
     }
 
     match send(app, &ring) {
-        Ok(()) => {
-            crate::logging::info(format_args!("notification sent: count={}", ring.len()));
+        Ok(system_notified) => {
+            crate::logging::info(format_args!(
+                "notification handled: count={}; system_notified={system_notified}",
+                ring.len()
+            ));
+            if system_notified {
+                let (title, body) = compose(&ring);
+                crate::webhook::spawn_reminder(app.clone(), title, body);
+            }
             crate::tray::alert(app);
             let payload = ring.iter().map(reminder_event).collect::<Vec<_>>();
             match app.emit("reminder-fired", payload) {
@@ -200,14 +207,14 @@ fn reminder_event(action: &RemindAction) -> ReminderEvent {
 }
 
 /// 一条时用事项名当标题；多条合成一条，别连着弹。
-fn send(app: &AppHandle, batch: &[RemindAction]) -> Result<(), String> {
+fn send(app: &AppHandle, batch: &[RemindAction]) -> Result<bool, String> {
     let (title, body) = compose(batch);
     // 开发态 exe 在 target\debug 里。插件这时不设应用 ID，改用 PowerShell 的身份，
     // Windows 11 会把这条通知丢掉，而且 show() 仍返回成功。
     #[cfg(windows)]
     {
         match crate::win_toast::show(&title, &body) {
-            Ok(()) => Ok(()),
+            Ok(()) => Ok(true),
             Err(primary) => {
                 crate::logging::warn(format_args!(
                     "native toast unavailable; trying tray balloon: {primary}"
@@ -215,7 +222,7 @@ fn send(app: &AppHandle, batch: &[RemindAction]) -> Result<(), String> {
                 match crate::win_balloon::show(app, &title, &body) {
                     Ok(()) => {
                         crate::logging::info(format_args!("notification shown as tray balloon"));
-                        Ok(())
+                        Ok(true)
                     }
                     Err(balloon) => {
                         // 插件在开发目录里会借用 PowerShell 的身份，Windows 11 把通知丢掉，
@@ -224,7 +231,7 @@ fn send(app: &AppHandle, batch: &[RemindAction]) -> Result<(), String> {
                             "system notification failed; showing main window; toast={primary}; balloon={balloon}"
                         ));
                         crate::tray::show_main(app);
-                        Ok(())
+                        Ok(false)
                     }
                 }
             }
@@ -237,6 +244,7 @@ fn send(app: &AppHandle, batch: &[RemindAction]) -> Result<(), String> {
             .title(title)
             .body(body)
             .show()
+            .map(|_| true)
             .map_err(|err| err.to_string())
     }
 }

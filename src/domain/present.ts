@@ -172,6 +172,7 @@ export interface TimelineEntry {
   title: string;
   meta: string;
   done: boolean;
+  readonly?: boolean;
 }
 
 export function todayTimeline(todos: Todo[], plans: Plan[], now: number): TimelineEntry[] {
@@ -230,6 +231,8 @@ export interface WeekSummary {
   done: number;
   overdue: number;
   advanced: number;
+  bounds: { start: number; end: number };
+  rangeLabel: string;
   overview: string;
   todoText: string;
   planText: string;
@@ -248,13 +251,22 @@ export function renderWeekReport(
     .trim();
 }
 
+export interface WeekSummaryOptions {
+  bounds?: { start: number; end: number };
+  weekOffset?: number;
+}
+
 export function weekSummary(
   todos: Todo[],
   plans: Plan[],
   now: number,
   template = DEFAULT_WEEK_REPORT_TEMPLATE,
+  options: WeekSummaryOptions = {},
 ): WeekSummary {
-  const { monday, next } = weekBounds(now);
+  const selected = options.bounds
+    ? { monday: options.bounds.start, next: options.bounds.end }
+    : weekBounds(now, options.weekOffset ?? 0);
+  const { monday, next } = selected;
   const completedTodos = todos.filter(
     (todo) => todo.done && todo.updatedAt >= monday && todo.updatedAt < next,
   );
@@ -263,7 +275,11 @@ export function weekSummary(
   );
   const done = completedTodos.length;
   const overdue = todos.filter(
-    (todo) => !todo.done && todo.dueAt != null && todo.dueAt < now && todo.dueAt >= monday,
+    (todo) => !todo.done
+      && todo.dueAt != null
+      && todo.dueAt < now
+      && todo.dueAt >= monday
+      && todo.dueAt < next,
   ).length;
   const planRows = plans.flatMap((plan) => {
     const completed = plan.stages.filter((stage) => {
@@ -295,6 +311,8 @@ export function weekSummary(
     done,
     overdue,
     advanced,
+    bounds: { start: monday, end: next },
+    rangeLabel: weekRangeLabel(monday, next),
     overview,
     todoText,
     planText,
@@ -303,9 +321,18 @@ export function weekSummary(
   };
 }
 
-export function weekBounds(now: number) {
-  const monday = startOfDay(now) - ((new Date(now).getDay() + 6) % 7) * DAY;
+export function weekBounds(now: number, weekOffset = 0) {
+  const monday = startOfDay(now)
+    - ((new Date(now).getDay() + 6) % 7) * DAY
+    + Math.trunc(weekOffset) * 7 * DAY;
   return { monday, next: monday + 7 * DAY, today: (new Date(now).getDay() + 6) % 7 };
+}
+
+function weekRangeLabel(start: number, end: number) {
+  const first = new Date(start);
+  const last = new Date(end - 1);
+  const date = (value: Date) => `${value.getFullYear()}.${pad(value.getMonth() + 1)}.${pad(value.getDate())}`;
+  return `${date(first)} – ${date(last)}`;
 }
 
 export function weekBars(plans: Plan[], now: number) {

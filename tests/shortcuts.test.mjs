@@ -78,3 +78,23 @@ test("weekly report template replaces every supported variable", () => {
   assert.match(text, /待办内容/);
   assert.match(text, /计划内容/);
 });
+
+test("weekly report accepts week offsets and explicit bounds", () => {
+  const now = new Date(2026, 9, 21, 12).getTime();
+  const lastWeek = new Date(2026, 9, 13, 10).getTime();
+  const todo = { title: "上周完成", done: true, updatedAt: lastWeek, dueAt: lastWeek };
+
+  const offsetReport = weekSummary([todo], [], now, DEFAULT_WEEK_REPORT_TEMPLATE, {
+    weekOffset: -1,
+  });
+  assert.equal(offsetReport.done, 1);
+  assert.match(offsetReport.rangeLabel, /2026\.10\.12/);
+
+  const boundsReport = weekSummary([todo], [], now, DEFAULT_WEEK_REPORT_TEMPLATE, {
+    bounds: {
+      start: new Date(2026, 9, 13).getTime(),
+      end: new Date(2026, 9, 14).getTime(),
+    },
+  });
+  assert.equal(boundsReport.done, 1);
+});

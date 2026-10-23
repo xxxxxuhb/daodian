@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, inject, onUnmounted, ref, watch } from "vue";
 import { tierKey } from "../shell/tier";
+import { parseTodo, type ParsedTodo } from "../../api/ai";
 import { deleteTodo, saveTodo, setTodoDone, skipTodoOccurrence } from "../../api/library";
 import { useLibrary } from "../../data/useLibrary";
+import { useCalendar } from "../../data/useCalendar";
+import { useSettings } from "../../data/useSettings";
 import { useNow } from "../../domain/clock";
 import {
   atClock,
@@ -20,6 +23,11 @@ import {
 import { startOfDay } from "../../domain/time";
 import { useRun } from "../../domain/useRun";
 import type { Todo, TodoInput } from "../../domain/types";
+import {
+  applyTodoPreview,
+  shouldParseTodo,
+  todoComposerAction,
+} from "../../domain/ai";
 import Icon from "../../ui/Icon.vue";
 import TodayStrip from "../shell/TodayStrip.vue";
 import { createTickKey } from "../shell/create";
@@ -42,6 +50,8 @@ const emit = defineEmits<{ "update:filter": [TodoFilter] }>();
 
 const now = useNow();
 const { todos, plans, loading, reload } = useLibrary();
+const { events: calendarEvents } = useCalendar();
+const { settings, update: updateSettings } = useSettings();
 const { saving, error, run } = useRun();
 const face = computed(() => clockFace(now.value));
 const heading = computed(() => TODO_FILTERS.find((item) => item.id === props.filter) ?? TODO_FILTERS[0]!);
@@ -54,14 +64,27 @@ const draft = ref<TodoDraft | null>(null);
 const focusRepeat = ref(false);
 const weekOpen = ref(false);
 const weekText = ref("");
-const weekTemplate = ref(readWeekTemplate());
+const weekTemplate = computed(() => settings.value.weekReport.template || DEFAULT_WEEK_REPORT_TEMPLATE);
+const weekOffset = ref(Math.min(0, settings.value.weekReport.rangeOffset || 0));
 const templateDraft = ref(weekTemplate.value);
 const templateOpen = ref(false);
 const copied = ref<"all" | "plans" | null>(null);
 const undoRepeat = ref<{ previous: TodoInput | null; savedId: string } | null>(null);
 let undoTimer: ReturnType<typeof window.setTimeout> | null = null;
 let copyTimer: ReturnType<typeof window.setTimeout> | null = null;
-const week = computed(() => weekSummary(todos.value, plans.value, now.value, weekTemplate.value));
+let aiTimer: ReturnType<typeof window.setTimeout> | null = null;
+let aiRequest = 0;
+let acceptedAiTitle = "";
+const aiPreview = ref<ParsedTodo | null>(null);
+const aiParsing = ref(false);
+const aiError = ref("");
+const week = computed(() => weekSummary(
+  todos.value,
+  plans.value,
+  now.value,
+  weekTemplate.value,
+  { weekOffset: weekOffset.value },
+));
 const createTick = inject(createTickKey, null);
 const tier = inject(tierKey, computed(() => "wide" as const));
 
@@ -75,7 +98,24 @@ const agenda = computed(() => visible.value.filter((todo) => todo.dueAt != null)
 const unset = computed(() => visible.value.filter((todo) => todo.dueAt == null));
 const nowId = computed(() => agenda.value.find((todo) => (todo.dueAt ?? 0) >= now.value)?.id ?? null);
 const progress = computed(() => todayProgress(todos.value, now.value));
-const timeline = computed(() => todayTimeline(todos.value, plans.value, now.value));
+const timeline = computed(() => {
+  const start = startOfDay(now.value);
+  const end = start + 86_400_000;
+  return [
+    ...todayTimeline(todos.value, plans.value, now.value),
+    ...calendarEvents.value
+      .filter((event) => event.startsAt >= start && event.startsAt < end)
+      .map((event) => ({
+        key: `calendar:${event.uid}`,
+        at: event.startsAt,
+        time: event.allDay ? "全天" : clockTime(event.startsAt),
+        title: event.summary,
+        meta: `日历（只读）${event.location ? ` · ${event.location}` : ""}`,
+        done: false,
+        readonly: true,
+      })),
+  ].sort((a, b) => a.at - b.at);
+});
 const nowIndex = computed(() => {
   const index = timeline.value.findIndex((item) => item.at >= now.value);
   return index === -1 ? timeline.value.length : index;
@@ -94,29 +134,75 @@ watch(weekOpen, (open) => {
   if (open) weekText.value = week.value.text;
 });
 
+watch(templateOpen, (open) => {
+  if (open) templateDraft.value = weekTemplate.value;
+});
+
+watch(
+  () => settings.value.weekReport.rangeOffset,
+  (offset) => {
+    weekOffset.value = Math.min(0, offset || 0);
+  },
+);
+
 watch(draft, (current) => {
   if (!current) focusRepeat.value = false;
 });
 
-function readWeekTemplate() {
-  try {
-    return localStorage.getItem("daodian-week-report-template") || DEFAULT_WEEK_REPORT_TEMPLATE;
-  } catch {
-    return DEFAULT_WEEK_REPORT_TEMPLATE;
-  }
+watch(
+  [
+    titleText,
+    () => settings.value.deepSeek.enabled,
+    () => settings.value.deepSeek.hasApiKey,
+  ],
+  ([text, enabled, hasApiKey]) => {
+    if (text === acceptedAiTitle) {
+      acceptedAiTitle = "";
+      return;
+    }
+    if (aiTimer != null) window.clearTimeout(aiTimer);
+    const request = ++aiRequest;
+    aiPreview.value = null;
+    aiError.value = "";
+    aiParsing.value = false;
+    if (!shouldParseTodo(text, enabled, hasApiKey)) return;
+    aiTimer = window.setTimeout(async () => {
+      aiTimer = null;
+      aiParsing.value = true;
+      try {
+        const parsed = await parseTodo(text);
+        if (request === aiRequest) aiPreview.value = parsed;
+      } catch {
+        if (request === aiRequest) aiError.value = "AI 解析失败，可直接按 Enter 保存原文";
+      } finally {
+        if (request === aiRequest) aiParsing.value = false;
+      }
+    }, 500);
+  },
+);
+
+function selectWeek(offset: number) {
+  weekOffset.value = Math.max(-520, Math.min(0, Math.trunc(offset)));
+  if (weekOpen.value) weekText.value = week.value.text;
+  void updateSettings((draft) => {
+    draft.weekReport.rangeOffset = weekOffset.value;
+  });
 }
 
 function saveWeekTemplate() {
   const value = templateDraft.value.trim() || DEFAULT_WEEK_REPORT_TEMPLATE;
-  weekTemplate.value = value;
   templateDraft.value = value;
-  weekText.value = weekSummary(todos.value, plans.value, now.value, value).text;
+  weekText.value = weekSummary(
+    todos.value,
+    plans.value,
+    now.value,
+    value,
+    { weekOffset: weekOffset.value },
+  ).text;
   templateOpen.value = false;
-  try {
-    localStorage.setItem("daodian-week-report-template", value);
-  } catch {
-    // 无持久化权限时，本次会话内仍然生效。
-  }
+  void updateSettings((draft) => {
+    draft.weekReport.template = value;
+  });
 }
 
 function resetWeekTemplate() {
@@ -167,6 +253,28 @@ async function commit() {
   if (!ok) return;
   titleText.value = "";
   custom.value = "";
+  aiPreview.value = null;
+  aiError.value = "";
+}
+
+function onComposerKey(event: KeyboardEvent) {
+  const action = todoComposerAction(event, aiPreview.value != null);
+  if (!action) return;
+  event.preventDefault();
+  if (action === "commit") {
+    void commit();
+    return;
+  }
+  const preview = aiPreview.value;
+  if (!preview) return;
+  const accepted = applyTodoPreview(preview);
+  acceptedAiTitle = accepted.title;
+  titleText.value = accepted.title;
+  chip.value = accepted.chip;
+  custom.value = accepted.custom;
+  aiPreview.value = null;
+  aiError.value = "";
+  aiRequest += 1;
 }
 
 async function toggle(id: string, done: boolean) {
@@ -229,6 +337,8 @@ async function undoRepeatSave() {
 onUnmounted(() => {
   if (undoTimer != null) window.clearTimeout(undoTimer);
   if (copyTimer != null) window.clearTimeout(copyTimer);
+  if (aiTimer != null) window.clearTimeout(aiTimer);
+  aiRequest += 1;
 });
 
 async function saveDraft() {
@@ -333,7 +443,7 @@ async function skipDraft() {
           v-model="titleText"
           maxlength="80"
           placeholder="记一件…"
-          @keydown.enter.prevent="commit"
+          @keydown="onComposerKey"
         />
         <button class="mini-add__go" type="button" :disabled="saving" @click="commit">
           <Icon name="plus" />
@@ -346,6 +456,10 @@ async function skipDraft() {
         <button type="button" class="chip" :class="{ on: chip === 'custom' }" @click="chip = 'custom'">自选</button>
       </div>
       <input v-if="chip === 'custom'" v-model="custom" class="chip-time mini-custom-time" type="datetime-local" />
+      <p v-if="aiPreview || aiParsing || aiError" class="ai-preview">
+        <template v-if="aiPreview">AI：{{ aiPreview.title }}<template v-if="aiPreview.dueAt"> · {{ new Date(aiPreview.dueAt).toLocaleString() }}</template>　按 Tab 接受</template>
+        <template v-else>{{ aiParsing ? "AI 正在解析…" : aiError }}</template>
+      </p>
     </div>
 
     <div :class="tier === 'mini' ? 'mini-scroll' : 'main__scroll'">
@@ -358,7 +472,7 @@ async function skipDraft() {
             v-model="titleText"
             maxlength="80"
             placeholder="记一件临时的事，按回车定个时间点"
-            @keydown.enter.prevent="commit"
+            @keydown="onComposerKey"
           />
           <span class="kbd">Ctrl N</span>
         </div>
@@ -373,6 +487,10 @@ async function skipDraft() {
           <span class="grow"></span>
           <button class="btn btn--primary btn--sm" type="button" :disabled="saving" @click="commit">记下</button>
         </div>
+        <p v-if="aiPreview || aiParsing || aiError" class="ai-preview">
+          <template v-if="aiPreview">AI 预览：{{ aiPreview.title }}<template v-if="aiPreview.dueAt"> · {{ new Date(aiPreview.dueAt).toLocaleString() }}</template>　按 Tab 接受；Enter 仍按原文保存</template>
+          <template v-else>{{ aiParsing ? "AI 正在解析…" : aiError }}</template>
+        </p>
       </div>
 
       <p v-if="loading && visible.length === 0" class="empty">正在读取…</p>
@@ -508,7 +626,7 @@ async function skipDraft() {
     <div class="tl">
       <template v-for="(item, index) in timeline" :key="item.key">
         <div v-if="index === nowIndex" class="tl__now"><i>现在 {{ clockTime(now) }}</i><span></span></div>
-        <div class="tl__item" :class="{ 'is-done': item.done, 'is-key': item.key === keyId }">
+        <div class="tl__item" :class="{ 'is-done': item.done, 'is-key': item.key === keyId, 'is-calendar': item.readonly }">
           <i class="tl__t">{{ item.time }}</i>
           <span class="tl__dot"></span>
           <span><span class="nm">{{ item.title }}</span><span class="meta">{{ item.meta }}</span></span>
@@ -531,8 +649,18 @@ async function skipDraft() {
       </template>
     </div>
     <div class="week-card">
-      <button type="button" class="week-card__toggle" @click="weekOpen = !weekOpen">本周</button>
+      <button type="button" class="week-card__toggle" @click="weekOpen = !weekOpen">
+        {{ weekOffset === 0 ? "本周" : weekOffset === -1 ? "上周" : `${-weekOffset} 周前` }}
+      </button>
       <div v-if="weekOpen" class="week-card__body">
+        <div class="week-card__nav">
+          <button type="button" :class="{ on: weekOffset === 0 }" @click="selectWeek(0)">本周</button>
+          <button type="button" :class="{ on: weekOffset === -1 }" @click="selectWeek(-1)">上周</button>
+          <span class="grow"></span>
+          <button type="button" aria-label="前一周" @click="selectWeek(weekOffset - 1)">←</button>
+          <button type="button" aria-label="后一周" :disabled="weekOffset >= 0" @click="selectWeek(weekOffset + 1)">→</button>
+        </div>
+        <p class="week-card__range">{{ week.rangeLabel }}</p>
         <p>{{ week.done }} 件完成 / {{ week.overdue }} 件逾期 / {{ week.advanced }} 个计划有进展</p>
         <textarea v-model="weekText" rows="6"></textarea>
         <div class="week-card__actions">

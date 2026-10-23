@@ -1,12 +1,18 @@
+mod calendar;
+mod deepseek;
 mod domain;
 mod logging;
+mod quick_capture;
 mod remind;
+mod settings;
 mod store;
 mod tray;
+mod webhook;
 #[cfg(windows)]
 mod win_balloon;
 #[cfg(windows)]
 mod win_toast;
+mod window_state;
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -32,6 +38,9 @@ pub fn run() {
     ));
 
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(quick_capture::plugin())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             logging::info(format_args!(
                 "second instance requested; showing main window"
@@ -41,6 +50,14 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         // 企业安全策略可能禁止注册托盘图标；关闭时保留任务栏入口，避免程序彻底找不到。
         .on_window_event(|window, event| {
+            if matches!(
+                event,
+                tauri::WindowEvent::Resized(_)
+                    | tauri::WindowEvent::Moved(_)
+                    | tauri::WindowEvent::ScaleFactorChanged { .. }
+            ) {
+                window_state::schedule_remember(window.app_handle());
+            }
             if let tauri::WindowEvent::Focused(focused) = event {
                 logging::info(format_args!("main window focus changed: {focused}"));
                 if *focused {
@@ -68,13 +85,26 @@ pub fn run() {
         })
         .setup(|app| {
             logging::info(format_args!("setup started"));
+            app.manage(quick_capture::QuickCaptureRuntime::default());
             let dir = data_dir(app).map_err(|err| logged_step("取数据目录", err))?;
             logging::info(format_args!("data directory selected: {}", dir.display()));
             let library = store::Library::open(&dir)
                 .map_err(|err| logged_step(format!("打开 {}", dir.display()), err.into()))?;
             app.manage(Mutex::new(library));
             logging::info(format_args!("library opened"));
+            let settings = settings::SettingsStore::open(&dir).map_err(|err| {
+                logged_step(
+                    format!("打开 {}", dir.join("settings.json").display()),
+                    err.into(),
+                )
+            })?;
+            app.manage(Mutex::new(settings));
+            logging::info(format_args!("settings opened"));
             open_main(app).map_err(|err| logged_step("打开主窗口", err))?;
+            match quick_capture::persist_registration_status(app.handle()) {
+                Ok(status) => logging::info(format_args!("快速记录快捷键: {status}")),
+                Err(err) => logging::warn(format_args!("保存快速记录状态失败: {err}")),
+            }
             remind::spawn(app.handle().clone());
             logging::info(format_args!("reminder worker spawned; setup complete"));
             Ok(())
@@ -95,6 +125,17 @@ pub fn run() {
             store::templates::delete_template,
             remind::sync_clock,
             remind::sync_reminders,
+            settings::get_settings,
+            settings::save_settings,
+            settings::migrate_legacy_settings,
+            deepseek::test_deepseek,
+            deepseek::ai_parse_todo,
+            deepseek::ai_generate_plan,
+            webhook::test_webhook,
+            calendar::refresh_calendar,
+            window_state::toggle_window_tier,
+            quick_capture::dismiss_quick_capture,
+            quick_capture::is_quick_capture_active,
             frontend_log,
         ]);
 
@@ -154,6 +195,14 @@ fn data_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
             logging::warn(format_args!("template migration failed: {err:#}"));
         }
     }
+    if dir != roaming && !dir.join("settings.json").exists() {
+        if let Err(err) = copy_if_present(&roaming, &dir, "settings.json") {
+            logging::warn(format_args!("settings migration failed: {err:#}"));
+        }
+        if let Err(err) = copy_if_present(&roaming, &dir, "deepseek-key.dpapi") {
+            logging::warn(format_args!("settings secret migration failed: {err:#}"));
+        }
+    }
     Ok(dir)
 }
 
@@ -183,10 +232,11 @@ fn open_main(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             payload.url()
         ));
     });
-    builder.build().map_err(|err| {
+    let window = builder.build().map_err(|err| {
         logging::error(format_args!("main window build failed: {err:#}"));
         err
     })?;
+    window_state::restore(&window).map_err(std::io::Error::other)?;
     logging::info(format_args!("main window built"));
     Ok(())
 }

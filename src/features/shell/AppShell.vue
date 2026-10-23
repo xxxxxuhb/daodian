@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { computed, onMounted, onUnmounted, provide, ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from "vue";
 import { useLibrary } from "../../data/useLibrary";
+import { useCalendar } from "../../data/useCalendar";
+import { useSettings } from "../../data/useSettings";
 import { useNow } from "../../domain/clock";
 import Icon from "../../ui/Icon.vue";
 import Mark from "../../ui/Mark.vue";
@@ -10,6 +13,7 @@ import { PLAN_FILTERS, planCounts, type PlanFilter } from "../plans/logic";
 import TodoPage from "../todos/TodoPage.vue";
 import { TODO_FILTERS, todoCounts, type TodoFilter } from "../todos/logic";
 import ReminderToast from "./ReminderToast.vue";
+import SettingsDrawer from "../settings/SettingsDrawer.vue";
 import { createTickKey } from "./create";
 import { setTheme, themeName } from "./theme";
 import { tierKey } from "./tier";
@@ -19,12 +23,21 @@ const todoFilter = ref<TodoFilter>("today");
 const planFilter = ref<PlanFilter>("active");
 const query = ref("");
 const searching = ref(false);
+const settingsOpen = ref(false);
 const searchEl = ref<HTMLInputElement | null>(null);
 const createTick = ref(0);
+const quickCaptureActive = ref(false);
+let captureSection: {
+  section: "todo" | "plan";
+  todoFilter: TodoFilter;
+  planFilter: PlanFilter;
+} | null = null;
 provide(createTickKey, createTick);
 
 const now = useNow();
 const { todos, plans, loadError, reload } = useLibrary();
+const { refresh: refreshCalendar, remove: removeCalendar } = useCalendar();
+const { settings, load: loadSettings, update: updateSettings } = useSettings();
 const keyword = computed(() => query.value.trim().toLowerCase());
 const todoTally = computed(() => todoCounts(todos.value, now.value));
 const planTally = computed(() => planCounts(plans.value));
@@ -39,54 +52,21 @@ const miniDate = computed(() => {
 
 function onResize() {
   width.value = window.innerWidth;
-  void rememberFrame();
-}
-
-async function rememberFrame() {
-  try {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    const win = getCurrentWindow();
-    const factor = await win.scaleFactor();
-    const size = await win.innerSize();
-    const pos = await win.outerPosition();
-    const w = Math.round(size.width / factor);
-    const h = Math.round(size.height / factor);
-    const name = w < 720 ? "mini" : w < 1180 ? "standard" : "wide";
-    const saved = readFrames();
-    saved[name] = { w, h, x: Math.round(pos.x / factor), y: Math.round(pos.y / factor) };
-    localStorage.setItem("daodian-frames", JSON.stringify(saved));
-  } catch {
-    // 浏览器预览没有窗口接口。
-  }
-}
-
-function readFrames(): Record<string, { w: number; h: number; x?: number; y?: number }> {
-  try {
-    return JSON.parse(localStorage.getItem("daodian-frames") || "{}") as Record<
-      string,
-      { w: number; h: number; x?: number; y?: number }
-    >;
-  } catch {
-    return {};
-  }
 }
 
 async function toggleWindow() {
   try {
-    const { getCurrentWindow, LogicalPosition, LogicalSize } = await import("@tauri-apps/api/window");
-    const win = getCurrentWindow();
-    await rememberFrame();
-    const factor = await win.scaleFactor();
-    const size = await win.innerSize();
-    const target = size.width / factor < 720 ? "standard" : "mini";
-    const fallback = target === "mini" ? { w: 380, h: 552 } : { w: 900, h: 600 };
-    const frame = readFrames()[target] ?? fallback;
-    await win.setSize(new LogicalSize(frame.w, frame.h));
-    if (frame.x != null && frame.y != null) await win.setPosition(new LogicalPosition(frame.x, frame.y));
-    win.show();
+    await invoke("toggle_window_tier");
   } catch {
     width.value = width.value < 720 ? 900 : 380;
   }
+}
+
+function chooseTheme(name: "celadon" | "night") {
+  setTheme(name);
+  void updateSettings((draft) => {
+    draft.theme = name;
+  });
 }
 
 function openSearch() {
@@ -104,8 +84,25 @@ function pickPlan(filter: PlanFilter) {
   planFilter.value = filter;
 }
 
-function onKey(event: KeyboardEvent) {
+async function onKey(event: KeyboardEvent) {
   const key = event.key.toLowerCase();
+  if (key === "escape" && quickCaptureActive.value) {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      const restored = await invoke<boolean>("dismiss_quick_capture");
+      if (restored && captureSection) {
+        section.value = captureSection.section;
+        todoFilter.value = captureSection.todoFilter;
+        planFilter.value = captureSection.planFilter;
+        captureSection = null;
+        quickCaptureActive.value = false;
+      }
+    } catch {
+      // 保持快速记录状态，用户可以再次按 Esc。
+    }
+    return;
+  }
   if (!(event.ctrlKey || event.metaKey)) return;
   if (key === "k") {
     event.preventDefault();
@@ -124,23 +121,71 @@ function onKey(event: KeyboardEvent) {
 }
 
 let unlisten: UnlistenFn | null = null;
+let unlistenQuickCapture: UnlistenFn | null = null;
+
+async function enterQuickCaptureUi() {
+  if (quickCaptureActive.value) return;
+  captureSection = {
+    section: section.value,
+    todoFilter: todoFilter.value,
+    planFilter: planFilter.value,
+  };
+  quickCaptureActive.value = true;
+  settingsOpen.value = false;
+  searching.value = false;
+  section.value = "todo";
+  todoFilter.value = "today";
+  await nextTick();
+  createTick.value += 1;
+}
+
+watch(
+  () => settings.value.theme,
+  (theme) => setTheme(theme),
+  { immediate: true },
+);
 
 onMounted(async () => {
-  await reload();
+  window.addEventListener("keydown", onKey);
+  window.addEventListener("resize", onResize);
   try {
     unlisten = await listen("data-changed", () => {
       reload();
     });
+    unlistenQuickCapture = await listen("quick-capture", enterQuickCaptureUi);
+    if (await invoke<boolean>("is_quick_capture_active")) {
+      await enterQuickCaptureUi();
+    }
   } catch {
     // 浏览器里没有 Tauri 事件。
   }
-  window.addEventListener("keydown", onKey);
-  window.addEventListener("resize", onResize);
-  if (!localStorage.getItem("daodian-frames") && window.screen.availWidth < 1024) void toggleWindow();
+
+  await Promise.all([reload(), loadSettings()]);
+  if (settings.value.calendar.enabled && settings.value.calendar.path) {
+    try {
+      const result = await refreshCalendar(settings.value.calendar.path);
+      const status = result.errors.length
+        ? `${result.status}：${result.errors.join("；")}`
+        : result.status;
+      if (status !== settings.value.calendar.lastStatus) {
+        void updateSettings((draft) => {
+          draft.calendar.lastStatus = status;
+        });
+      }
+    } catch (cause) {
+      const status = cause instanceof Error ? cause.message : String(cause);
+      void updateSettings((draft) => {
+        draft.calendar.lastStatus = status;
+      });
+    }
+  } else {
+    removeCalendar();
+  }
 });
 
 onUnmounted(() => {
   unlisten?.();
+  unlistenQuickCapture?.();
   window.removeEventListener("keydown", onKey);
   window.removeEventListener("resize", onResize);
 });
@@ -194,9 +239,10 @@ onUnmounted(() => {
         </label>
         <p class="tip">关闭窗口只是收进托盘，<br />提醒会继续跑。</p>
         <div class="themes">
-          <button type="button" :class="{ on: themeName === 'celadon' }" @click="setTheme('celadon')">青瓷</button>
-          <button type="button" :class="{ on: themeName === 'night' }" @click="setTheme('night')">夜航</button>
+          <button type="button" :class="{ on: themeName === 'celadon' }" @click="chooseTheme('celadon')">青瓷</button>
+          <button type="button" :class="{ on: themeName === 'night' }" @click="chooseTheme('night')">夜航</button>
         </div>
+        <button type="button" class="settings-trigger tip" @click="settingsOpen = true">设置</button>
       </div>
     </aside>
     <TodoPage
@@ -230,7 +276,8 @@ onUnmounted(() => {
       </button>
       <span class="spacer"></span>
       <button type="button" class="nav" @click="openSearch"><Icon name="search" /></button>
-      <button type="button" class="nav" @click="setTheme(themeName === 'night' ? 'celadon' : 'night')"><Icon name="moon" /></button>
+      <button type="button" class="nav" @click="chooseTheme(themeName === 'night' ? 'celadon' : 'night')"><Icon name="moon" /></button>
+      <button type="button" class="nav" aria-label="设置" @click="settingsOpen = true">⚙</button>
     </aside>
     <div class="std-fill">
       <label v-if="searching" class="std-search">
@@ -280,10 +327,12 @@ onUnmounted(() => {
       >
         <Icon name="check" /><span>已完成</span>
       </button>
-      <button type="button" class="icon-btn" @click="setTheme(themeName === 'night' ? 'celadon' : 'night')">
+      <button type="button" class="icon-btn" @click="chooseTheme(themeName === 'night' ? 'celadon' : 'night')">
         <Icon name="moon" />
       </button>
+      <button type="button" class="icon-btn" aria-label="设置" @click="settingsOpen = true">⚙</button>
     </nav>
   </div>
   <ReminderToast />
+  <SettingsDrawer :open="settingsOpen" @close="settingsOpen = false" />
 </template>

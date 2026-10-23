@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, ref, watch } from "vue";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { computed, inject, onMounted, onUnmounted, ref, watch } from "vue";
+import { generatePlan } from "../../api/ai";
 import {
   deletePlan,
   deleteTemplate,
@@ -10,8 +13,11 @@ import {
   setStageDone,
 } from "../../api/library";
 import { useLibrary } from "../../data/useLibrary";
+import { useSettings } from "../../data/useSettings";
 import { useTemplates } from "../../data/useTemplates";
 import { useNow } from "../../domain/clock";
+import { buildPlanCalendar, planCalendarFileName } from "../../domain/ics";
+import { generatedPlanFields } from "../../domain/ai";
 import {
   axisRange,
   clockFace,
@@ -38,6 +44,7 @@ import {
   emptyPlanDraft,
   emptyStage,
   matchesPlan,
+  newStageKey,
   stagesFromTemplate,
   templatePreview,
   templateStagesFromPlan,
@@ -56,6 +63,7 @@ const props = defineProps<{ filter: PlanFilter; query: string; loadError: string
 const now = useNow();
 const { todos, plans, loading, reload } = useLibrary();
 const { templates, templateError, reloadTemplates } = useTemplates();
+const { settings } = useSettings();
 const { saving, error, run } = useRun();
 const face = computed(() => clockFace(now.value));
 const view = ref<"cards" | "gantt">("cards");
@@ -70,6 +78,10 @@ const draft = ref<PlanDraft | null>(null);
 const templateSource = ref<Pick<Plan, "title" | "stages"> | PlanDraft | null>(null);
 const templateName = ref("");
 const managingTemplates = ref(false);
+const aiText = ref("");
+const aiGenerating = ref(false);
+const aiError = ref("");
+let aiRequest = 0;
 const templateNames = ref<Record<string, string>>({});
 const doneStamp = ref("");
 const createTick = inject(createTickKey, null);
@@ -80,6 +92,9 @@ const selectedTemplate = computed(
 const customTemplates = computed(() => templates.value.filter((item) => !item.builtIn));
 
 onMounted(reloadTemplates);
+onUnmounted(() => {
+  aiRequest += 1;
+});
 
 const shown = computed(() =>
   plans.value
@@ -210,6 +225,27 @@ async function commit() {
   templateId.value = "release";
 }
 
+async function generateDraft() {
+  const text = aiText.value.trim();
+  if (!text || aiGenerating.value) return;
+  const request = ++aiRequest;
+  aiGenerating.value = true;
+  aiError.value = "";
+  try {
+    const generated = await generatePlan(text);
+    if (request !== aiRequest) return;
+    const fields = generatedPlanFields(generated, newStageKey);
+    draft.value = { ...emptyPlanDraft(), ...fields };
+    doneStamp.value = "";
+  } catch (cause) {
+    if (request === aiRequest) {
+      aiError.value = cause instanceof Error ? cause.message : String(cause);
+    }
+  } finally {
+    if (request === aiRequest) aiGenerating.value = false;
+  }
+}
+
 function beginSaveTemplate(source: Pick<Plan, "title" | "stages"> | PlanDraft) {
   templateSource.value = source;
   templateName.value = source.title.trim() || "新模板";
@@ -292,6 +328,21 @@ async function slip(plan: Plan, days: number) {
       undo.value = null;
     }, 5000),
   };
+}
+
+async function exportCalendar(plan: Plan) {
+  if (!plan.stages.some((stage) => stage.at != null)) {
+    error.value = "这个计划还没有带时间的阶段";
+    return;
+  }
+  await run(async () => {
+    const path = await save({
+      defaultPath: planCalendarFileName(plan.title),
+      filters: [{ name: "iCalendar", extensions: ["ics"] }],
+    });
+    if (!path) return;
+    await writeTextFile(path, buildPlanCalendar(plan));
+  });
 }
 
 async function undoSlip() {
@@ -458,6 +509,24 @@ async function removeDraft() {
     <div :class="tier === 'mini' ? 'mini-scroll' : 'main__scroll'">
       <p v-if="error || loadError || templateError" class="banner">{{ error || loadError || templateError }}</p>
 
+      <div
+        v-if="view === 'cards' && tier !== 'mini' && settings.deepSeek.enabled && settings.deepSeek.hasApiKey"
+        class="ai-plan"
+      >
+        <textarea
+          v-model="aiText"
+          maxlength="2000"
+          rows="3"
+          placeholder="描述目标、截止时间和关键步骤，AI 会生成一份可编辑草稿"
+        ></textarea>
+        <div>
+          <span>{{ aiError || "生成结果会先进入计划编辑器，不会直接保存" }}</span>
+          <button class="btn btn--sm" type="button" :disabled="!aiText.trim() || aiGenerating" @click="generateDraft">
+            {{ aiGenerating ? "生成中…" : "AI 生成计划" }}
+          </button>
+        </div>
+      </div>
+
       <div v-if="view === 'cards' && tier !== 'mini'" class="composer">
         <div class="composer__line">
           <span class="composer__dot"></span>
@@ -512,6 +581,7 @@ async function removeDraft() {
           @toggle-stage="toggleStage(plan, $event)"
           @slip="slip(plan, $event)"
           @save-template="beginSaveTemplate(plan)"
+          @export-calendar="exportCalendar(plan)"
         />
       </template>
       <GanttBoard v-else :plans="shown" :now="now" :mode="span" @open="openPlan" @shift="shift" />

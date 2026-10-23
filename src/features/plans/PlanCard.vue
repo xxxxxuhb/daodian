@@ -14,6 +14,7 @@ const emit = defineEmits<{
   toggleStage: [Stage];
   slip: [number];
   saveTemplate: [];
+  exportCalendar: [];
 }>();
 
 function slipPreview(days: number) {
@@ -65,6 +66,10 @@ function slipFromKey(event: KeyboardEvent) {
           <button type="button" @click="emit('slip', 7)">1 周 <span>{{ slipPreview(7) }}</span></button>
           <p>模板</p>
           <button type="button" @click="emit('saveTemplate')">另存为模板 <span>{{ plan.stages.length }} 个阶段</span></button>
+          <p>日历</p>
+          <button type="button" @click="emit('exportCalendar')">
+            导出为 ICS <span>{{ plan.stages.filter((stage) => stage.at != null).length }} 个时间阶段</span>
+          </button>
         </div>
       </div>
       <div v-if="progress.total" class="plan__prog">

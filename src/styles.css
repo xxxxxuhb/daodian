@@ -144,6 +144,11 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 .composer__line .kbd{margin-left:auto}
 .composer__row{display:flex;align-items:center;gap:6px;margin-top:12px;padding-top:11px;border-top:1px dashed var(--line)}
 .composer__row .grow{flex:1}
+.ai-preview{margin:9px 2px 0;color:var(--ink-3);font-size:12px;line-height:1.5}
+.ai-plan{display:grid;gap:8px;margin-bottom:12px;padding:12px;border:1px dashed var(--line);border-radius:12px;background:var(--card)}
+.ai-plan textarea{width:100%;resize:vertical;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;line-height:1.5}
+.ai-plan>div{display:flex;align-items:center;gap:10px;color:var(--ink-3);font-size:12px}
+.ai-plan>div span{flex:1}
 
 /* ---------- 分组与列表 ---------- */
 .group{display:flex;align-items:center;gap:9px;margin:0 0 9px 2px}
@@ -193,6 +198,8 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 .tl__item.is-done .nm{color:var(--ink-4);text-decoration:line-through}
 .tl__item.is-key .tl__dot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-glow)}
 .tl__item.is-key .nm{color:var(--ink);font-weight:600}
+.tl__item.is-calendar .tl__dot{border-color:var(--accent);background:var(--accent-soft)}
+.tl__item.is-calendar .meta{color:var(--accent)}
 .tl__item.hour{min-height:26px}
 .tl__item.hour .tl__t{color:var(--ink-4)}
 .tl__item.hour .tl__dot{width:3px;height:3px;border:0;background:var(--fill-2)}
@@ -207,6 +214,51 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 .next-card .cd{display:flex;align-items:baseline;gap:7px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hero-line)}
 .next-card .cd b{font-family:var(--serif);font-size:22px;font-weight:400;letter-spacing:.02em;color:var(--hero-accent)}
 .next-card .cd span{font-size:11px;color:var(--hero-dim)}
+
+/* ---------- 设置抽屉 ---------- */
+.settings-scrim{position:fixed;z-index:1000;inset:0;background:var(--scrim);display:flex;justify-content:flex-end}
+.settings-drawer{width:min(520px,100vw);height:100%;display:flex;flex-direction:column;background:var(--card);color:var(--ink);box-shadow:var(--drawer-shadow)}
+.settings-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px 18px;border-bottom:1px solid var(--line)}
+.settings-head h2{margin-top:4px;font-size:24px}
+.settings-close{width:34px;height:34px;border:0;border-radius:9px;background:var(--fill);color:var(--ink-2);font-size:24px;line-height:1}
+.settings-body{flex:1;overflow:auto;padding:4px 24px 28px}
+.settings-section{padding:20px 0;border-bottom:1px solid var(--line-2)}
+.settings-section h3{margin-bottom:14px;font-size:14px}
+.settings-field{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:10px;color:var(--ink-2);font-size:12.5px}
+.settings-field>input,.settings-field>select{width:250px}
+.settings-stack{align-items:stretch;flex-direction:column;gap:6px}
+.settings-stack>input,.settings-stack>textarea{width:100%}
+.settings-drawer input[type="text"],.settings-drawer input[type="url"],.settings-drawer input[type="password"],.settings-drawer input[type="number"],.settings-drawer input[type="date"],.settings-drawer select,.settings-drawer textarea{
+  border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);padding:8px 10px;font:12.5px/1.45 var(--sans);outline:none
+}
+.settings-drawer textarea{resize:vertical}
+.settings-drawer input:focus,.settings-drawer select:focus,.settings-drawer textarea:focus{border-color:var(--accent)}
+.settings-check{display:flex;align-items:center;gap:9px;color:var(--ink-2);font-size:12.5px}
+.settings-check input{accent-color:var(--accent)}
+.settings-note{margin-top:10px;color:var(--ink-3);font-size:11.5px;line-height:1.6}
+.settings-service{display:grid;gap:8px;margin-top:14px}
+.settings-service__actions{display:flex;gap:8px}
+.settings-service__actions input{flex:1;min-width:0}
+.settings-service small{color:var(--ink-4)}
+.settings-danger{margin-top:10px;color:var(--danger)}
+.settings-consent{margin-top:20px;padding:12px 14px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);color:var(--ink-2);font-size:11.5px;line-height:1.65}
+.settings-foot{display:flex;align-items:center;gap:9px;padding:14px 24px;border-top:1px solid var(--line);background:var(--foot)}
+.settings-foot>span{margin-right:auto;font-size:11.5px}
+.settings-error{color:var(--danger)}
+.settings-saved{color:var(--done)}
+.settings-foot .btn:disabled{opacity:.55}
+.settings-trigger{border:0;background:transparent;color:inherit;font:inherit;cursor:default}
+.settings-date-group{display:grid;gap:7px;margin-top:13px;color:var(--ink-2);font-size:12.5px}
+.settings-date-add{display:flex;gap:8px}
+.settings-date-add input{flex:1}
+.settings-date-list{display:flex;flex-wrap:wrap;gap:6px}
+.settings-date-list>span{display:inline-flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid var(--line);border-radius:999px;background:var(--bg)}
+.settings-date-list button{border:0;background:transparent;color:var(--ink-3);cursor:pointer;font-size:15px;line-height:1}
+.settings-date-group small{color:var(--ink-4);line-height:1.5}
+.settings-calendar{display:grid;gap:8px;margin-top:12px}
+.settings-calendar__path{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink-2);font-size:12px}
+.settings-calendar>div{display:flex;gap:8px}
+.settings-calendar small{color:var(--ink-4);line-height:1.5}
 
 /* ---------- 计划卡 ---------- */
 .plan{border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow-1);padding:14px 16px 14px;margin-bottom:10px}
@@ -477,5 +529,10 @@ button.stage__grip{border:0;background:transparent;color:var(--ink-4);padding:2p
 .week-card__body p{font-size:12.5px;color:var(--ink-2)}
 .week-card textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px;padding:8px;resize:vertical}
 .week-card__actions{display:flex;flex-wrap:wrap;gap:6px}
+.week-card__nav{display:flex;align-items:center;gap:5px}
+.week-card__nav button{border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink-2);padding:4px 7px;font:inherit;font-size:11.5px;cursor:pointer}
+.week-card__nav button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.week-card__nav button:disabled{opacity:.4;cursor:default}
+.week-card__range{color:var(--ink-4)!important;font-variant-numeric:tabular-nums}
 .week-template{display:flex;flex-direction:column;gap:7px;padding-top:8px;border-top:1px solid var(--line-2)}
 .week-template p{font-size:11px;color:var(--ink-4)}

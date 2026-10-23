@@ -1,6 +1,5 @@
 import { ref } from "vue";
-
-export type ThemeName = "celadon" | "night";
+import type { ThemeName } from "../../domain/settings";
 
 const KEY = "daodian-theme";
 
