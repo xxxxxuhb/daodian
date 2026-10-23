@@ -53,7 +53,7 @@ function slipFromKey(event: KeyboardEvent) {
           <i v-else-if="plan.priority === 'low'" class="dotpin low"></i>
           {{ plan.title }}
         </h3>
-        <p v-if="plan.note">{{ plan.note }}</p>
+        <p v-if="plan.note" class="plan__note--desktop">{{ plan.note }}</p>
       </div>
       <span class="pill" :class="`pill--${pill.tone}`">{{ pill.text }}</span>
       <div class="plan__more" @click.stop>
@@ -71,6 +71,13 @@ function slipFromKey(event: KeyboardEvent) {
         <span class="frac">{{ progress.done }}/{{ progress.total }}</span>
         <span class="segs"><i v-for="stage in plan.stages" :key="stage.id" :class="{ on: stage.done }"></i></span>
       </div>
+    </div>
+    <div class="plan__meta">
+      <span class="plan__note">{{ plan.note || "还没写备注" }}</span>
+      <span class="plan__fraction">{{ progress.done }}/{{ progress.total }} 阶段</span>
+    </div>
+    <div v-if="progress.total" class="plan__bar" aria-hidden="true">
+      <i :style="{ width: `${Math.round((progress.done / progress.total) * 100)}%` }"></i>
     </div>
     <ol v-if="plan.stages.length" class="stepper">
       <li v-for="stage in plan.stages" :key="stage.id" :class="{ done: stage.done, next: stage.id === nextId }">
@@ -90,7 +97,9 @@ function slipFromKey(event: KeyboardEvent) {
       </li>
     </ol>
     <button v-else class="empty-stage" type="button" @click.stop="emit('fill')">
-      <Icon name="plus" small />分阶段：议程 → 试跑 → 定稿
+      <Icon name="plus" small />
+      <span class="empty-stage__desktop">分阶段：议程 → 试跑 → 定稿</span>
+      <span class="empty-stage__mini">还没分阶段 · 点开加「议程 → 试跑 → 定稿」</span>
     </button>
   </article>
 </template>

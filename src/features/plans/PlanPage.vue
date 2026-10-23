@@ -444,16 +444,14 @@ async function removeDraft() {
         >
           {{ item.label }}
         </button>
-        <button type="button" class="chip" @click="openTemplateManager">管理</button>
+        <button type="button" class="chip template-manage-trigger" @click="openTemplateManager">管理</button>
       </div>
       <p v-if="selectedTemplate" class="template-preview">{{ templatePreview(selectedTemplate) }}</p>
     </div>
 
     <div v-if="tier === 'mini'" class="toolbar mini-toolbar">
-      <button type="button" class="chip" :class="{ on: span === 'week' }" @click="span = 'week'">本周</button>
-      <button type="button" class="chip" :class="{ on: span === 'month' }" @click="span = 'month'">本月</button>
+      <button type="button" class="chip on" @click="span = 'week'">本周⌄</button>
       <span class="grow"></span>
-      <button type="button" class="chip" :class="{ on: showAll }" @click="showAll = !showAll">全部计划</button>
       <button type="button" class="chip" :class="{ on: important }" @click="important = !important">只看重要</button>
     </div>
 

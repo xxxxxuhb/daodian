@@ -1,0 +1,125 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBF0ED;--card:#FAFCFB;--ink:#0E1613;--ink2:#47564F;--ink3:#74847C;--ink4:#98A69F;
+--line:#D3DFD9;--line2:#E3EBE6;--acc:#15637B;--acc-soft:#DCE9EF;--fill:#E1E8E4;--fill2:#CCD8D2;
+--warn:#9C640E;--warn-soft:#F3E7D1;--done:#2C7A58;
+--sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;--serif:Georgia,"Songti SC",SimSun,serif}
+body{background:#0B0D10;color:#E7ECF2;font-family:var(--sans);padding:34px 38px 28px}
+.head{display:flex;align-items:flex-end;gap:18px;margin-bottom:24px}
+.kicker{font-size:9.5px;letter-spacing:.24em;color:#59636E}
+h1{margin:7px 0 0;font-size:24px;font-weight:600;letter-spacing:-.01em}
+.head p{margin-left:auto;text-align:right;font-size:11px;color:#8B95A1;line-height:1.9}
+.cols{display:flex;gap:26px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:10px}
+.lbl{display:flex;align-items:center;gap:8px;font-size:11px;color:#8B95A1}
+.lbl b{font-size:12px;font-weight:600;color:#E7ECF2}
+.lbl i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.frame{background:var(--bg);border:1px solid #2A323C;border-radius:12px;padding:12px;width:380px}
+
+/* 改前：一行塞四样东西 */
+.old{color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.old__head{display:flex;align-items:flex-start;gap:8px}
+.old__head .pin{width:5px;height:5px;border-radius:50%;background:var(--acc);margin-top:8px;flex:none}
+.old__title{font-size:13.5px;font-weight:600;line-height:1.35;width:86px}
+.old .pill{height:21px;padding:0 8px;border-radius:999px;font-size:10.5px;display:inline-flex;align-items:center;background:var(--warn-soft);color:#8A4B0F;white-space:nowrap;flex:none}
+.old .dots{color:var(--ink4);font-size:14px;flex:none}
+.old .frac{font-family:var(--serif);font-size:10.5px;color:var(--ink4);flex:none}
+.old .segs{display:flex;gap:3px;align-items:center;flex:none}
+.old .segs i{width:14px;height:3px;border-radius:2px;background:var(--fill2)}
+.old .segs i.on{background:var(--done)}
+.old__note{margin:4px 0 8px 13px;font-size:10.5px;color:var(--ink3)}
+.old__steps{list-style:none;display:flex;flex-direction:column;gap:6px}
+.old__steps li{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink2)}
+.old__steps .t{font-family:var(--serif);font-size:10.5px;color:var(--ink4);width:74px}
+.old__steps li.next .t{color:var(--warn);font-weight:600}
+.old__steps .sp{flex:1}
+.old__steps .pill{height:19px;padding:0 7px;border-radius:999px;font-size:10px;background:var(--warn-soft);color:#8A4B0F;display:inline-flex;align-items:center}
+
+/* 改后 */
+.new{color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px 9px}
+.new__top{display:flex;align-items:center;gap:6px}
+.new__top .pin{width:5px;height:5px;border-radius:50%;background:var(--acc);flex:none}
+.new__top h3{font-size:13.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.new__top .more{color:var(--ink4);font-size:14px;width:22px;text-align:center}
+.new__meta{display:flex;align-items:center;gap:8px;margin-top:3px;padding-left:11px}
+.new__meta .note{font-size:10.5px;color:var(--ink3);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.new__meta .frac{font-size:10px;color:var(--ink4);font-family:var(--serif)}
+.new .bar{height:3px;border-radius:2px;background:var(--fill);margin:8px 0 6px;overflow:hidden}
+.new .bar i{display:block;height:100%;background:var(--done);border-radius:2px}
+.new__steps{list-style:none;display:flex;flex-direction:column;gap:1px}
+.new__steps li{display:grid;grid-template-columns:78px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:25px;font-size:11.5px}
+.new__steps .t{font-family:var(--serif);font-size:10.5px;color:var(--ink4)}
+.new__steps .n{color:var(--ink2)}
+.new__steps .s{font-size:10px;color:var(--ink4);white-space:nowrap}
+.new__steps li.done .n{color:var(--ink4);text-decoration:line-through}
+.new__steps li.next .n{color:var(--ink);font-weight:600}
+.new__steps li.next .t{color:var(--warn);font-weight:600}
+.new__steps li.next .s{color:var(--warn);font-weight:600}
+
+.notes{flex:1;display:flex;flex-direction:column;gap:12px;padding-top:26px}
+.note{display:flex;gap:10px;font-size:11.5px;color:#A9B4C2;line-height:1.7}
+.note b{display:block;color:#E7ECF2;font-size:12px;font-weight:600;margin-bottom:2px}
+.note .n{font-family:var(--serif);color:#59636E;font-size:11px;padding-top:1px;width:16px;flex:none}
+.tag{display:inline-block;font-size:9.5px;color:#59636E;border:1px solid #232A33;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:2px}
+</style></head><body>
+<div class="head">
+  <div>
+    <div class="kicker">到点 · 窄屏（&lt; 720）</div>
+    <h1>计划卡片重排</h1>
+  </div>
+  <p>一行塞四样东西，标题只能换行；<br>把并排的挪成上下两行，信息反而更全</p>
+</div>
+
+<div class="cols">
+  <div class="col">
+    <div class="lbl"><i style="background:#A33C3C"></i><b>改前</b>一行五件：标题 / 到点标签 / ⋯ / 1⁄2 / 分段条</div>
+    <div class="frame">
+      <div class="old">
+        <div class="old__head">
+          <span class="pin"></span>
+          <div class="old__title">报关系统 v1.0.7.1</div>
+          <span class="pill">3 小时后到点</span>
+          <span class="dots">⋯</span>
+          <span class="frac">1/2</span>
+          <span class="segs"><i class="on"></i><i></i></span>
+        </div>
+        <p class="old__note">临时版本</p>
+        <ul class="old__steps">
+          <li><span class="t">10/21 18:00</span><span>提测</span></li>
+          <li class="next"><span class="t">今天 17:30</span><span>发布</span><span class="sp"></span><span class="pill">3 小时后</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="lbl"><i style="background:#2C7A58"></i><b>改后</b>标题独占一行，其余下沉成两行</div>
+    <div class="frame">
+      <div class="new">
+        <div class="new__top">
+          <span class="pin"></span>
+          <h3>报关系统 v1.0.7.1</h3>
+          <span class="more">⋯</span>
+        </div>
+        <div class="new__meta">
+          <span class="note">临时版本</span>
+          <span class="frac">1/2 阶段</span>
+        </div>
+        <div class="bar"><i style="width:50%"></i></div>
+        <ul class="new__steps">
+          <li class="done"><span class="t">10/21 18:00</span><span class="n">提测</span><span class="s"></span></li>
+          <li class="next"><span class="t">今天 17:30</span><span class="n">发布</span><span class="s">● 3 小时后</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><span class="n">01</span><div><b>标题独占一行<span class="tag">320px 就能放全</span></b>「报关系统 v1.0.7.1」原来被挤成两行，现在一行放得下，加省略号兜底。</div></div>
+    <div class="note"><span class="n">02</span><div><b>其余下沉成第二行</b>备注在左、进度在右；⋯ 收到标题行最右，只占 22px。</div></div>
+    <div class="note"><span class="n">03</span><div><b>分段条换成一条细线</b>同样表达 1/2，宽度从 40px 降到整行，还更好扫。</div></div>
+    <div class="note"><span class="n">04</span><div><b>阶段行三列对齐</b>时间 78 / 名称自适应 / 状态靠右，中间不再留空档。</div></div>
+    <div class="note"><span class="n">05</span><div><b>到点状态只说一次</b>原来顶部标签和阶段行右侧各写一遍；现在只在阶段行显示。</div></div>
+  </div>
+</div>
+</body></html>

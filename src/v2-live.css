@@ -98,6 +98,179 @@
 .mini-search {
   margin: 0 12px 8px;
 }
+
+/* 迷你计划页：按 design/mini 把卡片信息拆成清晰的三层。 */
+.plan__meta,
+.plan__bar,
+.empty-stage__mini {
+  display: none;
+}
+.mini-app .mini-add__row {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mini-app .mini-add__row::-webkit-scrollbar {
+  display: none;
+}
+.mini-app .mini-add .template-preview,
+.mini-app .template-manage-trigger {
+  display: none;
+}
+.mini-app .mini-toolbar {
+  padding: 0;
+}
+.mini-app .mini-scroll > .plan {
+  margin-bottom: 8px;
+}
+.mini-app .plan {
+  border-radius: 12px;
+  padding: 11px 12px 9px;
+  box-shadow: none;
+}
+.mini-app .plan__head {
+  display: grid;
+  grid-template-columns: 5px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 6px;
+}
+.mini-app .plan__head .check {
+  width: 5px;
+  height: 5px;
+  min-width: 5px;
+  margin: 0;
+  border: 0;
+  background: var(--accent);
+}
+.mini-app .plan__head .check.is-done {
+  background: var(--done);
+}
+.mini-app .plan__head .check .ico,
+.mini-app .plan__title .dotpin,
+.mini-app .plan__head > .pill,
+.mini-app .plan__prog,
+.mini-app .plan__note--desktop {
+  display: none;
+}
+.mini-app .plan__title h3 {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mini-app .plan__more {
+  width: 22px;
+  margin: 0;
+}
+.mini-app .plan__more .icon-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--ink-4);
+}
+.mini-app .plan__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  padding-left: 11px;
+}
+.mini-app .plan__note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mini-app .plan__fraction {
+  flex: none;
+  color: var(--ink-4);
+  font-family: var(--serif);
+  font-size: 10px;
+}
+.mini-app .plan__bar {
+  display: block;
+  height: 3px;
+  margin: 8px 0 6px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--fill);
+}
+.mini-app .plan__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--done);
+}
+.mini-app .stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+}
+.mini-app .stepper::before,
+.mini-app .stepper .dot {
+  display: none;
+}
+.mini-app .stepper li {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 25px;
+  font-size: 11.5px;
+}
+.mini-app .stepper .tm {
+  overflow: hidden;
+  color: var(--ink-4);
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mini-app .stepper .nm {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mini-app .stepper .side .pill {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-4);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.mini-app .stepper li.next .side .pill {
+  color: var(--warn);
+  font-weight: 600;
+}
+.mini-app .stepper li.next .side .pill::before {
+  content: "●";
+  margin-right: 4px;
+  font-size: 7px;
+  vertical-align: 1px;
+}
+.mini-app .empty-stage {
+  margin-top: 8px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 10.5px;
+}
+.mini-app .empty-stage .ico {
+  display: none;
+}
+.mini-app .empty-stage__desktop {
+  display: none;
+}
+.mini-app .empty-stage__mini {
+  display: inline;
+}
 .r__c {
   padding: 0;
   background: transparent;
