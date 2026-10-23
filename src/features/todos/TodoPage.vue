@@ -97,7 +97,7 @@ const groups = computed(() => splitToday(visible.value, now.value));
 const agenda = computed(() => visible.value.filter((todo) => todo.dueAt != null));
 const unset = computed(() => visible.value.filter((todo) => todo.dueAt == null));
 const nowId = computed(() => agenda.value.find((todo) => (todo.dueAt ?? 0) >= now.value)?.id ?? null);
-const progress = computed(() => todayProgress(todos.value, now.value));
+const progress = computed(() => todayProgress(todos.value, plans.value, now.value));
 const timeline = computed(() => {
   const start = startOfDay(now.value);
   const end = start + 86_400_000;

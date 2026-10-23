@@ -101,6 +101,7 @@ pub fn run() {
             app.manage(Mutex::new(settings));
             logging::info(format_args!("settings opened"));
             open_main(app).map_err(|err| logged_step("打开主窗口", err))?;
+            quick_capture::install_windows_alt_space_fallback(app.handle().clone());
             match quick_capture::persist_registration_status(app.handle()) {
                 Ok(status) => logging::info(format_args!("快速记录快捷键: {status}")),
                 Err(err) => logging::warn(format_args!("保存快速记录状态失败: {err}")),

@@ -206,13 +206,18 @@ export function todayTimeline(todos: Todo[], plans: Plan[], now: number): Timeli
   return items.sort((a, b) => a.at - b.at);
 }
 
-export function todayProgress(todos: Todo[], now: number) {
+export function todayProgress(todos: Todo[], plans: Plan[], now: number) {
   const start = startOfDay(now);
   const end = start + DAY;
   const dated = todos.filter((todo) => todo.dueAt != null && todo.dueAt >= start && todo.dueAt < end);
   const undated = todos.filter((todo) => !todo.done && todo.dueAt == null);
-  const total = dated.length + undated.length;
-  const done = dated.filter((todo) => todo.done).length;
+  const stages = plans.flatMap((plan) =>
+    plan.stages
+      .filter((stage) => stage.at != null && stage.at >= start && stage.at < end)
+      .map((stage) => ({ done: stage.done || plan.done })),
+  );
+  const total = dated.length + undated.length + stages.length;
+  const done = dated.filter((todo) => todo.done).length + stages.filter((stage) => stage.done).length;
   return { done, total, ratio: total === 0 ? 0 : done / total };
 }
 

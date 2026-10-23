@@ -124,7 +124,11 @@ let unlisten: UnlistenFn | null = null;
 let unlistenQuickCapture: UnlistenFn | null = null;
 
 async function enterQuickCaptureUi() {
-  if (quickCaptureActive.value) return;
+  if (quickCaptureActive.value) {
+    await nextTick();
+    createTick.value += 1;
+    return;
+  }
   captureSection = {
     section: section.value,
     todoFilter: todoFilter.value,

@@ -6,7 +6,7 @@ import { clockTime, todayProgress, upcoming } from "../../domain/present";
 
 const now = useNow();
 const { todos, plans } = useLibrary();
-const progress = computed(() => todayProgress(todos.value, now.value));
+const progress = computed(() => todayProgress(todos.value, plans.value, now.value));
 const nextUp = computed(() => upcoming(todos.value, plans.value, now.value));
 const ratio = computed(() => `${Math.round(progress.value.ratio * 100)}%`);
 </script>

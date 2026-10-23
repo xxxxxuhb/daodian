@@ -18,6 +18,7 @@ pub struct Settings {
     pub theme: String,
     pub window: WindowSettings,
     pub repeat: RepeatSettings,
+    pub work_hours: WorkHoursSettings,
     pub week_report: WeekReportSettings,
     pub calendar: CalendarSettings,
     pub feishu: WebhookSettings,
@@ -32,12 +33,33 @@ impl Default for Settings {
             theme: "celadon".into(),
             window: WindowSettings::default(),
             repeat: RepeatSettings::default(),
+            work_hours: WorkHoursSettings::default(),
             week_report: WeekReportSettings::default(),
             calendar: CalendarSettings::default(),
             feishu: WebhookSettings::default(),
             wecom: WebhookSettings::default(),
             quick_capture: QuickCaptureSettings::default(),
             deep_seek: DeepSeekSettings::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct WorkHoursSettings {
+    pub morning_start: String,
+    pub morning_end: String,
+    pub afternoon_start: String,
+    pub afternoon_end: String,
+}
+
+impl Default for WorkHoursSettings {
+    fn default() -> Self {
+        Self {
+            morning_start: "09:00".into(),
+            morning_end: "12:00".into(),
+            afternoon_start: "13:30".into(),
+            afternoon_end: "18:00".into(),
         }
     }
 }
@@ -79,6 +101,38 @@ impl WindowFrame {
             y: None,
         }
     }
+}
+
+fn validate_work_hours(settings: &WorkHoursSettings) -> Result<(), String> {
+    fn minutes(value: &str) -> Option<u16> {
+        let (hour, minute) = value.split_once(':')?;
+        let hour = hour.parse::<u16>().ok()?;
+        let minute = minute.parse::<u16>().ok()?;
+        (hour < 24 && minute < 60).then_some(hour * 60 + minute)
+    }
+
+    let values = [
+        minutes(&settings.morning_start),
+        minutes(&settings.morning_end),
+        minutes(&settings.afternoon_start),
+        minutes(&settings.afternoon_end),
+    ];
+    let [
+        Some(morning_start),
+        Some(morning_end),
+        Some(afternoon_start),
+        Some(afternoon_end),
+    ] = values
+    else {
+        return Err("工作时间格式无效".into());
+    };
+    if !(morning_start < morning_end
+        && morning_end <= afternoon_start
+        && afternoon_start < afternoon_end)
+    {
+        return Err("工作时间需按上午开始、上午结束、下午开始、下午结束依次设置".into());
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -249,6 +303,7 @@ impl SettingsStore {
         crate::webhook::validate_settings(&settings.feishu, crate::webhook::Provider::Feishu)?;
         crate::webhook::validate_settings(&settings.wecom, crate::webhook::Provider::Wecom)?;
         crate::deepseek::validate_settings(&settings.deep_seek)?;
+        validate_work_hours(&settings.work_hours)?;
         // Window state is owned by the native window service. A settings form
         // can otherwise overwrite a newer resize/move event with a stale copy.
         settings.window = self.doc.settings.window.clone();
@@ -277,6 +332,10 @@ impl SettingsStore {
             self.doc.settings.repeat.holidays.clone(),
             self.doc.settings.repeat.workdays.clone(),
         )
+    }
+
+    pub(crate) fn work_hours_settings(&self) -> WorkHoursSettings {
+        self.doc.settings.work_hours.clone()
     }
 
     pub(crate) fn webhook_settings(&self) -> (WebhookSettings, WebhookSettings) {
@@ -536,6 +595,16 @@ mod tests {
         assert!(settings.enabled);
         assert_eq!(settings.shortcut, "Alt+Space");
         assert!(settings.last_status.is_empty());
+    }
+
+    #[test]
+    fn work_hours_default_and_order_are_validated() {
+        let mut settings = WorkHoursSettings::default();
+        assert_eq!(settings.morning_start, "09:00");
+        assert_eq!(settings.afternoon_end, "18:00");
+        assert!(validate_work_hours(&settings).is_ok());
+        settings.afternoon_start = "11:30".into();
+        assert!(validate_work_hours(&settings).is_err());
     }
 
     #[test]

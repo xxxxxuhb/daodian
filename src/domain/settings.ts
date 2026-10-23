@@ -19,6 +19,12 @@ export interface Settings {
     holidays: string[];
     workdays: string[];
   };
+  workHours: {
+    morningStart: string;
+    morningEnd: string;
+    afternoonStart: string;
+    afternoonEnd: string;
+  };
   weekReport: {
     template: string;
     rangeOffset: number;

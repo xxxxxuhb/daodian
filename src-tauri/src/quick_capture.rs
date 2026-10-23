@@ -59,8 +59,9 @@ impl CaptureState {
 
 pub(crate) fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_global_shortcut::Builder::<tauri::Wry>::new()
-        .with_handler(|app, _shortcut, event| {
+        .with_handler(|app, shortcut, event| {
             if event.state == ShortcutState::Pressed {
+                crate::logging::info(format_args!("global shortcut pressed: {shortcut:?}"));
                 trigger(app);
             }
         })
@@ -120,18 +121,33 @@ pub(crate) fn persist_registration_status(app: &AppHandle) -> Result<String, Str
 }
 
 fn trigger(app: &AppHandle) {
+    crate::logging::info(format_args!("quick capture trigger received"));
     let runtime = app.state::<QuickCaptureRuntime>();
     {
         let Ok(mut state) = runtime.inner.lock() else {
             return;
         };
         if !state.capture.begin() {
+            if state.capture.is_active() {
+                drop(state);
+                crate::logging::info(format_args!(
+                    "quick capture already active; showing and focusing window"
+                ));
+                if let Err(err) = window_state::enter_quick_capture(app) {
+                    crate::logging::warn(format_args!("重新显示快速记录窗口失败: {err}"));
+                    return;
+                }
+                if let Err(err) = app.emit("quick-capture", ()) {
+                    crate::logging::warn(format_args!("重新发送快速记录事件失败: {err}"));
+                }
+            }
             return;
         }
     }
 
     match window_state::enter_quick_capture(app) {
         Ok(window) => {
+            crate::logging::info(format_args!("quick capture window shown"));
             if let Ok(mut state) = runtime.inner.lock() {
                 state.capture.activate(window);
             }
@@ -145,6 +161,82 @@ fn trigger(app: &AppHandle) {
             }
             crate::logging::warn(format_args!("进入快速记录失败: {err}"));
         }
+    }
+}
+
+#[cfg(windows)]
+pub(crate) fn install_windows_alt_space_fallback(app: AppHandle) {
+    windows_fallback::install(app);
+}
+
+#[cfg(not(windows))]
+pub(crate) fn install_windows_alt_space_fallback(_app: AppHandle) {}
+
+#[cfg(windows)]
+mod windows_fallback {
+    use std::sync::OnceLock;
+
+    use tauri::Manager;
+    use windows_sys::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU, VK_SPACE};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CallNextHookEx, GetMessageW, KBDLLHOOKSTRUCT, MSG, SetWindowsHookExW, WH_KEYBOARD_LL,
+        WM_KEYDOWN, WM_SYSKEYDOWN,
+    };
+
+    use super::trigger;
+    use crate::settings::SharedSettings;
+
+    static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+    pub(super) fn install(app: tauri::AppHandle) {
+        if APP.set(app).is_err() {
+            return;
+        }
+        std::thread::spawn(|| unsafe {
+            let hook =
+                SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), std::ptr::null_mut(), 0);
+            if hook.is_null() {
+                crate::logging::warn(format_args!(
+                    "Alt+Space native fallback install failed: {}",
+                    std::io::Error::last_os_error()
+                ));
+                return;
+            }
+            crate::logging::info(format_args!("Alt+Space native fallback installed"));
+            let mut message: MSG = std::mem::zeroed();
+            while GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) > 0 {}
+        });
+    }
+
+    unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if code >= 0 && matches!(wparam as u32, WM_KEYDOWN | WM_SYSKEYDOWN) {
+            let key = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
+            let alt_down = unsafe { GetAsyncKeyState(VK_MENU as i32) } < 0;
+            if key.vkCode == u32::from(VK_SPACE) && alt_down && enabled() {
+                crate::logging::info(format_args!("Alt+Space native fallback pressed"));
+                if let Some(app) = APP.get().cloned() {
+                    let app_for_task = app.clone();
+                    let _ = app.run_on_main_thread(move || trigger(&app_for_task));
+                }
+                // 阻止 Windows 同时弹出当前窗口的系统菜单。
+                return 1;
+            }
+        }
+        unsafe { CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam) }
+    }
+
+    fn enabled() -> bool {
+        let Some(app) = APP.get() else {
+            return false;
+        };
+        app.state::<SharedSettings>()
+            .lock()
+            .map(|store| {
+                let settings = store.quick_capture_settings();
+                settings.enabled && settings.shortcut.eq_ignore_ascii_case("Alt+Space")
+            })
+            .unwrap_or(false)
     }
 }
 

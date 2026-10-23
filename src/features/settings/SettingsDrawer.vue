@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { open } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { computed, ref, watch } from "vue";
 import { testDeepSeek } from "../../api/ai";
 import { testWebhook } from "../../api/settings";
@@ -67,7 +67,7 @@ function removeDate(kind: "holidays" | "workdays", value: string) {
 }
 
 async function chooseCalendar() {
-  const selected = await open({
+  const selected = await openDialog({
     multiple: false,
     directory: false,
     filters: [{ name: "iCalendar", extensions: ["ics"] }],
@@ -105,6 +105,7 @@ async function save() {
     saved.value = true;
     apiKey.value = "";
     clearApiKey.value = false;
+    emit("close");
   }
 }
 
@@ -146,7 +147,7 @@ async function testAi() {
 </script>
 
 <template>
-  <div v-if="open" class="settings-scrim" @mousedown.self="emit('close')">
+  <div v-if="props.open" class="settings-scrim" @mousedown.self="emit('close')">
     <aside class="settings-drawer" aria-label="设置">
       <header class="settings-head">
         <div>
@@ -205,6 +206,21 @@ async function testAi() {
             </div>
             <small v-else>尚未添加调休工作日；同一天也在节假日时，以工作日为准</small>
           </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>工作时间</h3>
+          <div class="settings-work-hours">
+            <span>上午</span>
+            <input v-model="draft.workHours.morningStart" type="time" />
+            <i>至</i>
+            <input v-model="draft.workHours.morningEnd" type="time" />
+            <span>下午</span>
+            <input v-model="draft.workHours.afternoonStart" type="time" />
+            <i>至</i>
+            <input v-model="draft.workHours.afternoonEnd" type="time" />
+          </div>
+          <p class="settings-note">AI 解析待办和生成计划时，会优先把时间安排在以上两个工作时段内。</p>
         </section>
 
         <section class="settings-section">
@@ -322,7 +338,12 @@ async function testAi() {
           </label>
           <label class="settings-field settings-stack">
             <span>API Key（{{ draft.deepSeek.hasApiKey ? "已安全保存" : "未设置" }}）</span>
-            <input v-model="apiKey" type="password" autocomplete="new-password" placeholder="留空则不更改" />
+            <input
+              v-model="apiKey"
+              type="password"
+              autocomplete="new-password"
+              :placeholder="draft.deepSeek.hasApiKey ? '••••••••••••••••' : '请输入 API Key'"
+            />
           </label>
           <div class="settings-service__actions">
             <button
@@ -339,7 +360,10 @@ async function testAi() {
             <input v-model="clearApiKey" type="checkbox" />
             <span>删除已保存的 API Key</span>
           </label>
-          <p class="settings-note">API Key 由 Windows DPAPI 加密保存，不会随设置读取返回明文。</p>
+          <p class="settings-note">
+            {{ draft.deepSeek.hasApiKey ? "已显示为掩码；输入新值即可替换。" : "请输入 API Key 后保存。" }}
+            API Key 由 Windows DPAPI 加密保存，不会随设置读取返回明文。
+          </p>
         </section>
 
         <p v-if="externalEnabled" class="settings-consent">

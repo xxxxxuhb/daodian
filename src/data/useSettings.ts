@@ -22,6 +22,12 @@ function fallbackSettings(): Settings {
     theme: readLocal("daodian-theme") === "night" ? "night" : "celadon",
     window: { frames: readFrames(), lastTier: "" },
     repeat: { defaultSkipWeekends: true, holidays: [], workdays: [] },
+    workHours: {
+      morningStart: "09:00",
+      morningEnd: "12:00",
+      afternoonStart: "13:30",
+      afternoonEnd: "18:00",
+    },
     weekReport: {
       template: DEFAULT_WEEK_REPORT_TEMPLATE,
       rangeOffset: 0,

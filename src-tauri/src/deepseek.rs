@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tauri::{AppHandle, Manager, State};
 
-use crate::settings::{DeepSeekSettings, SharedSettings};
+use crate::settings::{DeepSeekSettings, SharedSettings, WorkHoursSettings};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(25);
@@ -105,11 +105,22 @@ fn endpoint(base_url: &str) -> Result<Url, String> {
     Ok(url)
 }
 
-fn credentials(store: &SharedSettings) -> Result<(DeepSeekSettings, Vec<u8>), String> {
-    store
-        .lock()
-        .map_err(|_| "设置暂时不可用".to_string())?
-        .deep_seek_credentials()
+fn credentials(
+    store: &SharedSettings,
+) -> Result<(DeepSeekSettings, Vec<u8>, WorkHoursSettings), String> {
+    let locked = store.lock().map_err(|_| "设置暂时不可用".to_string())?;
+    let (settings, key) = locked.deep_seek_credentials()?;
+    Ok((settings, key, locked.work_hours_settings()))
+}
+
+fn work_hours_context(settings: &WorkHoursSettings) -> String {
+    format!(
+        "Local work hours: morning {}-{}; afternoon {}-{}. If the input does not specify an exact time, choose a time within these periods and avoid the lunch break and non-working hours. Preserve an exact time explicitly requested by the user.",
+        settings.morning_start,
+        settings.morning_end,
+        settings.afternoon_start,
+        settings.afternoon_end,
+    )
 }
 
 fn request(
@@ -218,7 +229,7 @@ pub async fn test_deepseek(
     app: AppHandle,
     store: State<'_, SharedSettings>,
 ) -> Result<String, String> {
-    let (settings, key) = credentials(&store)?;
+    let (settings, key, _) = credentials(&store)?;
     let result = tauri::async_runtime::spawn_blocking(move || {
         request(
             &settings,
@@ -259,11 +270,12 @@ pub async fn ai_parse_todo(
     if text.is_empty() || text.chars().count() > 500 {
         return Err("待解析内容必须为 1 到 500 个字".into());
     }
-    let (settings, key) = credentials(&store)?;
+    let (settings, key, work_hours) = credentials(&store)?;
     tauri::async_runtime::spawn_blocking(move || {
         let system = "Extract a todo. Return only JSON with exactly: title (string), dueAt (Unix milliseconds or null). Never add fields.";
         let context = format!(
-            "Current Unix milliseconds: {now_ms}; local timezone offset from UTC in minutes: {timezone_offset_minutes}.\nInput:\n{text}"
+            "Current Unix milliseconds: {now_ms}; local timezone offset from UTC in minutes: {timezone_offset_minutes}.\n{}\nInput:\n{text}",
+            work_hours_context(&work_hours),
         );
         request(&settings, &key, system, &context).and_then(|raw| parse_todo_response(&raw))
     })
@@ -282,11 +294,12 @@ pub async fn ai_generate_plan(
     if text.is_empty() || text.chars().count() > 2_000 {
         return Err("计划描述必须为 1 到 2000 个字".into());
     }
-    let (settings, key) = credentials(&store)?;
+    let (settings, key, work_hours) = credentials(&store)?;
     tauri::async_runtime::spawn_blocking(move || {
         let system = "Create an editable plan. Return only JSON with exactly: title (string), note (string), priority (low|normal|high), stages (array of 0..20 objects, each exactly title string and at Unix milliseconds or null).";
         let context = format!(
-            "Current Unix milliseconds: {now_ms}; local timezone offset from UTC in minutes: {timezone_offset_minutes}.\nInput:\n{text}"
+            "Current Unix milliseconds: {now_ms}; local timezone offset from UTC in minutes: {timezone_offset_minutes}.\n{}\nInput:\n{text}",
+            work_hours_context(&work_hours),
         );
         request(&settings, &key, system, &context).and_then(|raw| parse_plan_response(&raw))
     })
@@ -314,6 +327,14 @@ mod tests {
         );
         assert!(validate_base_url("http://example.com").is_err());
         assert!(validate_base_url("http://localhost:1234").is_ok());
+    }
+
+    #[test]
+    fn ai_context_contains_both_work_periods() {
+        let context = work_hours_context(&WorkHoursSettings::default());
+        assert!(context.contains("morning 09:00-12:00"));
+        assert!(context.contains("afternoon 13:30-18:00"));
+        assert!(context.contains("avoid the lunch break"));
     }
 
     #[test]
