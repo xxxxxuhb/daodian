@@ -360,8 +360,17 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 .stage__dependency input{width:54px}
 
 /* ---------- 通知 / 托盘 ---------- */
-.remind{position:fixed;top:24px;right:24px;width:356px;background:var(--card);border:1px solid var(--line);
+.remind{position:fixed;top:24px;right:24px;width:356px;
+  --card:var(--hero);--ink:var(--hero-ink);--ink-2:rgba(233,241,236,.82);--ink-3:var(--hero-dim);--ink-4:rgba(233,241,236,.42);
+  --line:var(--hero-line);--line-2:var(--hero-line);--fill:rgba(233,241,236,.08);--fill-2:rgba(233,241,236,.18);
+  --accent:var(--hero-accent);--accent-hover:#9ed9c8;--accent-soft:rgba(121,198,175,.16);--accent-ink:#0c1f1a;--accent-glow:rgba(121,198,175,.24);
+  background:var(--card);color:var(--ink);border:1px solid var(--line);
   border-radius:15px;box-shadow:var(--shadow-3);padding:14px 16px 12px;z-index:12;display:flex;gap:13px}
+[data-theme="night"] .remind{
+  --card:#eef2f6;--ink:#101722;--ink-2:#334152;--ink-3:#5f6e7d;--ink-4:#7d8995;
+  --line:#cdd6df;--line-2:#dce3e9;--fill:#e4e9ee;--fill-2:#cbd4dd;
+  --accent:#315fae;--accent-hover:#244d91;--accent-soft:#dbe5f5;--accent-ink:#fff;--accent-glow:rgba(49,95,174,.22);
+}
 .remind::before{content:"";position:absolute;left:17px;top:-1px;width:32px;height:2px;background:var(--accent);border-radius:2px}
 .remind__dial{position:relative;width:54px;height:54px;flex:none;margin-top:2px;color:var(--ink-3)}
 .remind__dial svg{display:block;width:54px;height:54px}

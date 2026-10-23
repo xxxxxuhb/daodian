@@ -213,28 +213,29 @@ fn send(app: &AppHandle, batch: &[RemindAction]) -> Result<bool, String> {
     // Windows 11 会把这条通知丢掉，而且 show() 仍返回成功。
     #[cfg(windows)]
     {
-        match crate::win_toast::show(&title, &body) {
-            Ok(()) => Ok(true),
-            Err(primary) => {
-                crate::logging::warn(format_args!(
-                    "native toast unavailable; trying tray balloon: {primary}"
-                ));
-                match crate::win_balloon::show(app, &title, &body) {
-                    Ok(()) => {
-                        crate::logging::info(format_args!("notification shown as tray balloon"));
-                        Ok(true)
-                    }
-                    Err(balloon) => {
-                        // 插件在开发目录里会借用 PowerShell 的身份，Windows 11 把通知丢掉，
-                        // 但 show() 仍然返回成功。不能把它当成已经通知到了。
-                        crate::logging::error(format_args!(
-                            "system notification failed; showing main window; toast={primary}; balloon={balloon}"
-                        ));
-                        crate::tray::show_main(app);
-                        Ok(false)
-                    }
-                }
-            }
+        // WinRT 的 show() 只表示通知已交给 Windows。横幅被系统设置或专注模式
+        // 静默拦下时仍会返回成功，所以同时投递托盘气泡作为可见性兜底。
+        let toast = crate::win_toast::show(&title, &body);
+        let balloon = crate::win_balloon::show(app, &title, &body);
+        crate::logging::info(format_args!(
+            "windows notification channels: toast={}; balloon={}",
+            if toast.is_ok() { "ok" } else { "failed" },
+            if balloon.is_ok() { "ok" } else { "failed" }
+        ));
+        if let Err(err) = &toast {
+            crate::logging::warn(format_args!("native toast failed: {err}"));
+        }
+        if let Err(err) = &balloon {
+            crate::logging::warn(format_args!("tray balloon failed: {err}"));
+        }
+        if toast.is_ok() || balloon.is_ok() {
+            Ok(true)
+        } else {
+            crate::logging::error(format_args!(
+                "all system notification channels failed; showing main window"
+            ));
+            crate::tray::show_main(app);
+            Ok(false)
         }
     }
     #[cfg(not(windows))]
