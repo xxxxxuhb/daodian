@@ -93,6 +93,7 @@ export interface PlanTemplate {
   label: string;
   stages: TemplateStage[];
   builtIn: boolean;
+  quick: boolean;
 }
 
 export interface TemplateInput {

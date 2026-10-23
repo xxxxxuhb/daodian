@@ -11,6 +11,7 @@ import {
   saveTemplate,
   setPlanDone,
   setStageDone,
+  setTemplateQuick,
 } from "../../api/library";
 import { useLibrary } from "../../data/useLibrary";
 import { useSettings } from "../../data/useSettings";
@@ -31,7 +32,7 @@ import {
   weekStats,
 } from "../../domain/present";
 import { useRun } from "../../domain/useRun";
-import type { Plan, Stage } from "../../domain/types";
+import type { Plan, PlanTemplate, Stage } from "../../domain/types";
 import Icon from "../../ui/Icon.vue";
 import { createTickKey } from "../shell/create";
 import TodayStrip from "../shell/TodayStrip.vue";
@@ -71,7 +72,7 @@ const span = ref<"week" | "month">("week");
 const important = ref(false);
 const showAll = ref(false);
 const name = ref("");
-const templateId = ref("release");
+const templateId = ref("blank");
 const undo = ref<{ plan: Plan; timer: number } | null>(null);
 const composer = ref<HTMLInputElement | null>(null);
 const draft = ref<PlanDraft | null>(null);
@@ -90,6 +91,7 @@ const selectedTemplate = computed(
   () => templates.value.find((item) => item.id === templateId.value) ?? templates.value[0],
 );
 const customTemplates = computed(() => templates.value.filter((item) => !item.builtIn));
+const quickTemplates = computed(() => templates.value.filter((item) => item.quick));
 
 onMounted(reloadTemplates);
 onUnmounted(() => {
@@ -222,7 +224,7 @@ async function commit() {
   });
   if (!ok) return;
   name.value = "";
-  templateId.value = "release";
+  templateId.value = "blank";
 }
 
 async function generateDraft() {
@@ -292,7 +294,15 @@ async function removeCustomTemplate(id: string) {
   await run(async () => {
     await deleteTemplate(id);
     await reloadTemplates();
-    if (templateId.value === id) templateId.value = "release";
+    if (templateId.value === id) templateId.value = "blank";
+  });
+}
+
+async function toggleTemplateQuick(item: PlanTemplate, event: Event) {
+  const quick = (event.target as HTMLInputElement).checked;
+  await run(async () => {
+    await setTemplateQuick(item.id, quick);
+    await reloadTemplates();
   });
 }
 
@@ -486,7 +496,7 @@ async function removeDraft() {
       </div>
       <div class="mini-add__row">
         <button
-          v-for="item in templates"
+          v-for="item in quickTemplates"
           :key="item.id"
           type="button"
           class="chip"
@@ -541,7 +551,7 @@ async function removeDraft() {
         </div>
         <div class="composer__row">
           <button
-            v-for="item in templates"
+            v-for="item in quickTemplates"
             :key="item.id"
             type="button"
             class="chip"
@@ -651,21 +661,37 @@ async function removeDraft() {
         <div class="drawer__head">
           <div>
             <p class="eyebrow">模板</p>
-            <div class="drawer__title">管理自定义模板</div>
+            <div class="drawer__title">管理模板</div>
           </div>
           <button class="icon-btn" type="button" aria-label="关闭" @click="managingTemplates = false"><Icon name="x" small /></button>
         </div>
         <div class="drawer__body">
-          <p v-if="customTemplates.length === 0" class="empty">还没有自定义模板，可从计划菜单中另存。</p>
-          <div v-for="item in customTemplates" :key="item.id" class="template-manage-row">
-            <div class="input"><input v-model="templateNames[item.id]" maxlength="40" /></div>
-            <button class="btn btn--sm" type="button" :disabled="saving" @click="renameCustomTemplate(item.id)">重命名</button>
-            <button class="icon-btn template-delete" type="button" aria-label="删除模板" :disabled="saving" @click="removeCustomTemplate(item.id)">
+          <div v-for="item in templates" :key="item.id" class="template-manage-row">
+            <strong v-if="item.builtIn">{{ item.label }}</strong>
+            <div v-else class="input"><input v-model="templateNames[item.id]" maxlength="40" /></div>
+            <button v-if="!item.builtIn" class="btn btn--sm" type="button" :disabled="saving" @click="renameCustomTemplate(item.id)">重命名</button>
+            <button
+              v-if="!item.builtIn"
+              class="icon-btn template-delete"
+              type="button"
+              aria-label="删除模板"
+              :disabled="saving"
+              @click="removeCustomTemplate(item.id)"
+            >
               <Icon name="trash" small />
             </button>
+            <label class="settings-check template-quick">
+              <input
+                type="checkbox"
+                :checked="item.quick"
+                :disabled="saving"
+                @change="toggleTemplateQuick(item, $event)"
+              />
+              <span>快捷显示</span>
+            </label>
             <p>{{ templatePreview(item) }}</p>
           </div>
-          <p class="field__hint">内置模板始终保留，不能重命名或删除。</p>
+          <p class="field__hint">勾选“快捷显示”的模板才会出现在新建计划下方；内置模板不能重命名或删除。</p>
         </div>
       </div>
     </Teleport>

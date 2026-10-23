@@ -124,6 +124,7 @@ pub fn run() {
             store::templates::save_template,
             store::templates::rename_template,
             store::templates::delete_template,
+            store::templates::set_template_quick,
             remind::sync_clock,
             remind::sync_reminders,
             settings::get_settings,

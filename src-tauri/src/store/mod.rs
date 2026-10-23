@@ -21,6 +21,7 @@ pub struct Library {
     pub(crate) doc: Document,
     pub(crate) templates_path: PathBuf,
     pub(crate) custom_templates: Vec<templates::PlanTemplate>,
+    pub(crate) quick_template_ids: Vec<String>,
 }
 
 impl Library {
@@ -33,7 +34,7 @@ impl Library {
         }
         let path = dir.join("store.json");
         let templates_path = Self::templates_path(dir);
-        let custom_templates = templates::load_custom(&templates_path);
+        let (custom_templates, quick_template_ids) = templates::load(&templates_path);
         if path.exists() {
             let raw = fs::read_to_string(&path)?;
             let mut doc: Document = serde_json::from_str(&raw).map_err(|err| {
@@ -59,6 +60,7 @@ impl Library {
                 doc,
                 templates_path,
                 custom_templates,
+                quick_template_ids,
             };
             library
                 .persist()
@@ -85,6 +87,7 @@ impl Library {
             doc,
             templates_path,
             custom_templates,
+            quick_template_ids,
         };
         library
             .persist()

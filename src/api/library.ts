@@ -60,3 +60,7 @@ export function renameTemplate(id: string, label: string) {
 export function deleteTemplate(id: string) {
   return invoke<void>("delete_template", { id });
 }
+
+export function setTemplateQuick(id: string, quick: boolean) {
+  return invoke<void>("set_template_quick", { id, quick });
+}

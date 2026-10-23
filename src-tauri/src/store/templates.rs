@@ -30,6 +30,8 @@ pub struct PlanTemplate {
     pub label: String,
     pub stages: Vec<TemplateStage>,
     pub built_in: bool,
+    #[serde(default)]
+    pub quick: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,34 +50,44 @@ struct TemplateDocument {
     version: u32,
     #[serde(default)]
     templates: Vec<PlanTemplate>,
+    #[serde(default)]
+    quick_template_ids: Vec<String>,
 }
 
 fn template_version() -> u32 {
     1
 }
 
-pub(crate) fn load_custom(path: &Path) -> Vec<PlanTemplate> {
+pub(crate) fn load(path: &Path) -> (Vec<PlanTemplate>, Vec<String>) {
     let Ok(raw) = fs::read_to_string(path) else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     serde_json::from_str::<TemplateDocument>(&raw)
         .map(|doc| {
-            doc.templates
+            let templates = doc
+                .templates
                 .into_iter()
                 .filter(|item| !is_builtin_id(&item.id))
                 .map(|mut item| {
                     item.built_in = false;
+                    item.quick = false;
                     item
                 })
-                .collect()
+                .collect();
+            (templates, doc.quick_template_ids)
         })
         .unwrap_or_default()
 }
 
-fn persist(path: &Path, templates: &[PlanTemplate]) -> Result<(), String> {
+fn persist(
+    path: &Path,
+    templates: &[PlanTemplate],
+    quick_template_ids: &[String],
+) -> Result<(), String> {
     let document = TemplateDocument {
         version: template_version(),
         templates: templates.to_vec(),
+        quick_template_ids: quick_template_ids.to_vec(),
     };
     let raw = serde_json::to_string_pretty(&document).map_err(|err| err.to_string())?;
     fs::write(path, raw).map_err(|err| err.to_string())
@@ -101,6 +113,7 @@ fn builtins() -> Vec<PlanTemplate> {
                 stage("观察", 3, 10, 0),
             ],
             built_in: true,
+            quick: false,
         },
         PlanTemplate {
             id: "meeting".into(),
@@ -111,12 +124,14 @@ fn builtins() -> Vec<PlanTemplate> {
                 stage("定稿", 4, 16, 0),
             ],
             built_in: true,
+            quick: false,
         },
         PlanTemplate {
             id: "blank".into(),
             label: "空计划".into(),
             stages: Vec::new(),
             built_in: true,
+            quick: false,
         },
     ]
 }
@@ -147,6 +162,9 @@ fn validate_stages(stages: Vec<TemplateStage>) -> Result<Vec<TemplateStage>, Str
 fn all_templates(library: &Library) -> Vec<PlanTemplate> {
     let mut result = builtins();
     result.extend(library.custom_templates.clone());
+    for item in &mut result {
+        item.quick = library.quick_template_ids.contains(&item.id);
+    }
     result
 }
 
@@ -187,6 +205,7 @@ pub fn save_template(
             label,
             stages,
             built_in: false,
+            quick: false,
         };
         guard.custom_templates.push(item.clone());
         item
@@ -228,6 +247,24 @@ pub fn delete_template(store: State<SharedStore>, id: String) -> Result<(), Stri
     if guard.custom_templates.len() == before {
         return Err("这个模板已经不在了".into());
     }
+    guard.quick_template_ids.retain(|quick_id| quick_id != &id);
+    guard.persist_templates()
+}
+
+#[tauri::command]
+pub fn set_template_quick(
+    store: State<SharedStore>,
+    id: String,
+    quick: bool,
+) -> Result<(), String> {
+    let mut guard = lock(&store)?;
+    if !all_templates(&guard).iter().any(|item| item.id == id) {
+        return Err("这个模板已经不在了".into());
+    }
+    guard.quick_template_ids.retain(|item| item != &id);
+    if quick {
+        guard.quick_template_ids.push(id);
+    }
     guard.persist_templates()
 }
 
@@ -237,7 +274,11 @@ impl Library {
     }
 
     pub(crate) fn persist_templates(&self) -> Result<(), String> {
-        persist(&self.templates_path, &self.custom_templates)
+        persist(
+            &self.templates_path,
+            &self.custom_templates,
+            &self.quick_template_ids,
+        )
     }
 }
 
@@ -257,11 +298,11 @@ mod tests {
     #[test]
     fn missing_or_broken_file_falls_back_to_builtins() {
         let missing = temp_file("missing-templates");
-        assert!(load_custom(&missing).is_empty());
+        assert!(load(&missing).0.is_empty());
 
         let broken = temp_file("broken-templates");
         fs::write(&broken, "{not json").unwrap();
-        assert!(load_custom(&broken).is_empty());
+        assert!(load(&broken).0.is_empty());
         let _ = fs::remove_file(broken);
         assert_eq!(
             builtins()
@@ -280,15 +321,22 @@ mod tests {
             label: "我的模板".into(),
             stages: vec![stage("开始", 0, 9, 30)],
             built_in: false,
+            quick: false,
         };
         let fake_builtin = PlanTemplate {
             id: "release".into(),
             label: "假的内置模板".into(),
             stages: Vec::new(),
             built_in: false,
+            quick: false,
         };
-        persist(&path, &[custom.clone(), fake_builtin]).unwrap();
-        assert_eq!(load_custom(&path), vec![custom]);
+        persist(
+            &path,
+            &[custom.clone(), fake_builtin],
+            &["custom-one".into()],
+        )
+        .unwrap();
+        assert_eq!(load(&path), (vec![custom], vec!["custom-one".to_string()]));
         let _ = fs::remove_file(path);
     }
 

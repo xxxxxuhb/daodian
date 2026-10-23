@@ -13,6 +13,7 @@ export const BUILTIN_PLAN_TEMPLATES: PlanTemplate[] = [
       { title: "观察", day: 3, hour: 10, minute: 0 },
     ],
     builtIn: true,
+    quick: false,
   },
   {
     id: "meeting",
@@ -23,8 +24,9 @@ export const BUILTIN_PLAN_TEMPLATES: PlanTemplate[] = [
       { title: "定稿", day: 4, hour: 16, minute: 0 },
     ],
     builtIn: true,
+    quick: false,
   },
-  { id: "blank", label: "空计划", stages: [], builtIn: true },
+  { id: "blank", label: "空计划", stages: [], builtIn: true, quick: false },
 ];
 
 export function stagesFromTemplate(template: PlanTemplate, now: number): StageInput[] {
