@@ -21,6 +21,7 @@ import { tierKey } from "./tier";
 const section = ref<"todo" | "plan">("todo");
 const todoFilter = ref<TodoFilter>("today");
 const planFilter = ref<PlanFilter>("active");
+const planView = ref<"cards" | "gantt">("cards");
 const query = ref("");
 const searching = ref(false);
 const settingsOpen = ref(false);
@@ -31,6 +32,7 @@ let captureSection: {
   section: "todo" | "plan";
   todoFilter: TodoFilter;
   planFilter: PlanFilter;
+  planView: "cards" | "gantt";
 } | null = null;
 provide(createTickKey, createTick);
 
@@ -82,6 +84,13 @@ function pickTodo(filter: TodoFilter) {
 function pickPlan(filter: PlanFilter) {
   section.value = "plan";
   planFilter.value = filter;
+  planView.value = "cards";
+}
+
+function pickTimeline() {
+  section.value = "plan";
+  planFilter.value = "active";
+  planView.value = "gantt";
 }
 
 async function onKey(event: KeyboardEvent) {
@@ -95,6 +104,7 @@ async function onKey(event: KeyboardEvent) {
         section.value = captureSection.section;
         todoFilter.value = captureSection.todoFilter;
         planFilter.value = captureSection.planFilter;
+        planView.value = captureSection.planView;
         captureSection = null;
         quickCaptureActive.value = false;
       }
@@ -133,6 +143,7 @@ async function enterQuickCaptureUi() {
     section: section.value,
     todoFilter: todoFilter.value,
     planFilter: planFilter.value,
+    planView: planView.value,
   };
   quickCaptureActive.value = true;
   settingsOpen.value = false;
@@ -256,7 +267,7 @@ onUnmounted(() => {
       :load-error="loadError"
       @update:filter="todoFilter = $event"
     />
-    <PlanPage v-else :filter="planFilter" :query="keyword" :load-error="loadError" />
+    <PlanPage v-else :filter="planFilter" :query="keyword" :load-error="loadError" :requested-view="planView" />
   </div>
 
   <div v-else-if="tier === 'standard'" class="std">
@@ -295,7 +306,7 @@ onUnmounted(() => {
         :load-error="loadError"
         @update:filter="todoFilter = $event"
       />
-      <PlanPage v-else :filter="planFilter" :query="keyword" :load-error="loadError" />
+      <PlanPage v-else :filter="planFilter" :query="keyword" :load-error="loadError" :requested-view="planView" />
     </div>
   </div>
 
@@ -315,21 +326,16 @@ onUnmounted(() => {
       :load-error="loadError"
       @update:filter="todoFilter = $event"
     />
-    <PlanPage v-else :filter="planFilter" :query="keyword" :load-error="loadError" />
+    <PlanPage v-else :filter="planFilter" :query="keyword" :load-error="loadError" :requested-view="planView" />
     <nav class="mini-foot">
+      <button type="button" class="tab" :class="{ on: section === 'plan' && planView === 'gantt' }" @click="pickTimeline">
+        <Icon name="timeline" /><span>时间轴</span>
+      </button>
       <button type="button" class="tab" :class="{ on: section === 'todo' && todoFilter !== 'done' }" @click="pickTodo('today')">
         <Icon name="list" /><span>待办</span>
       </button>
-      <button type="button" class="tab" :class="{ on: section === 'plan' && planFilter !== 'done' }" @click="pickPlan('active')">
+      <button type="button" class="tab" :class="{ on: section === 'plan' && planView === 'cards' }" @click="pickPlan('active')">
         <Icon name="layers" /><span>计划</span>
-      </button>
-      <button
-        type="button"
-        class="tab"
-        :class="{ on: (section === 'todo' && todoFilter === 'done') || (section === 'plan' && planFilter === 'done') }"
-        @click="section === 'plan' ? pickPlan('done') : pickTodo('done')"
-      >
-        <Icon name="check" /><span>已完成</span>
       </button>
       <button type="button" class="icon-btn" @click="chooseTheme(themeName === 'night' ? 'celadon' : 'night')">
         <Icon name="moon" />

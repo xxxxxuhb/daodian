@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { axisRange, axisRatio, dayHead } from "../../domain/present";
+import { axisRange, axisRatio } from "../../domain/present";
 import { startOfDay } from "../../domain/time";
 import type { Plan, Stage } from "../../domain/types";
 
@@ -13,6 +13,15 @@ const range = computed(() => axisRange(props.now, props.mode));
 const todayIndex = computed(() => range.value.days.findIndex((day) => day === startOfDay(props.now)));
 const nowRatio = computed(() => axisRatio(props.now, range.value.start, range.value.end));
 const monthLabel = computed(() => `${new Date(range.value.start).getMonth() + 1}月`);
+
+function weekLabel(at: number) {
+  return "日一二三四五六"[new Date(at).getDay()];
+}
+
+function dateLabel(at: number) {
+  const date = new Date(at);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
 
 function atOf(stage: Stage) {
   return preview.value[stage.id] ?? stage.at;
@@ -123,17 +132,21 @@ function onPinDown(event: PointerEvent, plan: Plan, stage: Stage) {
     :style="{ '--cols': range.days.length, '--today': Math.max(todayIndex, 0) }"
   >
     <div class="gantt__head">
-      <div>计划 / {{ monthLabel }}</div>
-      <div v-for="day in range.days" :key="day" :class="{ today: day === startOfDay(now) }">{{ dayHead(day) }}</div>
+      <div class="gantt__corner"><span>计划</span><small>/ {{ monthLabel }}</small></div>
+      <div v-for="day in range.days" :key="day" :class="{ today: day === startOfDay(now) }">
+        <span class="gantt__weekday">{{ weekLabel(day) }}</span>
+        <span class="gantt__date">{{ dateLabel(day) }}</span>
+      </div>
     </div>
     <div class="gantt__body" :style="{ '--now': nowRatio }">
       <span v-if="nowRatio >= 0 && nowRatio <= 1" class="gantt__now"></span>
-      <div v-for="plan in plans" :key="plan.id" class="gantt__row">
+      <div v-for="(plan, rowIndex) in plans" :key="plan.id" class="gantt__row" :class="{ 'is-alt': rowIndex % 2 === 1 }">
         <button class="gantt__label" type="button" @click="emit('open', plan.id)">
           {{ plan.title }}
           <span>{{ caption(plan) }}</span>
         </button>
         <div class="gantt__track">
+          <span v-if="plan.stages.length === 0" class="gantt__empty-stage">点开加第一个阶段</span>
           <span
             v-if="segment(plan)"
             class="gantt__seg"
@@ -170,7 +183,8 @@ function onPinDown(event: PointerEvent, plan: Plan, stage: Stage) {
     <span><i style="background: var(--done)"></i>已完成</span>
     <span><i style="background: var(--accent)"></i>下一个到点</span>
     <span><i style="background: var(--fill-2)"></i>还没到</span>
-    <span style="margin-left: auto; color: var(--ink-4)">无依赖计划可拖动；依赖计划请编辑延迟</span>
+    <span class="legend__hint legend__hint--wide">无依赖计划可拖动；依赖计划请编辑延迟</span>
+    <span class="legend__hint legend__hint--mini">拖动节点改时间</span>
   </div>
   <p class="foot-note">虚线箭头表示完成后推进的依赖关系；实线是计划的整体跨度。</p>
   </div>

@@ -1,0 +1,43 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0B0D10;color:#E7ECF2;font-family:"Segoe UI","Microsoft YaHei UI",sans-serif;padding:28px 34px 24px}
+.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:18px}
+.kicker{font-size:9.5px;letter-spacing:.24em;color:#59636E}
+h1{margin:6px 0 0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.head p{margin-left:auto;text-align:right;font-size:10.5px;color:#8B95A1;line-height:1.9}
+.cols{display:flex;gap:22px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:8px}
+.lbl{display:flex;align-items:center;gap:7px;font-size:10.5px;color:#8B95A1}
+.lbl b{font-size:11.5px;color:#E7ECF2;font-weight:600}
+.lbl i{width:7px;height:7px;border-radius:50%}
+.lbl em{font-style:normal;font-family:Georgia,serif;color:#59636E;margin-left:auto}
+.shot{width:418px;height:528px;border:1px solid #232A33;border-radius:10px;overflow:hidden;background:#0E1116}
+.shot img{display:block;width:418px;height:auto}
+.notes{flex:1;display:flex;flex-direction:column;gap:13px;padding-top:24px}
+.note{display:flex;gap:9px;font-size:10.5px;color:#A9B4C2;line-height:1.65}
+.note .n{font-family:Georgia,serif;color:#59636E;width:14px;flex:none;font-size:10px;padding-top:1px}
+.note b{display:block;color:#E7ECF2;font-size:11.5px;font-weight:600;margin-bottom:1px}
+</style></head><body>
+<div class="head">
+  <div><div class="kicker">到点 · 窄屏时间轴</div><h1>同一块 760 宽，重排一版</h1></div>
+  <p>信息一个没少，只是不再挤在一起<br>左：现在 · 右：改后</p>
+</div>
+<div class="cols">
+  <div class="col">
+    <div class="lbl"><i style="background:#A33C3C"></i><b>改前</b><em>760 × 960</em></div>
+    <div class="shot"><img src="out/before-timeline.png"></div>
+  </div>
+  <div class="col">
+    <div class="lbl"><i style="background:#2C7A58"></i><b>改后</b><em>760 × 960</em></div>
+    <div class="shot"><img src="out/timeline760.png"></div>
+  </div>
+  <div class="notes">
+    <div class="note"><span class="n">01</span><div><b>名字列 300 → 122</b>日期格子从 57px 回到 128px，一周七天终于是等宽的。</div></div>
+    <div class="note"><span class="n">02</span><div><b>表头补上日期</b>「五 / 六 / 日」上面一行星期，下面一行日期，不用再回头数。</div></div>
+    <div class="note"><span class="n">03</span><div><b>节点标签错开上下</b>偶数行标签在上、奇数行在下，不再压着表头线，也不再盖住行名。</div></div>
+    <div class="note"><span class="n">04</span><div><b>行高固定 86</b>现在每行被窗口高度拉成 200 多 px，中间全是空的；固定之后一屏能看五份计划。</div></div>
+    <div class="note"><span class="n">05</span><div><b>图例收成一行</b>三个点 + 三个词，右侧放提示；不再折成两行、也不再把「已完成」拆成「已完/成」。</div></div>
+    <div class="note"><span class="n">06</span><div><b>「今天」整列加底色</b>配一条 17:24 的现在线，一眼知道走到哪了。</div></div>
+  </div>
+</div>
+</body></html>

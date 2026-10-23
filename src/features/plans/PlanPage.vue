@@ -59,7 +59,12 @@ import {
 import PlanCard from "./PlanCard.vue";
 import PlanEditor from "./PlanEditor.vue";
 
-const props = defineProps<{ filter: PlanFilter; query: string; loadError: string }>();
+const props = defineProps<{
+  filter: PlanFilter;
+  query: string;
+  loadError: string;
+  requestedView?: "cards" | "gantt";
+}>();
 
 const now = useNow();
 const { todos, plans, loading, reload } = useLibrary();
@@ -93,6 +98,14 @@ const selectedTemplate = computed(
 );
 const customTemplates = computed(() => templates.value.filter((item) => !item.builtIn));
 const quickTemplates = computed(() => templates.value.filter((item) => item.quick));
+
+watch(
+  () => props.requestedView,
+  (requested) => {
+    if (requested) view.value = requested;
+  },
+  { immediate: true },
+);
 
 onMounted(reloadTemplates);
 onUnmounted(() => {
@@ -519,7 +532,8 @@ async function removeDraft() {
         :aria-label="span === 'week' ? '切换到本月' : '切换到本周'"
         @click="span = span === 'week' ? 'month' : 'week'"
       >
-        {{ span === "week" ? "本周" : "本月" }}⌄
+        <span>{{ span === "week" ? "本周" : "本月" }}</span>
+        <i class="range-caret" aria-hidden="true"></i>
       </button>
       <span class="grow"></span>
       <button type="button" class="chip" :class="{ on: important }" @click="important = !important">只看重要</button>
@@ -603,7 +617,23 @@ async function removeDraft() {
           @export-calendar="exportCalendar(plan)"
         />
       </template>
-      <GanttBoard v-else :plans="shown" :now="now" :mode="span" @open="openPlan" @shift="shift" />
+      <template v-else>
+        <GanttBoard :plans="shown" :now="now" :mode="span" @open="openPlan" @shift="shift" />
+        <div v-if="tier === 'mini'" class="next-card mini-next-card">
+          <div v-if="next">
+            <p class="eyebrow">最近一个</p>
+            <h4>{{ next.title }} · {{ next.context }}</h4>
+            <p>{{ stageLong(next.at, now) }}</p>
+          </div>
+          <div v-else>
+            <p class="eyebrow">最近一个</p>
+            <h4>近期没有到点事项</h4>
+          </div>
+          <div v-if="next" class="cd">
+            <b>{{ countdown(next.at, now) }}</b><span>后到点</span>
+          </div>
+        </div>
+      </template>
     </div>
 
     <button v-if="undo" type="button" class="undo" @click="undoSlip">

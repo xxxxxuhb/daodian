@@ -1,0 +1,120 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0E1116;--card:#161A21;--fill:#1E242C;--fill2:#2B333D;
+--ink:#E7ECF2;--ink2:#A7B2BF;--ink3:#77828E;--ink4:#59636E;
+--line:#252C36;--line2:#1D232B;--acc:#5B8DF6;--warn:#E0A24C;--done:#45B98F;
+--sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;--serif:Georgia,"Songti SC",SimSun,serif}
+html,body{margin:0;background:transparent;overflow:hidden}
+body{font-family:var(--sans);color:var(--ink)}
+.win{width:760px;height:960px;background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.hd{display:flex;align-items:center;gap:8px;padding:14px 18px 6px}
+.hd svg{width:19px;height:19px;color:var(--ink2)}
+.hd b{font-family:var(--serif);font-size:14.5px;font-weight:500;letter-spacing:.14em}
+.hd time{margin-left:auto;font-size:10.5px;color:var(--ink4)}
+.title{display:flex;align-items:baseline;gap:8px;padding:2px 18px 12px}
+.title h1{font-size:25px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.title span{font-size:10.5px;color:var(--ink4);font-family:var(--serif)}
+.title time{margin-left:auto;font-size:10.5px;color:var(--ink4);font-family:var(--serif)}
+.tools{display:flex;align-items:center;gap:6px;padding:0 18px 12px}
+.ch{height:25px;padding:0 11px;border-radius:999px;background:var(--fill);font-size:11px;color:var(--ink2);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.ch.on{background:rgba(91,141,246,.16);color:#9DBBFF;font-weight:600;box-shadow:inset 0 0 0 1px rgba(91,141,246,.28)}
+.grow{flex:1}
+
+.gantt{flex:none;margin:0 18px;border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden;display:flex;flex-direction:column}
+.ghead{display:grid;grid-template-columns:122px repeat(7,1fr);border-bottom:1px solid var(--line);background:#171C25}
+.ghead div{padding:7px 0 6px;text-align:center;border-left:1px solid var(--line2);line-height:1.25}
+.ghead div:first-child{border-left:0;text-align:left;padding-left:14px;display:flex;align-items:center;font-size:9.5px;letter-spacing:.16em;color:var(--ink4)}
+.ghead .w{display:block;font-size:9px;color:var(--ink4)}
+.ghead .d{display:block;font-size:10.5px;color:var(--ink3);font-family:var(--serif)}
+.ghead .today .w{color:var(--acc)}
+.ghead .today .d{color:#9DBBFF;font-weight:600}
+
+.gbody{position:relative;flex:1;display:flex;flex-direction:column}
+.grow2{display:grid;grid-template-columns:122px minmax(0,1fr);height:86px;border-top:1px solid var(--line2)}
+.grow2:first-child{border-top:0}
+.glabel{padding:14px 12px 12px 14px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.glabel b{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.glabel span{font-size:9.5px;color:var(--ink4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{position:relative;background-image:repeating-linear-gradient(90deg,transparent 0 calc(14.2857% - 1px),var(--line2) calc(14.2857% - 1px) 14.2857%)}
+.track::before{content:"";position:absolute;left:0;top:0;bottom:0;width:14.2857%;background:rgba(91,141,246,.05);border-right:1px solid rgba(91,141,246,.22)}
+.seg{position:absolute;top:50%;height:2px;transform:translateY(-50%);background:var(--fill2);border-radius:2px}
+.pin{position:absolute;top:50%;transform:translate(-50%,-50%);z-index:2}
+.pin i{display:block;width:10px;height:10px;border-radius:50%;background:var(--card);border:2px solid var(--fill2);box-shadow:0 0 0 3px var(--card)}
+.pin.done i{background:var(--done);border-color:var(--done)}
+.pin.done b{color:var(--ink4)}
+.pin.done i{background:var(--done);border-color:var(--done)}
+.pin.done b{color:var(--ink4)}
+.pin.next i{width:11px;height:11px;background:var(--acc);border-color:var(--acc);box-shadow:0 0 0 3px var(--card),0 0 0 7px rgba(91,141,246,.18)}
+.pin b{position:absolute;left:50%;top:-18px;transform:translateX(-50%);font-size:9.5px;font-weight:600;color:var(--ink3);white-space:nowrap}
+.pin.next b{color:#9DBBFF}
+.pin.low b{top:auto;bottom:-19px}
+.now{position:absolute;top:0;bottom:0;width:1px;background:var(--acc);left:10.4%}
+.now::before{content:"";position:absolute;top:-3px;left:-2.5px;width:6px;height:6px;border-radius:50%;background:var(--acc)}
+
+.legend{display:flex;align-items:center;gap:16px;padding:12px 20px 2px;font-size:10.5px;color:var(--ink3)}
+.legend span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.legend i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.legend .hint{margin-left:auto;color:var(--ink4);font-size:10px}
+
+.foot{display:flex;align-items:center;gap:2px;padding:8px 12px;border-top:1px solid var(--line);margin-top:auto}
+.foot .tab{flex:1;height:30px;border:0;background:transparent;color:var(--ink3);font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:5px;border-radius:7px}
+.foot .tab.on{background:var(--card);color:var(--ink);font-weight:600}
+.foot .ic{width:30px;height:30px;display:grid;place-items:center;color:var(--ink3);border:0;background:transparent}
+</style></head><body>
+<div class="win">
+  <div class="hd"><svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="18.4" stroke="currentColor" stroke-width="4.8"/><path d="M32 32 40.5 23.5" stroke="currentColor" stroke-width="4.6" stroke-linecap="round"/><circle cx="43.7" cy="20.3" r="6.8" fill="#5B8DF6"/></svg><b>到点</b><time>10月23日 周五</time></div>
+  <div class="title"><h1>时间轴</h1><span>3</span><time>17:24</time></div>
+  <div class="tools"><span class="ch on">本周 ⌄</span><span class="grow"></span><span class="ch">只看重要</span></div>
+
+  <div class="gantt">
+    <div class="ghead"><div>计划</div><div class="today"><span class="w">五</span><span class="d">10/23</span></div><div class=""><span class="w">六</span><span class="d">10/24</span></div><div class=""><span class="w">日</span><span class="d">10/25</span></div><div class=""><span class="w">一</span><span class="d">10/26</span></div><div class=""><span class="w">二</span><span class="d">10/27</span></div><div class=""><span class="w">三</span><span class="d">10/28</span></div><div class=""><span class="w">四</span><span class="d">10/29</span></div></div>
+    <div class="gbody" style="flex:none">
+      <span class="now"></span>
+      
+<div class="grow2">
+  <div class="glabel"><b>报关系统 v1.0.7.1</b><span>2 个阶段 · 1 完成</span></div>
+  <div class="track"><span class="seg" style="left:10.4%;width:0%"></span><span class="pin next" style="left:10.4%"><b>发布</b><i></i></span></div>
+</div>
+      
+<div class="grow2">
+  <div class="glabel"><b>海外 OMSv2.0.7</b><span>2 个阶段 · 1 完成</span></div>
+  <div class="track"><span class="seg" style="left:10.4%;width:71.5%"></span><span class="pin future" style="left:81.9%"><b>发布</b><i></i></span></div>
+</div>
+      
+<div class="grow2" style="height:58px">
+  <div class="glabel"><b>12321</b><span>还没分阶段</span></div>
+  <div class="track"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:10.5px;color:var(--ink4)">点开加第一个阶段</span></div>
+</div>
+<div class="grow2" style="height:150px">
+  <div class="glabel"><b>数据看板 V2</b><span>3 个阶段 · 1 完成</span></div>
+  <div class="track">
+    <span class="seg" style="left:19.3%;width:43.8%"></span>
+    <span class="pin done" style="left:19.3%"><b>口径确认</b><i></i></span>
+    <span class="pin low" style="left:63.1%"><b>灰度</b><i></i></span>
+  </div>
+</div>
+<div class="grow2" style="height:150px">
+  <div class="glabel"><b>值班表改版</b><span>2 个阶段</span></div>
+  <div class="track"><span class="pin low" style="left:51.1%"><b>排班规则</b><i></i></span></div>
+</div>
+<div class="grow2"></div>
+<div class="grow2"></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--done)"></i>已完成</span>
+    <span><i style="background:var(--acc)"></i>下一个到点</span>
+    <span><i style="background:var(--fill2)"></i>还没到</span>
+    <span class="hint">拖动节点改时间</span>
+  </div>
+
+  <div class="foot">
+    <button class="tab on">时间轴</button>
+    <button class="tab">待办</button>
+    <button class="tab">计划</button>
+    <button class="ic">☾</button>
+    <button class="ic">⚙</button>
+  </div>
+</div>
+</body></html>

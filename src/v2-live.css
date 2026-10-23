@@ -55,6 +55,170 @@
   flex: 1;
   overflow: auto;
 }
+.mini-body .gantt-wrap {
+  flex: none;
+  min-height: 0;
+}
+.mini-body .gantt {
+  flex: none;
+  margin: 0 10px;
+  max-height: min(250px, 48vh);
+  border-radius: 12px;
+  box-shadow: none;
+  overflow: auto;
+}
+.mini-body .gantt__head {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  grid-template-columns: 62px repeat(var(--cols, 7), minmax(42px, 1fr));
+  min-width: calc(62px + var(--cols, 7) * 42px);
+}
+.mini-body .gantt::-webkit-scrollbar {
+  width: 6px;
+  height: 8px;
+}
+.mini-body .gantt__head div {
+  min-width: 0;
+  padding: 5px 0 4px;
+  font-size: 8.5px;
+  line-height: 1.15;
+}
+.mini-body .gantt__head div:first-child {
+  padding-left: 8px;
+  font-size: 9px;
+}
+.mini-body .gantt__corner small {
+  display: none;
+}
+.mini-body .gantt__weekday {
+  color: var(--ink-4);
+}
+.mini-body .gantt__date {
+  margin-top: 1px;
+  color: var(--ink-3);
+  font-family: var(--serif);
+  font-size: 9.5px;
+}
+.mini-body .gantt__head .today .gantt__weekday,
+.mini-body .gantt__head .today .gantt__date {
+  color: var(--accent);
+}
+.mini-body .gantt__row {
+  grid-template-columns: 62px minmax(294px, 1fr);
+  min-width: 356px;
+  min-height: 58px;
+  height: 58px;
+  flex: none;
+}
+.mini-body .gantt__label {
+  min-width: 0;
+  padding: 8px 6px 7px 8px;
+  gap: 1px;
+  font-size: 10px;
+  overflow: hidden;
+}
+.mini-body .gantt__label,
+.mini-body .gantt__label span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-body .gantt__label span {
+  font-size: 8.5px;
+}
+.mini-body .gantt__now {
+  left: calc(62px + (100% - 62px) * var(--now, 0));
+}
+.mini-body .gantt.is-month .gantt__head,
+.mini-body .gantt.is-month .gantt__body,
+.mini-body .gantt.is-month .gantt__row {
+  min-width: calc(62px + var(--cols) * 42px);
+}
+.mini-body .pin span {
+  top: -17px;
+  font-size: 9px;
+}
+.mini-body .gantt__row.is-alt .pin span {
+  top: auto;
+  bottom: -17px;
+}
+.mini-body .pin i {
+  width: 9px;
+  height: 9px;
+}
+.mini-body .pin.next i {
+  box-shadow: 0 0 0 3px var(--card), 0 0 0 6px var(--accent-glow);
+}
+.mini-body .gantt__seg {
+  height: 2px;
+}
+.mini-body .gantt__empty-stage {
+  left: 8px;
+  font-size: 8.5px;
+}
+.mini-body .legend {
+  flex: none;
+  gap: 8px;
+  margin: 9px 12px 3px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.mini-body .legend i {
+  width: 6px;
+  height: 6px;
+  margin-right: 3px;
+}
+.mini-body .legend__hint--wide,
+.mini-body .foot-note {
+  display: none;
+}
+.mini-body .legend__hint--mini {
+  display: inline;
+  margin-left: auto;
+}
+.mini-body .mini-scroll {
+  display: flex;
+  flex-direction: column;
+}
+.mini-next-card {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: auto 10px 10px;
+  padding: 10px 12px;
+}
+.mini-next-card > div:first-child {
+  min-width: 0;
+}
+.mini-next-card h4 {
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-next-card p {
+  font-size: 9.5px;
+}
+.mini-next-card .cd {
+  flex: none;
+  display: block;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  text-align: right;
+}
+.mini-next-card .cd b {
+  display: block;
+  font-size: 16px;
+}
+.mini-next-card .cd span {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+}
 .mini-add__line input {
   flex: 1;
   min-width: 0;

@@ -1,0 +1,108 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0E1116;--card:#161A21;--fill:#1E242C;--fill2:#2B333D;
+  --ink:#E7ECF2;--ink2:#A7B2BF;--ink3:#77828E;--ink4:#59636E;
+  --line:#252C36;--line2:#1D232B;--acc:#5B8DF6;--acc-soft:rgba(91,141,246,.16);
+  --warn:#E0A24C;--warn-soft:rgba(224,162,76,.15);--done:#45B98F;
+  --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --serif:Georgia,"Songti SC",SimSun,serif;
+}
+html,body{margin:0;background:transparent;overflow:hidden}
+body{font-family:var(--sans);color:var(--ink)}
+.win{width:380px;height:760px;background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.hd{display:flex;align-items:center;gap:8px;padding:12px 14px 8px}
+.hd svg{width:19px;height:19px;color:var(--ink2)}
+.hd b{font-family:var(--serif);font-size:14.5px;font-weight:500;letter-spacing:.14em}
+.hd time{margin-left:auto;font-size:10.5px;color:var(--ink4)}
+.title{display:flex;align-items:baseline;gap:7px;padding:2px 14px 10px}
+.title h1{font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.title span{font-size:10.5px;color:var(--ink4);font-family:var(--serif)}
+.title time{margin-left:auto;font-size:10.5px;color:var(--ink4);font-family:var(--serif)}
+.tools{display:flex;align-items:center;gap:6px;padding:0 14px 10px}
+.ch{height:24px;padding:0 10px;border-radius:999px;background:var(--fill);font-size:11px;color:var(--ink2);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.ch.on{background:var(--acc-soft);color:#9DBBFF;font-weight:600;box-shadow:inset 0 0 0 1px rgba(91,141,246,.28)}
+.grow{flex:1}
+
+.agenda{flex:1;overflow:hidden;padding:0 14px}
+.stream{position:relative}
+.stream::before{content:"";position:absolute;left:55px;top:10px;bottom:26px;width:1px;background:var(--line2)}
+.day{display:flex;align-items:baseline;gap:6px;height:30px;position:relative;z-index:1;background:var(--bg)}
+.day b{font-size:11.5px;font-weight:600;color:var(--ink)}
+.day em{font-style:normal;font-size:10px;color:var(--ink4);font-family:var(--serif)}
+.day i{margin-left:auto;font-style:normal;font-size:9.5px;color:var(--ink4);font-family:var(--serif)}
+.day.today b{color:var(--acc)}
+.day.today::before{content:"";position:absolute;left:-14px;top:9px;width:3px;height:14px;border-radius:0 2px 2px 0;background:var(--acc)}
+
+.ev{display:grid;grid-template-columns:40px 14px minmax(0,1fr) auto;align-items:center;gap:8px;padding:5px 0;position:relative}
+.ev .t{font-family:var(--serif);font-size:11px;color:var(--ink3);text-align:right}
+.ev .rail{position:relative;height:100%;display:grid;place-items:center}
+
+
+.ev .dot{width:8px;height:8px;border-radius:50%;background:var(--card);border:1.5px solid var(--fill2);position:relative;z-index:1}
+.ev.next .dot{width:9px;height:9px;background:var(--acc);border-color:var(--acc);box-shadow:0 0 0 4px rgba(91,141,246,.18)}
+.ev.done .dot{background:var(--done);border-color:var(--done)}
+.ev .body{min-width:0}
+.ev .n{display:block;font-size:11.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev.next .n{color:var(--ink);font-weight:600}
+.ev .p{display:block;font-size:9.5px;color:var(--ink4);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev .st{font-size:9.5px;color:var(--ink4);white-space:nowrap;font-family:var(--serif)}
+.ev.next .st{color:var(--warn);font-weight:600}
+.ev.done .n{text-decoration:line-through;color:var(--ink4)}
+
+.past{display:flex;align-items:center;gap:6px;height:28px;background:var(--bg);position:relative;z-index:1;font-size:10.5px;color:var(--ink4)}
+.past span{font-weight:600}
+.past em{font-style:normal;font-size:10px;color:var(--ink4)}
+.past i{margin-left:auto;font-style:normal;color:var(--ink4)}
+.more{margin:14px 2px 0;padding:10px;border:1px dashed var(--fill2);border-radius:9px;font-size:10.5px;color:var(--ink4);display:flex;align-items:center;gap:6px}
+.more b{color:var(--ink2);font-weight:600}
+
+.foot{display:flex;align-items:center;gap:2px;padding:8px 10px;border-top:1px solid var(--line)}
+.foot .tab{flex:1;height:28px;border:0;background:transparent;color:var(--ink3);font-size:11px;display:flex;align-items:center;justify-content:center;gap:5px;border-radius:7px}
+.foot .tab.on{background:var(--card);color:var(--ink);font-weight:600}
+.foot .ic{width:28px;height:28px;display:grid;place-items:center;color:var(--ink3);border:0;background:transparent}
+</style></head><body>
+<div class="win">
+  <div class="hd"><svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="18.4" stroke="currentColor" stroke-width="4.8"/><path d="M32 32 40.5 23.5" stroke="currentColor" stroke-width="4.6" stroke-linecap="round"/><circle cx="43.7" cy="20.3" r="6.8" fill="#5B8DF6"/></svg><b>到点</b><time>10月23日 周五</time></div>
+  <div class="title"><h1>时间轴</h1><span>3</span><time>17:24</time></div>
+  <div class="tools"><span class="ch on">本周 ⌄</span><span class="grow"></span><span class="ch">只看重要</span></div>
+
+  <div class="agenda">
+    <div class="stream">
+    <div class="past"><span>今天之前</span><em>已完成 2 个阶段</em><i>⌄</i></div>
+    <div class="day today"><b>今天</b><em>周五 10/23</em><i>1 个节点</i></div>
+    <div class="ev next">
+      <span class="t">17:30</span>
+      <span class="rail"><span class="dot"></span></span>
+      <span class="body"><span class="n">发布</span><span class="p">报关系统 v1.0.7.1</span></span>
+      <span class="st">还有 2 小时</span>
+    </div>
+
+    <div class="day"><b>10/28</b><em>周二</em><i>1 个节点</i></div>
+    <div class="ev">
+      <span class="t">17:30</span>
+      <span class="rail"><span class="dot"></span></span>
+      <span class="body"><span class="n">发布</span><span class="p">海外 OMSv2.0.7</span></span>
+      <span class="st">5 天后</span>
+    </div>
+
+    <div class="day"><b>10/29</b><em>周三</em><i>1 个节点</i></div>
+    <div class="ev">
+      <span class="t">10:00</span>
+      <span class="rail"><span class="dot"></span></span>
+      <span class="body"><span class="n">观察</span><span class="p">海外 OMSv2.0.7</span></span>
+      <span class="st">6 天后</span>
+    </div>
+
+    <div class="more"><b>12321</b> 还没分阶段 · 点开加时间</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <button class="tab"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8.5 7h10.5M8.5 12h10.5M8.5 17h10.5M5 7h.01M5 12h.01M5 17h.01"/></svg>待办</button>
+    <button class="tab on"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5 20 9l-8 4.5L4 9l8-4.5Z"/><path d="M4 14l8 4.5 8-4.5"/></svg>计划</button>
+    <button class="tab"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 12.6 4.2 4.2L18.8 7.7"/></svg>已完成</button>
+    <button class="ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></svg></button>
+  </div>
+</div>
+</body></html>
