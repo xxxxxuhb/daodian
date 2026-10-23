@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>到点 v2 · 四条线</title>
+<style>
+  :root{--ink:#E7ECF2;--dim:#8B95A1;--faint:#59636E;--line:#1C222A;
+    --paper:#FAFCFB;--bg:#EBF0ED;--card:#FAFCFB;--ink-d:#0E1613;--ink2:#47564F;--ink3:#74847C;--ink4:#98A69F;
+    --acc:#15637B;--acc-soft:#DCE9EF;--l:#D3DFD9;--l2:#E3EBE6;--done:#2C7A58;--warn:#9C640E;--danger:#A33C3C;
+    --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;--serif:"SimSun","Songti SC",serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0B0D10;color:var(--ink);font-family:var(--sans);padding:32px 36px 28px}
+  .head{display:flex;align-items:flex-end;gap:18px;margin-bottom:22px}
+  .kicker{font-size:9.5px;letter-spacing:.24em;color:var(--faint)}
+  h1{margin:7px 0 0;font-size:24px;font-weight:600;letter-spacing:-.01em}
+  .head p{margin-left:auto;text-align:right;font-size:11px;color:var(--dim);line-height:1.9}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .p{background:#101419;border:1px solid var(--line);border-radius:13px;padding:14px 14px 16px}
+  .p__h{display:flex;align-items:baseline;gap:8px}
+  .p__h span{font-family:var(--serif);font-size:10px;color:var(--faint);letter-spacing:.1em}
+  .p__h b{font-size:12.5px;font-weight:600}
+  .p__s{margin:5px 0 12px;font-size:10px;color:var(--dim);line-height:1.6}
+  .p__b{background:var(--bg);border:1px solid #233029;border-radius:10px;padding:11px;color:var(--ink-d);min-height:196px}
+  .fld{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--ink3);margin-bottom:7px}
+  .inp{flex:1;height:26px;border:1px solid var(--l);border-radius:7px;background:var(--card);display:flex;align-items:center;padding:0 8px;font-size:11px;color:var(--ink-d)}
+  .inp.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(21,99,123,.14)}
+  .menu{border:1px solid var(--l);border-radius:8px;background:var(--card);padding:4px;margin-top:5px;box-shadow:0 6px 18px -8px rgba(0,0,0,.25)}
+  .menu div{height:22px;display:flex;align-items:center;padding:0 7px;font-size:10.5px;color:var(--ink2);border-radius:5px}
+  .menu div.on{background:var(--acc-soft);color:var(--acc);font-weight:600}
+  .hint{font-size:9.5px;color:var(--ink4);margin-top:7px}
+  .chips{display:flex;gap:5px;flex-wrap:wrap}
+  .ch{height:22px;padding:0 9px;border-radius:999px;background:#E1E8E4;font-size:10px;color:var(--ink2);display:inline-flex;align-items:center}
+  .ch.on{background:var(--acc-soft);color:var(--acc);font-weight:600;box-shadow:inset 0 0 0 1px rgba(21,99,123,.2)}
+  .stp{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink2);margin-top:6px}
+  .dot{width:6px;height:6px;border-radius:50%;background:#CCD8D2;flex:none}
+  .num{font-family:var(--serif);color:var(--ink3);font-size:10px}
+  .hd{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+  .hd b{font-size:11.5px;font-weight:600;color:var(--ink-d)}
+  .hd .dots{margin-left:auto;color:var(--ink4);font-size:13px;letter-spacing:1px}
+  .stage{display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--ink2);padding:4px 0}
+  .stage s{text-decoration:line-through;color:var(--ink4)}
+  .stage .tm{margin-left:auto;font-family:var(--serif);font-size:10px;color:var(--ink3)}
+  .stage .tm.new{color:var(--warn);font-weight:600}
+  .big{font-family:var(--serif);font-size:26px;color:var(--ink-d);line-height:1}
+  .meter{display:flex;gap:14px;margin:4px 0 10px}
+  .meter div{font-size:9.5px;color:var(--ink3)}
+  .meter b{display:block;font-family:var(--serif);font-size:19px;color:var(--ink-d);font-weight:400;margin-bottom:2px}
+  .txt{border:1px dashed var(--l);border-radius:7px;padding:8px;font-size:9.5px;line-height:1.7;color:var(--ink2);background:#fff}
+  .btn{height:24px;padding:0 10px;border-radius:6px;background:var(--acc);color:#fff;font-size:10px;display:inline-flex;align-items:center;gap:4px;font-weight:600;margin-top:8px}
+  .note{margin-top:12px;font-size:9.5px;color:var(--faint);line-height:1.7}
+  .boardnote{margin-top:20px;font-size:10.5px;color:var(--dim);line-height:1.9;border-top:1px solid var(--line);padding-top:14px}
+  .boardnote b{color:var(--ink);font-weight:600}
+</style></head><body>
+
+<div class="head">
+  <div>
+    <div class="kicker">到点 v2 · 四条线</div>
+    <h1>每条线落在界面上的哪一块</h1>
+  </div>
+  <p>重复、模板、顺延、周报——都不加新页面<br>只在已有的时间字段、计划卡和右栏里长出控件</p>
+</div>
+
+<div class="grid">
+
+  
+<div class="p">
+  <div class="p__h"><span>01</span><b>重复</b></div>
+  <p class="p__s">时间字段旁边多一个「重复」；不再是一个时间点，是一条时间规则</p>
+  <div class="p__b">
+    <div class="fld"><span>时间</span><span class="inp">今天 18:00</span></div>
+    <div class="fld"><span>重复</span><span class="inp on">每周五</span></div>
+    <div class="menu">
+      <div>不重复</div>
+      <div class="on">每周五 18:00</div>
+      <div>每个工作日 18:00</div>
+      <div>每月最后一天…</div>
+    </div>
+    <p class="hint">下一次 10月30日 18:00 · 跳过节假日</p>
+  </div>
+</div>
+
+  
+<div class="p">
+  <div class="p__h"><span>02</span><b>模板</b></div>
+  <p class="p__s">新建计划时不填表，先选一个跑过的流程</p>
+  <div class="p__b">
+    <div class="hd"><b>新建计划</b></div>
+    <div class="inp" style="margin-bottom:8px">1.3 版本</div>
+    <div class="chips" style="margin-bottom:10px">
+      <span class="ch on">提测 → 发布 → 观察</span>
+      <span class="ch">周会改版</span>
+      <span class="ch">空计划</span>
+    </div>
+    <div class="stp"><i class="dot"></i><span class="num">01</span>提测 <span class="tm" style="margin-left:auto">+0 天</span></div>
+    <div class="stp"><i class="dot"></i><span class="num">02</span>发布 <span class="tm" style="margin-left:auto">+1 天</span></div>
+    <div class="stp"><i class="dot"></i><span class="num">03</span>观察 <span class="tm" style="margin-left:auto">+3 天</span></div>
+    <p class="hint">阶段按偏移量生成，时间跟着今天走</p>
+  </div>
+</div>
+
+  
+<div class="p">
+  <div class="p__h"><span>03</span><b>顺延</b></div>
+  <p class="p__s">某个阶段晚了，后面的跟着挪，不用一个个改</p>
+  <div class="p__b">
+    <div class="hd"><b>1.2 版本</b><span class="dots">⋯</span></div>
+    <div class="menu" style="margin:0 0 8px">
+      <div>重命名</div>
+      <div class="on">整体顺延　1 天 / 3 天 / 一周</div>
+      <div>复制为新计划</div>
+      <div>删除</div>
+    </div>
+    <div class="stage"><i class="dot"></i>提测 <span class="tm">今天 10:00</span></div>
+    <div class="stage"><i class="dot"></i>发布 <span class="tm">今天 20:00</span></div>
+    <div class="stage" style="background:rgba(156,100,14,.08);border-radius:5px;padding-left:4px"><i class="dot"></i>观察 <span class="tm new">10/25 10:00 ←</span></div>
+    <p class="hint">只挪没做完的阶段；已完成的保持原样</p>
+  </div>
+</div>
+
+  
+<div class="p">
+  <div class="p__h"><span>04</span><b>周报</b></div>
+  <p class="p__s">把「已完成」翻成一段能直接贴出去的话</p>
+  <div class="p__b">
+    <div class="hd"><b>本周回顾</b><span class="dots">→</span></div>
+    <div class="meter">
+      <div><b>18</b>件完成</div>
+      <div><b>3</b>件逾期</div>
+      <div><b>2</b>个计划推进</div>
+    </div>
+    <div class="txt">本周完成 18 件，1.2 版本推进到「发布」，灰度开关上线延后 1 天，原因是提测环境。</div>
+    <span class="btn">复制成文本</span>
+    <p class="hint">也可以只复制「计划」那一段</p>
+  </div>
+</div>
+
+</div>
+
+<div class="boardnote">
+  <b>交互上的共同点：</b>四个都改变已有的一行，不新增页面——重复是时间字段的第二行，模板是新建时的第一屏，顺延是计划卡上的一个菜单，周报是右栏的一张小卡。
+  拖动、悬停、键盘（<b>Enter 确认 / Esc 收起</b>）在两个尺寸下都一样。
+</div>
+
+</body></html>

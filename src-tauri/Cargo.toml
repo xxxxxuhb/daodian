@@ -1,0 +1,37 @@
+[package]
+name = "daodian"
+version = "0.1.5"
+description = "桌面待办，到点提醒"
+authors = ["you"]
+edition = "2024"
+
+[lib]
+name = "daodian_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-notification = "2"
+tauri-plugin-single-instance = "2"
+
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.8"
+windows-registry = "0.6"
+windows-sys = { version = "0.61", features = [
+  "Win32_System_LibraryLoader",
+  "Win32_System_Time",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 200" fill="none">
+  <g transform="translate(43 4) scale(1.3125)">
+    <circle cx="32" cy="32" r="18.4" stroke="#0E1613" stroke-width="4.8"/>
+    <path d="M32 32 40.5 23.5" stroke="#0E1613" stroke-width="4.6" stroke-linecap="round"/>
+    <circle cx="43.7" cy="20.3" r="6.8" fill="#15637B"/>
+  </g>
+  <text x="85" y="150" text-anchor="middle" font-family="SimSun, Songti SC, Source Han Serif SC, serif" font-size="56" letter-spacing="5.6" fill="#0E1613">到点</text>
+  <text x="85" y="174" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="8" letter-spacing="3.6" fill="#74847C">DAODIAN</text>
+</svg>

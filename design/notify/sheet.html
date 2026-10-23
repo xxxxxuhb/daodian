@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>到点 · 提醒方案</title>
+<style>
+  :root{
+    --ink:#0E1613; --ink2:#47564F; --ink3:#74847C; --ink4:#9AA8A1;
+    --paper:#EBF0ED; --card:#FAFCFB; --line:#D3DFD9; --line2:#E3EBE6;
+    --accent:#15637B; --deep:#0C1F1A; --warn:#9C640E; --danger:#A33C3C; --done:#2C7A58;
+    --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+    --serif:"SimSun","Songti SC",serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);padding:38px 40px 34px}
+  .head{display:flex;align-items:flex-end;gap:18px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-bottom:18px}
+  .kicker{font-size:10px;letter-spacing:.26em;color:var(--ink3);font-weight:600}
+  h1{margin:7px 0 0;font-size:25px;font-weight:600;letter-spacing:-.01em}
+  .head p{margin-left:auto;text-align:right;font-size:11.5px;color:var(--ink3);line-height:1.85}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:18px 20px}
+  .panel>h3{margin:0 0 3px;font-size:10.5px;letter-spacing:.18em;color:var(--ink3);font-weight:600}
+  .panel>p.note{margin:0 0 14px;font-size:11px;color:var(--ink4)}
+
+  /* 桌面 */
+  .desk{position:relative;height:300px;border-radius:12px;overflow:hidden;
+    background:radial-gradient(120% 90% at 20% 0%,#232B33,#12161B 70%)}
+  .desk__hint{position:absolute;left:14px;bottom:11px;color:rgba(255,255,255,.28);font-size:10px;letter-spacing:.08em}
+  .desk .stack{position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:9px}
+
+  /* Windows 通知 */
+  .tw{width:326px;background:#292C30;border-radius:8px;padding:12px 13px 11px;color:#F3F4F6;
+    box-shadow:0 10px 26px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.07);position:relative}
+  .tw--strong{box-shadow:0 12px 30px rgba(0,0,0,.5),0 0 0 1px rgba(21,99,123,.5)}
+  .tw__head{display:flex;align-items:center;gap:7px;font-size:11px;color:rgba(243,244,246,.72)}
+  .tw__head em{margin-left:auto;font-style:normal;font-size:10.5px;color:rgba(243,244,246,.5)}
+  .tw__x{background:none;border:0;color:rgba(243,244,246,.45);font-size:10px;padding:0 0 0 6px}
+  .tw__title{margin-top:8px;font-size:14px;font-weight:600;letter-spacing:.01em;display:flex;align-items:center;gap:7px}
+  .tw__title::before{content:"";width:5px;height:5px;border-radius:50%;background:#5B8DF6;}
+  .tw--strong .tw__title::before{background:#E0A24C}
+  .tw__text{margin-top:4px;font-size:11.5px;line-height:1.55;color:rgba(243,244,246,.72)}
+  .tw__acts{display:flex;gap:7px;margin-top:11px;justify-content:flex-end}
+  .tw__acts span{font-size:11px;padding:5px 11px;border-radius:5px;background:rgba(255,255,255,.09);color:#EAF2F7}
+  .tw__acts span:last-child{background:rgba(21,99,123,.85);color:#fff}
+
+  /* 珠子 */
+  .fr{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+  .fr__art{height:120px;display:grid;place-items:center}
+  .fr b{font-size:11.5px;font-weight:600}
+  .fr span{font-size:10px;color:var(--ink4);letter-spacing:.02em}
+
+  .drag{position:relative;height:132px;margin-top:6px}
+  .drag__rail{position:absolute;left:8px;right:8px;top:64px;height:1px;background:var(--line)}
+  .drag__tick{position:absolute;top:52px;width:1px;height:25px;background:var(--line)}
+  .drag__tick b{position:absolute;top:29px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--ink3);font-weight:500;white-space:nowrap}
+  .drag__bead{position:absolute;top:56px;width:17px;height:17px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 0 6px rgba(21,99,123,.14)}
+  .drag__ghost{position:absolute;top:56px;width:17px;height:17px;border-radius:50%;border:1.5px dashed rgba(21,99,123,.6)}
+  .drag__arc{position:absolute;top:26px;left:0;right:0;height:40px}
+
+  .cap{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--ink4);margin-top:6px}
+  .cap i{width:14px;height:1px;background:var(--ink4);display:inline-block}
+
+  .quiet{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .q{border:1px solid var(--line2);border-radius:11px;padding:13px 14px;background:#fff}
+  .q b{display:block;font-size:11.5px;font-weight:600;margin-bottom:5px}
+  .q span{font-size:10.5px;line-height:1.7;color:var(--ink2)}
+  .q em{font-style:normal;font-family:var(--serif);color:var(--ink3)}
+
+  .grid2{display:grid;grid-template-columns:1.06fr .94fr;gap:16px}
+  .row2{display:grid;grid-template-columns:1.15fr 1fr;gap:16px;margin-top:16px}
+  .sec{font-size:10.5px;letter-spacing:.2em;color:var(--ink3);font-weight:600;margin:0 0 12px}
+</style></head><body>
+
+<div class="head">
+  <div>
+    <div class="kicker">到点 · 提醒方案</div>
+    <h1>系统通知 + 珠子落盘</h1>
+  </div>
+  <p>窗口关着也要提醒到；提醒本身要能直接处理<br>Windows 10/11 · macOS · Linux（降级）</p>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h3>桌面上的两条</h3>
+    <p class="note">标准到点 → 一条；5 分钟没处理 → 转置顶（Windows <em style="font-style:normal">scenario="reminder"</em>）</p>
+    <div class="desk">
+      <div class="stack">
+        
+<div class="tw">
+  <div class="tw__head">
+<svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14.4" fill="#15637B"/>
+  <circle cx="32" cy="32" r="16.6" stroke="#FAFCFB" stroke-width="4.6"/>
+  <path d="M32 32 39.7 24.3" stroke="#FAFCFB" stroke-width="4.4" stroke-linecap="round"/>
+  <circle cx="42.7" cy="21.3" r="6.6" fill="#FAFCFB"/>
+</svg><span>到点</span><em>现在</em><button class="tw__x">✕</button></div>
+  <div class="tw__title">提测评审</div>
+  <div class="tw__text">1.2 版本 · 阶段 2 / 4 · 14:00</div>
+  <div class="tw__acts"><span>10 分钟后再提</span><span>完成</span></div>
+</div>
+        
+<div class="tw tw--strong">
+  <div class="tw__head">
+<svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14.4" fill="#15637B"/>
+  <circle cx="32" cy="32" r="16.6" stroke="#FAFCFB" stroke-width="4.6"/>
+  <path d="M32 32 39.7 24.3" stroke="#FAFCFB" stroke-width="4.4" stroke-linecap="round"/>
+  <circle cx="42.7" cy="21.3" r="6.6" fill="#FAFCFB"/>
+</svg><span>到点</span><em>18:05</em><button class="tw__x">✕</button></div>
+  <div class="tw__title">交周报</div>
+  <div class="tw__text">今天 18:00 · 还没处理，已经在列表里放了 5 分钟</div>
+  <div class="tw__acts"><span>打开</span><span>完成</span></div>
+</div>
+      </div>
+      <div class="desk__hint">桌面右下角 · 通知中心</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>通知里放什么</h3>
+    <p class="note">标题就是事项名，一眼知道是哪件；正文补上下文</p>
+    <div class="q" style="margin-bottom:10px">
+      <b>标题</b><span>事项名（待办标题 / 计划阶段名），不写「到点」——应用名已经在通知头上</span>
+    </div>
+    <div class="q" style="margin-bottom:10px">
+      <b>正文</b><span>一句话上下文：<em>1.2 版本 · 阶段 2/4</em> 或 <em>今天 14:00 · 只提醒一次</em></span>
+    </div>
+    <div class="q" style="margin-bottom:10px">
+      <b>动作</b><span>完成 / 10 分钟后再提，直接回写，不打开窗口；点通知本身 → 打开并定位到这一条</span>
+    </div>
+    <div class="q">
+      <b>分组</b><span>同一条待办/计划的重复提醒折叠在一组，通知中心不刷屏</span>
+    </div>
+  </div>
+</div>
+
+<div class="row2">
+  <div class="panel">
+    <h3>珠子落盘</h3>
+    <p class="note">标志上的那颗珠就是「到点」——到点前它在盘外慢慢呼吸，到点落到盘心</p>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <div class="fr"><div class="fr__art"><svg width="118" height="118" viewBox="0 0 64 64" fill="none">
+    
+    <circle cx="32" cy="32" r="18.4" stroke="#0E1613" stroke-width="4.8" opacity=".28"/>
+    <path d="M32 32 40.5 23.5" stroke="#0E1613" stroke-width="4.6" stroke-linecap="round" opacity=".28"/>
+    <circle cx="43.7" cy="20.3" r="6.8" fill="#15637B"/>
+  </svg></div><b>到点前 10 分钟</b><span>珠在盘外，呼吸 2.4s</span></div>
+      <div class="fr"><div class="fr__art"><svg width="118" height="118" viewBox="0 0 64 64" fill="none">
+    <circle cx="32" cy="32" r="27" stroke="#15637B" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 3"/>
+    <circle cx="32" cy="32" r="18.4" stroke="#0E1613" stroke-width="4.8" opacity=".28"/>
+    
+    <circle cx="32" cy="32" r="9.4" fill="#15637B"/>
+  </svg></div><b>到点</b><span>落到盘心 420ms</span></div>
+      <div class="fr"><div class="fr__art"><svg width="118" height="118" viewBox="0 0 64 64" fill="none">
+    <circle cx="32" cy="32" r="27" stroke="#15637B" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 3"/>
+    <circle cx="32" cy="32" r="18.4" stroke="#0E1613" stroke-width="4.8" opacity=".28"/>
+    
+    <circle cx="32" cy="32" r="9.4" fill="#2C7A58"/>
+  </svg></div><b>处理完</b><span>实心绿点，飞回计数</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>稍后 = 拖珠子</h3>
+    <p class="note">不做「稍后 10 分钟」按钮，按住珠子往右拖，落在哪个刻度就延后到哪</p>
+    <div class="drag">
+      <svg class="drag__arc" viewBox="0 0 400 40" preserveAspectRatio="none">
+        <path d="M60 34 C 140 4, 250 4, 340 30" stroke="#C7D6D0" stroke-width="1" stroke-dasharray="3 4" fill="none"/>
+      </svg>
+      <div class="drag__rail"></div>
+      <div class="drag__tick" style="left:16%"><b>10 分钟</b></div>
+      <div class="drag__tick" style="left:48%"><b>30 分钟</b></div>
+      <div class="drag__tick" style="left:80%"><b>1 小时</b></div>
+      <div class="drag__bead" style="left:12%"></div>
+      <div class="drag__ghost" style="left:44%"></div>
+    </div>
+    <div style="display:flex;gap:10px;font-size:10.5px;color:var(--ink3);margin-top:2px">
+      <span>松手 = 落点</span><span>·</span><span>拖过头 = 取消提醒</span><span>·</span><span>键盘：点一下 +10 分钟</span>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h3>安静的边界</h3>
+  <p class="note">提醒是为了一次不漏，不是为了多响几次</p>
+  <div class="quiet">
+    <div class="q"><b>免打扰 22:00–08:00</b><span>照常记到点，不弹通知；早上 8 点合并成一条「昨晚 3 件到点」</span></div>
+    <div class="q"><b>每小时最多 3 条</b><span>超出合并为「3 件到点」，点开看列表</span></div>
+    <div class="q"><b>同一分钟合并</b><span>正文列前两条 + 等 N 件，不再一条一条弹</span></div>
+    <div class="q"><b>托盘给个角标</b><span>有未处理时托盘图标换成实心珠，不重复弹窗</span></div>
+  </div>
+</div>
+
+</body></html>

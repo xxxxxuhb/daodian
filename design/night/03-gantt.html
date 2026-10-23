@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="night">
+<head>
+<meta charset="utf-8">
+<title>到点 · 计划 时间轴</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+.toolbar{display:flex;align-items:center;gap:6px;margin:2px 0 16px}
+.toolbar .grow{flex:1}
+.foot-note{margin-top:14px;font-size:11.5px;color:var(--ink-4)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.6v4.9l3.3 1.9"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.2"/><path d="M15.4 15.4 20 20"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.6 9.6a5.4 5.4 0 0 1 10.8 0c0 3.6 1.3 4.9 1.3 4.9H5.3s1.3-1.3 1.3-4.9Z"/><path d="M10 18.3a2.1 2.1 0 0 0 4 0"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.5 12.6 4.2 4.2L18.8 7.7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.6" width="16" height="13.8" rx="2.4"/><path d="M4 10.2h16M8.6 3.8v3.6M15.4 3.8v3.6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 7h10.5M8.5 12h10.5M8.5 17h10.5M5 7h.01M5 12h.01M5 17h.01"/></symbol>
+  <symbol id="i-timeline" viewBox="0 0 24 24"><path d="M3.5 18.6h17"/><circle cx="8.4" cy="10.4" r="2.1"/><circle cx="16" cy="10.4" r="2.1"/><path d="M10.5 10.4h3.4"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9.5 7h.01M9.5 12h.01M9.5 17h.01M14.5 7h.01M14.5 12h.01M14.5 17h.01"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.8 7h14.4M9.4 7V4.8h5.2V7M6.8 7l.9 12.2h8.6L17.2 7"/></symbol>
+</svg>
+
+<div class="app"><aside class="rail"><div class="brand"><svg class="mark" width="38" height="38" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="18.4" stroke="currentColor" stroke-width="4.8"></circle><path d="M32 32 40.5 23.5" stroke="currentColor" stroke-width="4.6" stroke-linecap="round"></path><circle class="bead" cx="43.7" cy="20.3" r="6.8"></circle></svg><div><b>到点</b><small>临时的事用待办<br>分阶段的用计划</small></div></div><nav class="nav"><div class="nav-group"><p>待办</p><a class="nav-item"><span>今天</span><i class="n">5</i></a><a class="nav-item"><span>以后</span><i class="n">3</i></a><a class="nav-item"><span>逾期</span><i class="n">2</i></a><a class="nav-item"><span>已完成</span><i class="n">12</i></a></div><div class="nav-group"><p>计划</p><a class="nav-item is-active"><span>进行中</span><i class="n">3</i></a><a class="nav-item"><span>已完成</span><i class="n">6</i></a></div></nav><div class="rail-foot"><div class="search"><svg class="ico s"><use href="#i-search"></use></svg><span>搜索标题、备注或阶段</span><span class="q">Ctrl K</span></div><p class="tip">关闭窗口只是收进托盘，<br>提醒会继续跑。</p></div></aside>
+<main class="main">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">计划</p>
+      <h1>时间轴</h1>
+      <p class="sub">七个计划排在同一条线上，谁先到点一眼看得出来</p>
+    </div>
+    <div class="topbar__right">
+      <div class="date"><b>10月23日</b>周四 · 09:23</div>
+      <div class="seg"><span>卡片</span><span class="on"><svg class="ico s"><use href="#i-timeline"></use></svg>时间轴</span></div>
+      <button class="btn btn--primary"><svg class="ico s"><use href="#i-plus"></use></svg>新建</button>
+    </div>
+  </header>
+  <div class="toolbar">
+    <span class="chip on">本周</span>
+    <span class="chip">本月</span>
+    <span class="grow"></span>
+    <span class="chip">全部计划</span>
+    <span class="chip">只看重要</span>
+  </div>
+  <div class="gantt"><div class="gantt__head"><div>计划 / 10月</div><div class="today">10/23 四</div><div class="">10/24 五</div><div class="">10/25 六</div><div class="">10/26 日</div><div class="">10/27 一</div><div class="">10/28 二</div><div class="">10/29 三</div></div><div class="gantt__body"><span class="gantt__now"></span><div class="gantt__row"><div class="gantt__label">1.2 版本<span>4 个阶段 · 1 完成</span></div><div class="gantt__track"><span class="gantt__seg" style="left:6%;width:14.3%"></span><span class="pin next" style="left:6%"><span>提测</span><i></i></span><span class="pin future" style="left:11.9%"><span>发布</span><i></i></span><span class="pin future" style="left:20.3%"><span>观察</span><i></i></span></div></div><div class="gantt__row"><div class="gantt__label">灰度开关上线<span>3 个阶段 · 1 完成</span></div><div class="gantt__track"><span class="gantt__seg" style="left:22.6%;width:60.699999999999996%"></span><span class="pin done" style="left:22.6%"><span>方案评审</span><i></i></span><span class="pin future" style="left:48.9%"><span>灰度 5%</span><i></i></span><span class="pin future" style="left:83.3%"><span>全量</span><i></i></span></div></div><div class="gantt__row"><div class="gantt__label">团队周会改版<span>3 个阶段</span></div><div class="gantt__track"><span class="gantt__seg" style="left:34.6%;width:57.1%"></span><span class="pin future" style="left:34.6%"><span>议程</span><i></i></span><span class="pin future" style="left:62.9%"><span>试跑</span><i></i></span><span class="pin future" style="left:91.7%"><span>定稿</span><i></i></span></div></div><div class="gantt__row"><div class="gantt__label">数据看板 V2<span>2 个阶段</span></div><div class="gantt__track"><span class="gantt__seg" style="left:51.1%;width:46.49999999999999%"></span><span class="pin future" style="left:51.1%"><span>口径确认</span><i></i></span><span class="pin future" style="left:97.6%"><span>上线</span><i></i></span></div></div><div class="gantt__row"><div class="gantt__label">值班表改版<span>2 个阶段 · 1 完成</span></div><div class="gantt__track"><span class="gantt__seg" style="left:36.9%;width:40.50000000000001%"></span><span class="pin done" style="left:36.9%"><span>排班规则</span><i></i></span><span class="pin future" style="left:77.4%"><span>上线</span><i></i></span></div></div><div class="gantt__row"><div class="gantt__label">搜索埋点<span>3 个阶段</span></div><div class="gantt__track"><span class="gantt__seg" style="left:20.3%;width:71.4%"></span><span class="pin future" style="left:20.3%"><span>埋点方案</span><i></i></span><span class="pin future" style="left:65.4%"><span>接数</span><i></i></span><span class="pin future" style="left:91.7%"><span>看板</span><i></i></span></div></div></div></div><div class="legend"><span><i style="background:var(--done)"></i>已完成</span><span><i style="background:var(--accent)"></i>下一个到点</span><span><i style="background:var(--fill-2)"></i>还没到</span><span style="margin-left:auto;color:var(--ink-4)">拖动节点可以直接改时间</span></div>
+  <p class="foot-note">每个点都是一个阶段时间；细线是计划从第一个阶段到最后一个阶段的跨度。</p>
+</main>
+
+<aside class="aside">
+  <div class="aside__head">
+    <p class="eyebrow">本周节点</p>
+    <div class="big"><b>7</b><span>个到点</span></div>
+    <div class="bar"><i style="width:43%;background:var(--accent)"></i></div>
+  </div>
+  <div class="tl">
+    <div class="tl__item is-key"><i class="tl__t">10:00</i><span class="tl__dot"></span><span><span class="nm">提测</span><span class="meta">1.2 版本 · 今天</span></span></div>
+    <div class="tl__item"><i class="tl__t">20:00</i><span class="tl__dot"></span><span><span class="nm">发布</span><span class="meta">1.2 版本 · 今天</span></span></div>
+    <div class="tl__item"><i class="tl__t">14:00</i><span class="tl__dot"></span><span><span class="nm">方案评审</span><span class="meta">灰度开关 · 明天</span></span></div>
+    <div class="tl__item"><i class="tl__t">10:00</i><span class="tl__dot"></span><span><span class="nm">议程</span><span class="meta">周会改版 · 周六</span></span></div>
+    <div class="tl__item"><i class="tl__t">10:00</i><span class="tl__dot"></span><span><span class="nm">灰度 5%</span><span class="meta">灰度开关 · 周日</span></span></div>
+    <div class="tl__item"><i class="tl__t">10:00</i><span class="tl__dot"></span><span><span class="nm">试跑</span><span class="meta">周会改版 · 下周一</span></span></div>
+    <div class="tl__item"><i class="tl__t">20:00</i><span class="tl__dot"></span><span><span class="nm">全量</span><span class="meta">灰度开关 · 下周二</span></span></div>
+  </div>
+  <div class="next-card" style="margin-top:auto">
+    <p class="eyebrow">最近一个</p>
+    <h4>提测 · 1.2 版本</h4>
+    <p>今天 10:00</p>
+    <div class="cd"><b>0:37</b><span>后到点</span></div>
+  </div>
+</aside>
+</div>
+</body>
+</html>

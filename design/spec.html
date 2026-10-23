@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="night">
+<head>
+<meta charset="utf-8">
+<title>到点 · 两套主题</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+body{background:#08090C}
+.board__head{border-color:#1B2027}
+.board__head p{color:#5A636E}
+.eyebrow{color:#5A636E}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.6v4.9l3.3 1.9"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.2"/><path d="M15.4 15.4 20 20"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.6 9.6a5.4 5.4 0 0 1 10.8 0c0 3.6 1.3 4.9 1.3 4.9H5.3s1.3-1.3 1.3-4.9Z"/><path d="M10 18.3a2.1 2.1 0 0 0 4 0"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.5 12.6 4.2 4.2L18.8 7.7"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.6" width="16" height="13.8" rx="2.4"/><path d="M4 10.2h16M8.6 3.8v3.6M15.4 3.8v3.6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 7h10.5M8.5 12h10.5M8.5 17h10.5M5 7h.01M5 12h.01M5 17h.01"/></symbol>
+  <symbol id="i-timeline" viewBox="0 0 24 24"><path d="M3.5 18.6h17"/><circle cx="8.4" cy="10.4" r="2.1"/><circle cx="16" cy="10.4" r="2.1"/><path d="M10.5 10.4h3.4"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9.5 7h.01M9.5 12h.01M9.5 17h.01M14.5 7h.01M14.5 12h.01M14.5 17h.01"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.8 7h14.4M9.4 7V4.8h5.2V7M6.8 7l.9 12.2h8.6L17.2 7"/></symbol>
+</svg>
+
+
+<div class="board">
+  <div class="board__head">
+    <div>
+      <p class="eyebrow">到点 · DAODIAN</p>
+      <h1 style="margin-top:8px">两套主题</h1>
+    </div>
+    <p>同一套版式与组件，只换令牌<br>浅色「青瓷」· 深色「夜航」· 1400 × 880</p>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+    
+<section class="panel" data-theme="celadon">
+  <div class="panel__head"><h2>青瓷</h2><span>浅色 · 白天使用</span><em>LIGHT</em></div>
+  <div class="sw-row"><div class="sw"><i style="background:#EBF0ED"></i><b>底</b><small>#EBF0ED</small></div><div class="sw"><i style="background:#FAFCFB"></i><b>卡片</b><small>#FAFCFB</small></div><div class="sw"><i style="background:#0C1F1A"></i><b>栏</b><small>#0C1F1A</small></div><div class="sw"><i style="background:#0E1613"></i><b>墨</b><small>#0E1613</small></div><div class="sw"><i style="background:#47564F"></i><b>次墨</b><small>#47564F</small></div><div class="sw"><i style="background:#15637B"></i><b>主色</b><small>#15637B</small></div></div>
+  <div class="sw-row" style="margin-top:8px"><div class="sw"><i style="background:#9C640E"></i><b>临近</b><small>#9C640E</small></div><div class="sw"><i style="background:#A33C3C"></i><b>逾期</b><small>#A33C3C</small></div><div class="sw"><i style="background:#2C7A58"></i><b>完成</b><small>#2C7A58</small></div><div class="sw"><i style="background:#D3DFD9"></i><b>线</b><small>#D3DFD9</small></div><div class="sw"><i style="background:#E1E8E4"></i><b>填充</b><small>#E1E8E4</small></div><div class="sw"><i style="background:#0C1F1A"></i><b>提醒卡</b><small>#0C1F1A</small></div></div>
+  <div class="comp-row">
+    <button class="btn btn--primary">记下</button>
+    <button class="btn">详细写</button>
+    <span class="pill pill--red">逾期 53 分钟</span>
+    <span class="pill pill--amber">1 小时后</span>
+    <span class="pill pill--moss">已完成</span>
+  </div>
+  <div class="comp-row">
+    <span class="chip on">今天 15:00</span>
+    <span class="chip">明天 09:00</span>
+    <span class="check"></span>
+    <span class="check is-done"><svg class="ico s"><use href="#i-check"></use></svg></span>
+    <div class="seg"><span class="on">重要</span><span>普通</span><span>可缓</span></div>
+  </div>
+  <div class="comp-row">
+    <div class="input is-focus" style="width:100%;height:38px;font-size:13px">提测评审<span class="caret"></span></div>
+  </div>
+  <p class="note"><b>青瓷</b>用青瓷釉的冷灰绿做底，主色压到深靛青。状态色只用三档：<b>临近</b>琥珀、<b>逾期</b>砖红、<b>完成</b>苔绿。</p>
+</section>
+
+    
+<section class="panel" data-theme="night">
+  <div class="panel__head"><h2>夜航</h2><span>深色 · 夜间与常驻</span><em>DARK</em></div>
+  <div class="sw-row"><div class="sw"><i style="background:#0E1116"></i><b>底</b><small>#0E1116</small></div><div class="sw"><i style="background:#161A21"></i><b>卡片</b><small>#161A21</small></div><div class="sw"><i style="background:#080A0E"></i><b>栏</b><small>#080A0E</small></div><div class="sw"><i style="background:#E7ECF2"></i><b>墨</b><small>#E7ECF2</small></div><div class="sw"><i style="background:#A7B2BF"></i><b>次墨</b><small>#A7B2BF</small></div><div class="sw"><i style="background:#5B8DF6"></i><b>主色</b><small>#5B8DF6</small></div></div>
+  <div class="sw-row" style="margin-top:8px"><div class="sw"><i style="background:#E0A24C"></i><b>临近</b><small>#E0A24C</small></div><div class="sw"><i style="background:#E9646B"></i><b>逾期</b><small>#E9646B</small></div><div class="sw"><i style="background:#45B98F"></i><b>完成</b><small>#45B98F</small></div><div class="sw"><i style="background:#252C36"></i><b>线</b><small>#252C36</small></div><div class="sw"><i style="background:#1E242C"></i><b>填充</b><small>#1E242C</small></div><div class="sw"><i style="background:#1B2434"></i><b>提醒卡</b><small>#1B2434</small></div></div>
+  <div class="comp-row">
+    <button class="btn btn--primary">记下</button>
+    <button class="btn">详细写</button>
+    <span class="pill pill--red">逾期 53 分钟</span>
+    <span class="pill pill--amber">1 小时后</span>
+    <span class="pill pill--moss">已完成</span>
+  </div>
+  <div class="comp-row">
+    <span class="chip on">今天 15:00</span>
+    <span class="chip">明天 09:00</span>
+    <span class="check"></span>
+    <span class="check is-done"><svg class="ico s"><use href="#i-check"></use></svg></span>
+    <div class="seg"><span class="on">重要</span><span>普通</span><span>可缓</span></div>
+  </div>
+  <div class="comp-row">
+    <div class="input is-focus" style="width:100%;height:38px;font-size:13px">提测评审<span class="caret"></span></div>
+  </div>
+  <p class="note"><b>夜航</b>用近黑的蓝灰分层，主色提亮到雾蓝，状态色同步提亮一档，暗底上仍然分得清。</p>
+</section>
+
+  </div>
+  <p class="note" style="margin-top:20px;text-align:center">
+    版式、字号、间距、圆角、动效完全一致；切换主题只改 <b>背景 / 卡片 / 文字 / 主色 / 三档状态色</b> 这几组变量。
+  </p>
+</div>
+
+</body>
+</html>

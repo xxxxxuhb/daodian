@@ -1,0 +1,99 @@
+/* 到点 v2 · 窗口三档与紧凑组件 */
+.win{background:var(--bg);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 18px 50px -22px rgba(20,30,26,.45);position:relative}
+.win--mini{width:380px;height:552px}
+.win--std{width:900px;height:600px}
+.ico{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- 迷你：380 ---------- */
+.mini-head{display:flex;align-items:center;gap:8px;padding:13px 14px 9px;color:var(--ink)}
+.mini-head .mark{width:19px;height:19px;color:var(--ink-2)}
+.mini-head b{font-family:var(--serif);font-size:14.5px;letter-spacing:.14em;font-weight:500}
+.mini-head .date{margin-left:auto;font-size:10.5px;color:var(--ink-4);letter-spacing:.04em}
+.mini-title{display:flex;align-items:baseline;gap:8px;padding:3px 14px 10px}
+.mini-title h1{font-size:25px;font-weight:600;letter-spacing:-.02em;margin:0;line-height:1.1}
+.mini-title span{font-size:10.5px;color:var(--ink-4);font-family:var(--serif)}
+.mini-title .grow{flex:1}
+.mini-title .today-fig{font-family:var(--serif);font-size:13px;color:var(--ink-3)}
+
+.mini-add{margin:0 12px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:8px 10px 7px}
+.mini-add__line{display:flex;align-items:center;gap:7px;height:22px}
+.mini-add__dot{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--fill-2);flex:none}
+.mini-add__ph{font-size:12.5px;color:var(--ink-4);flex:1}
+.mini-add__go{width:22px;height:22px;border-radius:6px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;border:0;flex:none}
+.mini-add__row{display:flex;gap:5px;margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
+
+.mini-scroll{flex:1;overflow:hidden;padding:0 12px}
+.mini-group{display:flex;align-items:center;gap:7px;margin:10px 0 5px 2px}
+.mini-group h2{margin:0;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--ink-2)}
+.mini-group i{font-style:normal;font-family:var(--serif);font-size:10px;color:var(--ink-4)}
+.mini-group .rule{flex:1;height:1px;background:var(--line-2)}
+.mini-list{border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:hidden}
+.r{display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:9px;align-items:center;padding:8px 10px;position:relative}
+.r+.r{border-top:1px solid var(--line-2)}
+.r__c{width:15px;height:15px;border-radius:50%;border:1.4px solid var(--check-line);display:block}
+.r__c.on{background:var(--done);border-color:var(--done)}
+.r__t{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r__t .pin{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--accent);margin-right:5px;vertical-align:1.5px}
+.r__m{font-size:9.5px;color:var(--ink-4);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r__m.red{color:var(--danger)}
+.r__m.amber{color:var(--warn)}
+.r__s{font-family:var(--serif);font-size:11px;color:var(--ink-3);letter-spacing:.02em}
+.r.overdue::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:2.5px;border-radius:0 2px 2px 0;background:var(--danger)}
+.r.soon::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:2.5px;border-radius:0 2px 2px 0;background:var(--warn)}
+
+.mini-foot{display:flex;align-items:center;gap:2px;padding:8px 10px;border-top:1px solid var(--line)}
+.mini-foot .tab{flex:1;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-3);font-size:11px;display:flex;align-items:center;justify-content:center;gap:4px}
+.mini-foot .tab.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:var(--shadow-1)}
+.mini-foot .icon-btn{width:30px;height:28px;border-radius:7px;border:0;background:transparent;color:var(--ink-3);display:grid;place-items:center}
+
+/* ---------- 标准：960 ---------- */
+.std{display:grid;grid-template-columns:64px minmax(0,1fr);height:100%}
+.rail2{background:var(--rail);display:flex;flex-direction:column;align-items:center;gap:6px;padding:13px 0 10px;color:var(--rail-dim)}
+.rail2 .mark{width:22px;height:22px;color:var(--rail-ink);margin-bottom:14px}
+.rail2 .nav{width:38px;height:34px;border-radius:9px;border:0;background:transparent;color:var(--rail-dim);display:grid;place-items:center;position:relative}
+.rail2 .nav.on{background:var(--rail-active);color:var(--rail-active-ink)}
+.rail2 .nav .n{position:absolute;top:1px;right:3px;font-family:var(--serif);font-size:8.5px;color:var(--rail-faint)}
+.rail2 .nav.on .n{color:var(--rail-active-ink);opacity:.6}
+.rail2 .spacer{flex:1}
+.std-main{display:flex;flex-direction:column;min-width:0;padding:14px 18px 0;position:relative}
+.std-head{display:flex;align-items:flex-end;gap:12px;padding-bottom:12px}
+.std-head .eyebrow{font-size:9.5px;letter-spacing:.2em;color:var(--ink-3);font-weight:600}
+.std-head h1{margin:4px 0 0;font-size:23px;font-weight:600;letter-spacing:-.015em;line-height:1.1}
+.std-head .sub{margin-top:4px;font-size:11.5px;color:var(--ink-2)}
+.std-head .right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.std-head .date{text-align:right;font-size:10px;color:var(--ink-3);line-height:1.4}
+.std-head .date b{display:block;font-family:var(--serif);font-size:12.5px;color:var(--ink);font-weight:400}
+
+.strip{display:flex;align-items:center;gap:10px;height:30px;padding:0 11px;margin-bottom:10px;border-radius:9px;
+  background:var(--card);border:1px solid var(--line);font-size:11px;color:var(--ink-2)}
+.strip b{font-family:var(--serif);font-weight:400;color:var(--ink)}
+.strip .bar{width:54px;height:3px;border-radius:2px;background:var(--fill);overflow:hidden;margin:0 2px}
+.strip .bar i{display:block;height:100%;background:var(--done)}
+.strip .next{margin-left:auto;color:var(--ink-3)}
+.strip .next b{color:var(--accent)}
+
+.std .composer{margin-bottom:10px;padding:8px 12px 8px}
+.std .composer__line{height:20px}
+.std .composer__dot{width:14px;height:14px}
+.std .composer__row{margin-top:8px;padding-top:8px}
+.std .composer__hint{font-size:13px}
+.std .group{margin:0 0 6px 2px}
+.std .list{box-shadow:none}
+.std .row{padding:9px 12px 9px 11px;grid-template-columns:17px 46px minmax(0,1fr) auto}
+.std .row h3{font-size:13.5px}
+.std .row p{font-size:11.5px;margin-top:2px}
+.std .when .t{font-size:13px}
+.std .main-foot{padding:9px 2px 10px;font-size:10.5px}
+
+/* ---------- 对照板 ---------- */
+.board2{background:#0B0D10;padding:34px 36px 30px;color:#E7ECF2;min-height:100vh}
+.board2 .head{display:flex;align-items:flex-end;gap:18px;margin-bottom:22px}
+.board2 .head h1{margin:7px 0 0;font-size:24px;font-weight:600;letter-spacing:-.01em}
+.board2 .head p{margin-left:auto;font-size:11px;color:#78828E;line-height:1.9;text-align:right}
+.board2 .kicker{font-size:9.5px;letter-spacing:.24em;color:#59636E}
+.sizes{display:flex;align-items:flex-end;gap:26px}
+.shot{display:flex;flex-direction:column;gap:8px}
+.shot .cap{display:flex;align-items:baseline;gap:8px;font-size:11px;color:#8B95A1}
+.shot .cap b{color:#E7ECF2;font-size:12px;font-weight:600}
+.shot .cap em{font-style:normal;font-family:var(--serif);color:#59636E}

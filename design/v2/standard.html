@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="celadon"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="v2.css">
+<style>html,body{margin:0;background:transparent}body{display:block}</style>
+</head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 7h10.5M8.5 12h10.5M8.5 17h10.5M5 7h.01M5 12h.01M5 17h.01"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4.5 20 9l-8 4.5L4 9l8-4.5Z"/><path d="M4 14l8 4.5 8-4.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.5 12.6 4.2 4.2L18.8 7.7"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.2"/><path d="M15.4 15.4 20 20"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.6" width="16" height="13.8" rx="2.4"/><path d="M4 10.2h16M8.6 3.8v3.6M15.4 3.8v3.6"/></symbol>
+</svg>
+
+<div class="win win--std">
+  <div class="std">
+    <aside class="rail2">
+      <svg class="mark" width="22" height="22" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+  <circle cx="32" cy="32" r="18.4" stroke="var(--rail-ink)" stroke-width="4.8"/>
+  <path d="M32 32 40.5 23.5" stroke="var(--rail-ink)" stroke-width="4.6" stroke-linecap="round"/>
+  <circle cx="43.7" cy="20.3" r="6.8" fill="var(--accent)"/>
+</svg>
+      <button class="nav on"><svg class="ico"><use href="#i-list"/></svg><i class="n">5</i></button>
+      <button class="nav"><svg class="ico"><use href="#i-layers"/></svg><i class="n">3</i></button>
+      <button class="nav"><svg class="ico"><use href="#i-check"/></svg></button>
+      <span class="spacer"></span>
+      <button class="nav"><svg class="ico"><use href="#i-search"/></svg></button>
+      <button class="nav"><svg class="ico"><use href="#i-moon"/></svg></button>
+    </aside>
+
+    <main class="std-main">
+      <header class="std-head">
+        <div>
+          <p class="eyebrow">待办</p>
+          <h1>今天</h1>
+        </div>
+        <div class="right">
+          <div class="date"><b>10月23日</b>周四 · 09:23</div>
+          <div class="seg"><span class="on">列表</span><span>时间轴</span></div>
+          <button class="btn btn--primary btn--sm"><svg class="ico" style="width:12px;height:12px"><use href="#i-plus"/></svg>新建</button>
+        </div>
+      </header>
+
+      <div class="strip">
+        <span>今天</span><b>2 / 7</b><span class="bar"><i style="width:29%"></i></span>
+        <span class="next">下一个 <b>14:00</b> · 提测评审</span>
+      </div>
+
+      <div class="composer">
+        <div class="composer__line">
+          <span class="composer__dot"></span>
+          <span class="composer__hint">记一件临时的事，按回车定个时间点</span>
+          <span class="kbd">Ctrl N</span>
+        </div>
+        <div class="composer__row">
+          <span class="chip">不设时间</span>
+          <span class="chip on">今天 15:00</span>
+          <span class="chip">明天 09:00</span>
+          <span class="grow"></span>
+          <button class="btn btn--primary btn--sm">记下</button>
+        </div>
+      </div>
+
+      <div class="group"><h2>已过时间</h2><span class="cnt">1</span><span class="rule"></span><span class="act">全部逾期 →</span></div>
+      <div class="list">
+        
+<div class="row is-overdue">
+  <span class="check"></span>
+  <div class="when"><span class="t">08:30</span><span class="d">今天</span></div>
+  <div><h3>把昨天的测试结果发群里</h3><p>顺手把压测结论一起附上</p></div>
+  <div class="row__side"><span class="pill pill--red">逾期 53 分钟</span></div>
+</div>
+      </div>
+
+      <div class="group"><h2>今天</h2><span class="cnt">3</span><span class="rule"></span></div>
+      <div class="list">
+        
+<div class="row is-soon">
+  <span class="check"></span>
+  <div class="when"><span class="t">10:30</span><span class="d">今天</span></div>
+  <div><h3>站会同步进度</h3><p>说清楚灰度现在卡在哪儿</p></div>
+  <div class="row__side"><span class="pill pill--amber">1 小时后</span></div>
+</div>
+        
+<div class="row">
+  <span class="check"></span>
+  <div class="when"><span class="t">14:00</span><span class="d">今天</span></div>
+  <div><h3><span class="pin"></span>提测评审</h3><p>带上用例清单，重点讲支付链路</p></div>
+  <div class="row__side"><span class="pill pill--plain">4 小时后</span></div>
+</div>
+        
+<div class="row">
+  <span class="check"></span>
+  <div class="when"><span class="t">18:00</span><span class="d">今天</span></div>
+  <div><h3>交周报</h3></div>
+  <div class="row__side"><span class="pill pill--line">每周五</span></div>
+</div>
+        <div class="row">
+          <span class="check"></span>
+          <div class="when"><span class="t">19:30</span><span class="d">今天</span></div>
+          <div><h3>给测试同学回个话</h3><p>问一下提测环境什么时候能好</p></div>
+          <div class="row__side"></div>
+        </div>
+      </div>
+
+      <div class="main-foot"><span><b>5</b> 件没做完 · 今天还有 3 个时间点</span>
+        <span class="k"><span><span class="kbd">空格</span>完成</span><span><span class="kbd">Enter</span>编辑</span></span></div>
+    </main>
+  </div>
+</div>
+</body></html>

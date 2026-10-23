@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>到点 v2 · 窗口</title>
+<style>
+  :root{--ink:#E7ECF2;--dim:#8B95A1;--faint:#59636E;--line:#1C222A;
+    --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+    --serif:"SimSun","Songti SC",serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0B0D10;color:var(--ink);font-family:var(--sans);padding:34px 40px 28px}
+  .head{display:flex;align-items:flex-end;gap:18px;margin-bottom:26px}
+  .kicker{font-size:9.5px;letter-spacing:.24em;color:var(--faint)}
+  h1{margin:7px 0 0;font-size:25px;font-weight:600;letter-spacing:-.01em}
+  .head p{margin-left:auto;text-align:right;font-size:11px;color:var(--dim);line-height:1.9}
+  .row{display:flex;gap:26px;align-items:flex-start}
+  .shot{display:flex;flex-direction:column;gap:9px}
+  .cap{display:flex;align-items:baseline;gap:9px;font-size:11px;color:var(--dim)}
+  .cap b{color:var(--ink);font-size:12.5px;font-weight:600}
+  .cap em{font-style:normal;font-family:var(--serif);color:var(--faint);font-size:11px}
+  .cap .area{margin-left:auto;font-size:10.5px;color:var(--faint)}
+  .shot img{display:block;filter:drop-shadow(0 26px 50px rgba(0,0,0,.55))}
+  .bottom{display:grid;grid-template-columns:1.12fr 1fr 1fr;gap:14px;margin-top:30px}
+  .card{border:1px solid var(--line);border-radius:12px;background:#101419;padding:15px 17px}
+  .card h4{margin:0 0 12px;font-size:10px;letter-spacing:.18em;color:var(--faint);font-weight:600}
+  .bar{display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--dim);margin-bottom:9px}
+  .bar .sz{width:64px;color:var(--faint)}
+  .bar .track{flex:1;height:9px;border-radius:3px;background:#161B22;overflow:hidden}
+  .bar .track i{display:block;height:100%;border-radius:3px}
+  .bar b{width:44px;text-align:right;font-family:var(--serif);font-weight:400;color:var(--ink)}
+  .tiers{display:flex;flex-direction:column;gap:9px;font-size:10.5px;color:var(--dim);line-height:1.6}
+  .tiers b{color:var(--ink);font-weight:600}
+  .tiers code{font-family:var(--serif);color:#9AA5B1;margin-left:2px}
+  .rules{font-size:10.5px;color:var(--dim);line-height:1.6}
+  .rules div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed #1A1F26}
+  .rules div:last-child{border-bottom:0}
+  .rules span:last-child{color:var(--ink);font-family:var(--serif)}
+</style></head><body>
+
+<div class="head">
+  <div>
+    <div class="kicker">到点 v2 · 窗口</div>
+    <h1>把它做小</h1>
+  </div>
+  <p>默认 900 × 600，比现在的 1400 × 880 少 56% 面积<br>再小一档是 380 × 552 的迷你窗，随时记一条</p>
+</div>
+
+<div class="row">
+  <div class="shot">
+    <div class="cap"><b>迷你</b><em>380 × 552</em><span class="area">0.21M px²</span></div>
+    <img src="out/mini.png" width="380" height="552" alt="迷你窗">
+  </div>
+  <div class="shot">
+    <div class="cap"><b>标准</b><em>900 × 600</em><span class="area">0.54M px²</span></div>
+    <img src="out/standard.png" width="900" height="600" alt="标准窗">
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="card">
+    <h4>面积</h4>
+    <div class="bar"><span class="sz">1400×880</span><span class="track"><i style="width:100%;background:#2A323C"></i></span><b>1.23M</b></div>
+    <div class="bar"><span class="sz">900×600</span><span class="track"><i style="width:44%;background:#3E5A6B"></i></span><b>0.54M</b></div>
+    <div class="bar" style="margin-bottom:0"><span class="sz">380×552</span><span class="track"><i style="width:17%;background:#15637B"></i></span><b>0.21M</b></div>
+  </div>
+  <div class="card">
+    <h4>三档，跟着宽度自动切</h4>
+    <div class="tiers">
+      <div><b>迷你</b><code>&lt;720</code>　无左栏，底部分段，一行一条</div>
+      <div><b>标准</b><code>720–1180</code>　图标轨 56，副栏折成顶部一条</div>
+      <div><b>宽屏</b><code>&gt;1180</code>　现在这套三栏</div>
+    </div>
+  </div>
+  <div class="card">
+    <h4>密度</h4>
+    <div class="rules">
+      <div><span>行高</span><span>62 → 46</span></div>
+      <div><span>列表字号</span><span>14.5 → 13.5</span></div>
+      <div><span>备注</span><span>常显 → 悬停展开</span></div>
+      <div><span>记录框</span><span>两行 → 一行 + 展开</span></div>
+    </div>
+  </div>
+</div>
+
+</body></html>

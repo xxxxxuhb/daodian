@@ -1,0 +1,128 @@
+/* 设计稿是固定画板。这里只补窗口铺满和可滚动，不改 v2.css 的密度。 */
+.std,
+.mini-app {
+  height: 100%;
+}
+.std-fill {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+.std-fill > .std-main {
+  flex: 1;
+  min-height: 0;
+}
+.std-main {
+  overflow: hidden;
+  background: var(--bg);
+}
+.std-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 18px 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink-3);
+}
+.std-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.mini-app {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+}
+.mini-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.mini-app .mini-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.mini-add__line input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+.mini-add__line input::placeholder {
+  color: var(--ink-4);
+}
+.mini-add__go,
+.mini-foot .tab,
+.mini-foot .icon-btn,
+.rail2 .nav {
+  cursor: pointer;
+  font-family: inherit;
+}
+.mini-add__go {
+  padding: 0;
+  line-height: 0;
+}
+.mini-add__go .ico {
+  display: block;
+  width: 13px;
+  height: 13px;
+}
+.mini-custom-time {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin-top: 7px;
+  background: var(--bg);
+}
+.mini-toolbar {
+  flex: none;
+  margin: 0 12px 8px;
+}
+.mini-search {
+  margin: 0 12px 8px;
+}
+.r__c {
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.r__s .ico {
+  width: 11px;
+  height: 11px;
+  vertical-align: -1px;
+}
+
+@media (max-width: 520px) {
+  .drawer,
+  .drawer--sm {
+    width: 100vw;
+    max-width: 100vw;
+    border-left: 0;
+  }
+  .drawer__head {
+    padding: 18px 18px 12px;
+  }
+  .drawer__body {
+    padding: 4px 18px 20px;
+  }
+  .drawer__foot {
+    padding: 12px 18px;
+  }
+}

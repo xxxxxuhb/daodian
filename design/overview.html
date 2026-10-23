@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="night">
+<head>
+<meta charset="utf-8">
+<title>到点 · 两套主题</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  body{background:#08090C;color:var(--ink);padding:30px 34px 34px;min-height:100vh}
+  .head{display:flex;align-items:flex-end;gap:18px;margin-bottom:22px}
+  .head h1{font-size:25px;font-weight:600;letter-spacing:-.01em;margin-top:7px}
+  .head p{margin-left:auto;font-size:11.5px;color:var(--ink-3);line-height:1.9;text-align:right}
+  .kicker{font-size:10px;letter-spacing:.24em;color:var(--ink-4)}
+  .row-label{display:flex;align-items:center;gap:10px;margin:18px 0 10px;font-size:11px;letter-spacing:.18em;color:var(--ink-3)}
+  .row-label i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .row-label b{font-weight:600;color:var(--ink-2);letter-spacing:.06em;font-size:11.5px}
+  .row-label::after{content:"";flex:1;height:1px;background:#1B2027}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .card{display:block;text-decoration:none;color:inherit;border-radius:9px;overflow:hidden;background:#101319;border:1px solid #1C222A}
+  .card img{display:block;width:100%;height:auto}
+  .cap{padding:8px 10px 10px}
+  .cap b{display:block;font-size:12px;font-weight:600}
+  .cap span{display:block;font-size:10px;color:var(--ink-4);margin-top:2px}
+  .foot{margin-top:22px;display:flex;gap:14px;align-items:center;font-size:11.5px;color:var(--ink-4)}
+  .foot a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <p class="kicker">DAODIAN · THEMES</p>
+      <h1>到点 · 两套主题</h1>
+    </div>
+    <p>同一套版式与组件，只换颜色令牌<br>浅色「青瓷」· 深色「夜航」· 1400 × 880</p>
+  </div>
+  <div class="row-label"><i style="background:#15637B"></i><b>青瓷 · LIGHT</b></div>
+  <div class="grid"><a class="card" href="celadon/01-today.html"><img src="out/celadon/01-today.png" alt="待办 · 今天"><div class="cap"><b>待办 · 今天</b><span>today</span></div></a><a class="card" href="celadon/02-plans.html"><img src="out/celadon/02-plans.png" alt="计划 · 进行中"><div class="cap"><b>计划 · 进行中</b><span>plans</span></div></a><a class="card" href="celadon/03-gantt.html"><img src="out/celadon/03-gantt.png" alt="计划 · 时间轴"><div class="cap"><b>计划 · 时间轴</b><span>gantt</span></div></a><a class="card" href="celadon/04-plan-drawer.html"><img src="out/celadon/04-plan-drawer.png" alt="编辑计划"><div class="cap"><b>编辑计划</b><span>plan · drawer</span></div></a><a class="card" href="celadon/05-reminder.html"><img src="out/celadon/05-reminder.png" alt="到点提醒"><div class="cap"><b>到点提醒</b><span>reminder</span></div></a></div>
+  <div class="row-label"><i style="background:#5B8DF6"></i><b>夜航 · DARK</b></div>
+  <div class="grid"><a class="card" href="night/01-today.html"><img src="out/night/01-today.png" alt="待办 · 今天"><div class="cap"><b>待办 · 今天</b><span>today</span></div></a><a class="card" href="night/02-plans.html"><img src="out/night/02-plans.png" alt="计划 · 进行中"><div class="cap"><b>计划 · 进行中</b><span>plans</span></div></a><a class="card" href="night/03-gantt.html"><img src="out/night/03-gantt.png" alt="计划 · 时间轴"><div class="cap"><b>计划 · 时间轴</b><span>gantt</span></div></a><a class="card" href="night/04-plan-drawer.html"><img src="out/night/04-plan-drawer.png" alt="编辑计划"><div class="cap"><b>编辑计划</b><span>plan · drawer</span></div></a><a class="card" href="night/05-reminder.html"><img src="out/night/05-reminder.png" alt="到点提醒"><div class="cap"><b>到点提醒</b><span>reminder</span></div></a></div>
+  <div class="foot"><span>点缩略图打开对应的 HTML 原型</span><a href="spec.html">两套主题的令牌对照 →</a></div>
+</body>
+</html>
