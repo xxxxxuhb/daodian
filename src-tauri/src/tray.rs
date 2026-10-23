@@ -36,7 +36,9 @@ fn toggle_mini(app: &AppHandle) {
 pub fn show_main(app: &AppHandle) {
     mark_read(app);
     let Some(window) = app.get_webview_window("main") else {
-        crate::logging::error(format_args!("show main requested but main window is missing"));
+        crate::logging::error(format_args!(
+            "show main requested but main window is missing"
+        ));
         return;
     };
     crate::logging::info(format_args!("show main requested"));
@@ -57,7 +59,9 @@ pub fn alert(app: &AppHandle) {
         .and_then(|window| window.is_focused().ok())
         .unwrap_or(false)
     {
-        crate::logging::info(format_args!("tray alert skipped because main window is focused"));
+        crate::logging::info(format_args!(
+            "tray alert skipped because main window is focused"
+        ));
         return;
     }
     UNREAD.store(true, Ordering::SeqCst);
@@ -137,7 +141,10 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .on_tray_icon_event(|tray, event| {
-            if matches!(event, TrayIconEvent::Click { .. } | TrayIconEvent::DoubleClick { .. }) {
+            if matches!(
+                event,
+                TrayIconEvent::Click { .. } | TrayIconEvent::DoubleClick { .. }
+            ) {
                 crate::logging::info(format_args!("tray pointer event: {event:?}"));
             }
             if let TrayIconEvent::DoubleClick {
@@ -164,9 +171,7 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         Ok(None) => crate::logging::info(format_args!(
             "tray icon created; Windows did not report a rectangle yet"
         )),
-        Err(err) => crate::logging::warn(format_args!(
-            "tray icon rectangle unavailable: {err}"
-        )),
+        Err(err) => crate::logging::warn(format_args!("tray icon rectangle unavailable: {err}")),
     }
     Ok(())
 }

@@ -109,6 +109,64 @@
   vertical-align: -1px;
 }
 
+.repeat-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.repeat-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.repeat-number,
+.repeat-date {
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+.repeat-number {
+  width: 64px;
+  padding: 0 7px;
+}
+.repeat-date {
+  padding: 0 7px;
+}
+.repeat-check input {
+  accent-color: var(--accent);
+}
+.repeat-undo {
+  position: fixed;
+  z-index: 1000;
+  right: 22px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+.repeat-undo button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-2, #8db6ff);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
 @media (max-width: 520px) {
   .drawer,
   .drawer--sm {

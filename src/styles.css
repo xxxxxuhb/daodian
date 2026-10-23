@@ -256,6 +256,9 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 .pin.next i{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px var(--card),0 0 0 7px var(--accent-glow)}
 .pin.next span{color:var(--accent);font-weight:700}
 .pin span b{font-weight:600}
+.gantt__dep{position:absolute;top:50%;height:0;border-top:2px dashed var(--accent);z-index:1;opacity:.75}
+.gantt__dep::after{content:"";position:absolute;right:-1px;top:-5px;border-left:6px solid var(--accent);border-top:4px solid transparent;border-bottom:4px solid transparent}
+.gantt__dep.reverse::after{left:-1px;right:auto;transform:rotate(180deg)}
 .legend{display:flex;gap:16px;align-items:center;margin-top:14px;font-size:11.5px;color:var(--ink-3)}
 .legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
 
@@ -286,6 +289,10 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 .stage__name{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px}
 .stage__time{margin-top:5px;font-family:var(--serif);font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:5px;font-variant-numeric:tabular-nums}
 .stage__grip{color:var(--ink-4);padding-top:2px}
+.stage__dependency{display:flex;align-items:center;gap:6px;margin-top:7px;color:var(--ink-3);font-size:11.5px}
+.stage__dependency select,.stage__dependency input{height:27px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink-2);font:inherit;font-size:11.5px;padding:0 6px}
+.stage__dependency select:first-child{max-width:190px}
+.stage__dependency input{width:54px}
 
 /* ---------- 通知 / 托盘 ---------- */
 .remind{position:fixed;top:24px;right:24px;width:356px;background:var(--card);border:1px solid var(--line);
@@ -433,6 +440,7 @@ button.dot{padding:0;cursor:pointer}
 .gantt.is-month .gantt__head,.gantt.is-month .gantt__row{min-width:calc(150px + var(--cols) * 52px)}
 .gantt__now{left:calc(150px + (100% - 150px) * var(--now,0))}
 .gantt .pin{cursor:grab;touch-action:none}
+.gantt .pin.is-locked{cursor:pointer}
 button.gantt__label{width:100%;border:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
 button.stage__grip{border:0;background:transparent;color:var(--ink-4);padding:2px 0 0;cursor:grab}
 .agenda{position:relative}
@@ -451,6 +459,15 @@ button.stage__grip{border:0;background:transparent;color:var(--ink-4);padding:2p
 .plan__menu button{display:flex;justify-content:space-between;gap:12px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:12.5px;text-align:left;padding:6px 8px;border-radius:8px;cursor:pointer}
 .plan__menu button span{color:var(--ink-3)}
 .plan__menu button:hover{background:var(--hover)}
+.template-preview{display:flex;align-items:center;gap:8px;margin:9px 2px 0;color:var(--ink-3);font-size:11.5px;line-height:1.5}
+.template-preview span{color:var(--ink-4)}
+.template-drawer{height:auto;max-height:min(620px,calc(100vh - 32px))}
+.template-drawer .input input{width:100%;border:0;outline:0;background:transparent;color:var(--ink);font:inherit}
+.template-stage-list{display:flex;flex-wrap:wrap;gap:6px}
+.template-stage-list span{padding:5px 9px;border-radius:999px;background:var(--fill);color:var(--ink-2);font-size:12px}
+.template-manage-row{display:grid;grid-template-columns:minmax(0,1fr) auto 28px;align-items:center;gap:7px;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.template-manage-row>p{grid-column:1/-1;margin:0 2px;color:var(--ink-4);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.template-delete{color:var(--danger)}
 .undo{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:14px;padding:10px 14px;border:0;border-radius:999px;background:var(--hero);color:var(--hero-ink);box-shadow:var(--shadow-3);cursor:pointer;font:inherit;font-size:13px}
 .undo b{color:var(--hero-accent)}
 .pin.is-preview i{border-style:dashed;background:transparent}
@@ -459,3 +476,6 @@ button.stage__grip{border:0;background:transparent;color:var(--ink-4);padding:2p
 .week-card__body{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .week-card__body p{font-size:12.5px;color:var(--ink-2)}
 .week-card textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px;padding:8px;resize:vertical}
+.week-card__actions{display:flex;flex-wrap:wrap;gap:6px}
+.week-template{display:flex;flex-direction:column;gap:7px;padding-top:8px;border-top:1px solid var(--line-2)}
+.week-template p{font-size:11px;color:var(--ink-4)}

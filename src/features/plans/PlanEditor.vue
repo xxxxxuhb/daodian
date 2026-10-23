@@ -3,10 +3,17 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { PRIORITIES } from "../../domain/priority";
 import Icon from "../../ui/Icon.vue";
 import TimeField from "../../ui/TimeField.vue";
-import { emptyStage, MAX_STAGES, stagePlaceholder, type PlanDraft } from "./logic";
+import {
+  dependencyCandidates,
+  emptyStage,
+  MAX_STAGES,
+  stagePlaceholder,
+  type PlanDraft,
+  type StageDraft,
+} from "./logic";
 
 const props = defineProps<{ draft: PlanDraft; now: number; saving: boolean; error: string }>();
-const emit = defineEmits<{ close: []; save: []; remove: []; toggle: [] }>();
+const emit = defineEmits<{ close: []; save: []; remove: []; toggle: []; saveTemplate: [] }>();
 const dragFrom = ref(-1);
 
 function addStage() {
@@ -15,7 +22,32 @@ function addStage() {
 }
 
 function removeStage(index: number) {
-  props.draft.stages.splice(index, 1);
+  const [removed] = props.draft.stages.splice(index, 1);
+  if (!removed) return;
+  for (const stage of props.draft.stages) {
+    if (stage.dependsOn?.stageId === removed.key) stage.dependsOn = null;
+  }
+}
+
+function setDependency(stage: StageDraft, stageId: string) {
+  stage.dependsOn = stageId
+    ? { stageId, delayMs: stage.dependsOn?.delayMs ?? 0 }
+    : null;
+}
+
+function delayUnit(stage: StageDraft) {
+  return stage.dependsOn && stage.dependsOn.delayMs % 86_400_000 === 0 ? "day" : "hour";
+}
+
+function delayAmount(stage: StageDraft) {
+  if (!stage.dependsOn) return 0;
+  return stage.dependsOn.delayMs / (delayUnit(stage) === "day" ? 86_400_000 : 3_600_000);
+}
+
+function setDelay(stage: StageDraft, value: string, unit = delayUnit(stage)) {
+  if (!stage.dependsOn) return;
+  const amount = Math.max(0, Number(value) || 0);
+  stage.dependsOn.delayMs = Math.round(amount * (unit === "day" ? 86_400_000 : 3_600_000));
 }
 
 function onDragStart(index: number, event: DragEvent) {
@@ -100,7 +132,47 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
                 <input v-model="stage.title" maxlength="40" :placeholder="stagePlaceholder(index)" />
                 <span v-if="stage.done" class="pill pill--moss">已完成</span>
               </div>
-              <TimeField :at="stage.at" :now="now" @update:at="stage.at = $event" />
+              <TimeField
+                v-if="!stage.dependsOn"
+                :at="stage.at"
+                :now="now"
+                @update:at="stage.at = $event"
+              />
+              <div class="stage__dependency">
+                <select
+                  :value="stage.dependsOn?.stageId ?? ''"
+                  aria-label="依赖上游阶段"
+                  @change="setDependency(stage, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">不依赖上游</option>
+                  <option
+                    v-for="candidate in dependencyCandidates(draft.stages, stage)"
+                    :key="candidate.key"
+                    :value="candidate.key"
+                  >
+                    等「{{ candidate.title }}」完成
+                  </option>
+                </select>
+                <template v-if="stage.dependsOn">
+                  <span>后</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    :value="delayAmount(stage)"
+                    aria-label="依赖延迟"
+                    @input="setDelay(stage, ($event.target as HTMLInputElement).value)"
+                  />
+                  <select
+                    :value="delayUnit(stage)"
+                    aria-label="延迟单位"
+                    @change="setDelay(stage, String(delayAmount(stage)), ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="hour">小时</option>
+                    <option value="day">天</option>
+                  </select>
+                </template>
+              </div>
             </div>
             <div class="stage__tools">
               <button class="icon-btn" type="button" aria-label="删除阶段" @click="removeStage(index)">
@@ -127,6 +199,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
         <button class="btn btn--primary" type="button" :disabled="saving" @click="emit('save')">保存</button>
         <button v-if="draft.id" class="btn" type="button" :disabled="saving" @click="emit('toggle')">
           {{ draft.done ? "标为未完成" : "整份标为完成" }}
+        </button>
+        <button v-if="draft.id" class="btn btn--ghost" type="button" :disabled="saving" @click="emit('saveTemplate')">
+          另存为模板
         </button>
         <button
           v-if="draft.id"

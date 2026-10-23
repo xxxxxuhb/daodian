@@ -1,4 +1,5 @@
 pub mod plans;
+pub mod templates;
 pub mod todos;
 
 use std::fs;
@@ -8,8 +9,8 @@ use std::sync::{Mutex, MutexGuard};
 use tauri::State;
 
 use crate::domain::{
-    migrate_legacy_json, next_due_at, plan_actions, Document, RemindAction, RemindTarget,
-    SCHEMA_VERSION,
+    Document, RemindAction, RemindTarget, SCHEMA_VERSION, migrate_legacy_json, next_due_at,
+    plan_actions, stage_has_valid_schedule,
 };
 use crate::logging;
 
@@ -18,6 +19,8 @@ pub type SharedStore = Mutex<Library>;
 pub struct Library {
     path: PathBuf,
     pub(crate) doc: Document,
+    pub(crate) templates_path: PathBuf,
+    pub(crate) custom_templates: Vec<templates::PlanTemplate>,
 }
 
 impl Library {
@@ -29,6 +32,8 @@ impl Library {
             fs::create_dir_all(dir)?;
         }
         let path = dir.join("store.json");
+        let templates_path = Self::templates_path(dir);
+        let custom_templates = templates::load_custom(&templates_path);
         if path.exists() {
             let raw = fs::read_to_string(&path)?;
             let mut doc: Document = serde_json::from_str(&raw).map_err(|err| {
@@ -49,7 +54,12 @@ impl Library {
                 }
                 doc.version = SCHEMA_VERSION;
             }
-            let library = Self { path, doc };
+            let library = Self {
+                path,
+                doc,
+                templates_path,
+                custom_templates,
+            };
             library
                 .persist()
                 .map_err(|err| std::io::Error::other(err))?;
@@ -64,18 +74,25 @@ impl Library {
         let legacy = dir.join("todos.json");
         let mut doc = if legacy.exists() {
             let raw = fs::read_to_string(&legacy)?;
-            migrate_legacy_json(&raw).map_err(|err| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, err)
-            })?
+            migrate_legacy_json(&raw)
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?
         } else {
             Document::default()
         };
         doc.version = SCHEMA_VERSION;
-        let library = Self { path, doc };
+        let library = Self {
+            path,
+            doc,
+            templates_path,
+            custom_templates,
+        };
         library
             .persist()
             .map_err(|err| std::io::Error::other(err))?;
-        logging::info(format_args!("new library created: {}", library.path.display()));
+        logging::info(format_args!(
+            "new library created: {}",
+            library.path.display()
+        ));
         Ok(library)
     }
 
@@ -101,7 +118,9 @@ pub fn plan_from_store(store: &SharedStore, now: i64) -> Result<Vec<RemindAction
 
 /// 下一个还没到的时间点，用来决定多久醒一次。
 pub fn next_due(store: &SharedStore, now: i64) -> Option<i64> {
-    lock(store).ok().and_then(|guard| next_due_at(&guard.doc, now))
+    lock(store)
+        .ok()
+        .and_then(|guard| next_due_at(&guard.doc, now))
 }
 
 /// 到点了但还没做完的条数：托盘角标就看这个。
@@ -118,7 +137,10 @@ pub fn due_open_count(store: &SharedStore, now: i64) -> Result<usize, String> {
             continue;
         }
         for stage in &plan.stages {
-            if !stage.done && matches!(stage.at, Some(at) if at <= now) {
+            if !stage.done
+                && stage_has_valid_schedule(plan, stage)
+                && matches!(stage.at, Some(at) if at <= now)
+            {
                 count += 1;
             }
         }

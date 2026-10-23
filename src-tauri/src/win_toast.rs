@@ -17,9 +17,7 @@ pub fn show(title: &str, body: &str) -> Result<(), String> {
             "toast identity registration failed; trying to show anyway: {err}"
         ));
     }
-    let mut toast = Toast::new(APP_ID)
-        .title(title)
-        .text1(body);
+    let mut toast = Toast::new(APP_ID).title(title).text1(body);
     if let Some(icon) = notification_icon() {
         toast = toast.icon(&icon, IconCrop::Circular, "到点");
     }
@@ -36,9 +34,11 @@ fn register() -> Result<(), String> {
     let path = format!(r"SOFTWARE\Classes\AppUserModelId\{APP_ID}");
     let key = match windows_registry::CURRENT_USER.create(&path) {
         Ok(key) => key,
-        Err(err) => windows_registry::CURRENT_USER.open(&path).map_err(|open_err| {
-            format!("创建通知注册表项失败: {err}; 打开已有项也失败: {open_err}")
-        })?,
+        Err(err) => windows_registry::CURRENT_USER
+            .open(&path)
+            .map_err(|open_err| {
+                format!("创建通知注册表项失败: {err}; 打开已有项也失败: {open_err}")
+            })?,
     };
     key.set_string("DisplayName", "到点")
         .map_err(|err| format!("写入通知名称失败: {err}"))?;

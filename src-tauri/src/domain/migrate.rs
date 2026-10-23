@@ -79,6 +79,8 @@ fn todo_from_legacy(item: LegacyTodo) -> Todo {
         repeat: None,
         lead_ms: 0,
         lead_reminded: false,
+        series_id: None,
+        skipped: false,
     }
 }
 
@@ -95,6 +97,8 @@ fn plan_from_legacy(item: LegacyTodo) -> Plan {
             at: Some(at),
             done: item.done,
             reminded: item.reminded_ats.contains(&at),
+            depends_on: None,
+            completed_at: None,
         })
         .collect();
     Plan {

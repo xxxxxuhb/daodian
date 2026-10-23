@@ -2,12 +2,13 @@
 import { computed, inject } from "vue";
 import { relative, rowState, whenParts } from "../../domain/present";
 import { repeatLabel } from "../../domain/repeat";
+import { isContainerShortcut } from "../../domain/shortcuts";
 import type { Todo } from "../../domain/types";
 import { tierKey } from "../shell/tier";
 import Icon from "../../ui/Icon.vue";
 
 const props = defineProps<{ todo: Todo; now: number }>();
-const emit = defineEmits<{ open: []; toggle: [] }>();
+const emit = defineEmits<{ open: []; repeat: []; toggle: [] }>();
 const tier = inject(tierKey, computed(() => "wide" as const));
 
 const when = computed(() => whenParts(props.todo.dueAt, props.now));
@@ -19,6 +20,12 @@ const miniState = computed(() => {
   if (state === "is-soon") return "soon";
   return "";
 });
+
+function repeatFromKey(event: KeyboardEvent) {
+  if (!isContainerShortcut(event, "r", Boolean(document.querySelector('[role="dialog"]')))) return;
+  event.preventDefault();
+  emit("repeat");
+}
 </script>
 
 <template>
@@ -29,6 +36,7 @@ const miniState = computed(() => {
     tabindex="0"
     @click="emit('open')"
     @keydown.enter.prevent="emit('open')"
+    @keydown="repeatFromKey"
     @keydown.space.prevent="emit('toggle')"
   >
     <button
@@ -57,6 +65,7 @@ const miniState = computed(() => {
     tabindex="0"
     @click="emit('open')"
     @keydown.enter.prevent="emit('open')"
+    @keydown="repeatFromKey"
     @keydown.space.prevent="emit('toggle')"
   >
     <button
@@ -83,7 +92,8 @@ const miniState = computed(() => {
       <p v-if="todo.note">{{ todo.note }}</p>
     </div>
     <div class="row__side">
-      <span v-if="repeat" class="pill pill--line">{{ repeat }}</span>
+      <span v-if="todo.skipped" class="pill pill--line">已跳过</span>
+      <span v-else-if="repeat" class="pill pill--line">{{ repeat }}</span>
       <span v-else-if="pill" class="pill" :class="`pill--${pill.tone}`">{{ pill.text }}</span>
     </div>
   </article>

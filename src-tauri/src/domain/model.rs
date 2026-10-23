@@ -11,6 +11,12 @@ pub struct Repeat {
     pub rule: String,
     #[serde(default)]
     pub weekday: Option<u8>,
+    #[serde(default)]
+    pub interval_days: Option<u32>,
+    #[serde(default)]
+    pub until: Option<i64>,
+    #[serde(default)]
+    pub skip_weekends: bool,
 }
 
 /// 临时事项。只有一个时间点，到点提醒一次；重复事项完成这次后生成下一次。
@@ -37,9 +43,22 @@ pub struct Todo {
     pub lead_ms: i64,
     #[serde(default)]
     pub lead_reminded: bool,
+    /// 同一重复任务各次实例共享。旧数据在第一次滚动或保存时自动补上。
+    #[serde(default)]
+    pub series_id: Option<String>,
+    #[serde(default)]
+    pub skipped: bool,
 }
 
 /// 计划里的一个阶段，例如提测、发布。每个阶段自己的时间。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct StageDependency {
+    pub stage_id: String,
+    #[serde(default)]
+    pub delay_ms: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Stage {
@@ -51,6 +70,10 @@ pub struct Stage {
     pub done: bool,
     #[serde(default)]
     pub reminded: bool,
+    #[serde(default)]
+    pub depends_on: Option<StageDependency>,
+    #[serde(default)]
+    pub completed_at: Option<i64>,
 }
 
 /// 一件要分阶段推进的事，例如一个项目版本。
@@ -114,6 +137,10 @@ pub struct StageInput {
     pub at: Option<i64>,
     #[serde(default)]
     pub done: bool,
+    #[serde(default)]
+    pub depends_on: Option<StageDependency>,
+    #[serde(default)]
+    pub completed_at: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -128,4 +155,27 @@ pub struct PlanInput {
     pub stages: Vec<StageInput>,
     #[serde(default)]
     pub template_id: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Repeat, Stage};
+
+    #[test]
+    fn old_repeat_json_gets_safe_defaults() {
+        let repeat: Repeat = serde_json::from_str(r#"{"rule":"weekly","weekday":5}"#).unwrap();
+        assert_eq!(repeat.interval_days, None);
+        assert_eq!(repeat.until, None);
+        assert!(!repeat.skip_weekends);
+    }
+
+    #[test]
+    fn old_stage_json_gets_dependency_defaults() {
+        let stage: Stage = serde_json::from_str(
+            r#"{"id":"a","title":"提测","at":1000,"done":false,"reminded":false}"#,
+        )
+        .unwrap();
+        assert_eq!(stage.depends_on, None);
+        assert_eq!(stage.completed_at, None);
+    }
 }

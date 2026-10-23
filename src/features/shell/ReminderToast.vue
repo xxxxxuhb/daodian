@@ -184,6 +184,8 @@ async function snooze(minutes: number) {
           title: stage.title,
           at: stage.id === hit.stageId ? at : stage.at,
           done: stage.done,
+          dependsOn: stage.dependsOn,
+          completedAt: stage.completedAt,
         })),
       });
     }

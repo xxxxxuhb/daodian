@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, inject, ref, watch } from "vue";
+import { computed, inject, onUnmounted, ref, watch } from "vue";
 import { tierKey } from "../shell/tier";
-import { deleteTodo, saveTodo, setTodoDone } from "../../api/library";
+import { deleteTodo, saveTodo, setTodoDone, skipTodoOccurrence } from "../../api/library";
 import { useLibrary } from "../../data/useLibrary";
 import { useNow } from "../../domain/clock";
 import {
@@ -9,6 +9,7 @@ import {
   clockFace,
   clockTime,
   countdown,
+  DEFAULT_WEEK_REPORT_TEMPLATE,
   fromLocalInput,
   weekSummary,
   splitToday,
@@ -18,6 +19,7 @@ import {
 } from "../../domain/present";
 import { startOfDay } from "../../domain/time";
 import { useRun } from "../../domain/useRun";
+import type { Todo, TodoInput } from "../../domain/types";
 import Icon from "../../ui/Icon.vue";
 import TodayStrip from "../shell/TodayStrip.vue";
 import { createTickKey } from "../shell/create";
@@ -49,10 +51,17 @@ const custom = ref("");
 const titleText = ref("");
 const composer = ref<HTMLInputElement | null>(null);
 const draft = ref<TodoDraft | null>(null);
+const focusRepeat = ref(false);
 const weekOpen = ref(false);
 const weekText = ref("");
-const copied = ref(false);
-const week = computed(() => weekSummary(todos.value, plans.value, now.value));
+const weekTemplate = ref(readWeekTemplate());
+const templateDraft = ref(weekTemplate.value);
+const templateOpen = ref(false);
+const copied = ref<"all" | "plans" | null>(null);
+const undoRepeat = ref<{ previous: TodoInput | null; savedId: string } | null>(null);
+let undoTimer: ReturnType<typeof window.setTimeout> | null = null;
+let copyTimer: ReturnType<typeof window.setTimeout> | null = null;
+const week = computed(() => weekSummary(todos.value, plans.value, now.value, weekTemplate.value));
 const createTick = inject(createTickKey, null);
 const tier = inject(tierKey, computed(() => "wide" as const));
 
@@ -85,11 +94,42 @@ watch(weekOpen, (open) => {
   if (open) weekText.value = week.value.text;
 });
 
-async function copyWeek() {
-  await navigator.clipboard.writeText(weekText.value);
-  copied.value = true;
-  window.setTimeout(() => {
-    copied.value = false;
+watch(draft, (current) => {
+  if (!current) focusRepeat.value = false;
+});
+
+function readWeekTemplate() {
+  try {
+    return localStorage.getItem("daodian-week-report-template") || DEFAULT_WEEK_REPORT_TEMPLATE;
+  } catch {
+    return DEFAULT_WEEK_REPORT_TEMPLATE;
+  }
+}
+
+function saveWeekTemplate() {
+  const value = templateDraft.value.trim() || DEFAULT_WEEK_REPORT_TEMPLATE;
+  weekTemplate.value = value;
+  templateDraft.value = value;
+  weekText.value = weekSummary(todos.value, plans.value, now.value, value).text;
+  templateOpen.value = false;
+  try {
+    localStorage.setItem("daodian-week-report-template", value);
+  } catch {
+    // 无持久化权限时，本次会话内仍然生效。
+  }
+}
+
+function resetWeekTemplate() {
+  templateDraft.value = DEFAULT_WEEK_REPORT_TEMPLATE;
+}
+
+async function copyWeek(kind: "all" | "plans") {
+  await navigator.clipboard.writeText(kind === "all" ? weekText.value : week.value.planMarkdown);
+  copied.value = kind;
+  if (copyTimer != null) window.clearTimeout(copyTimer);
+  copyTimer = window.setTimeout(() => {
+    copied.value = null;
+    copyTimer = null;
   }, 2000);
 }
 
@@ -138,31 +178,92 @@ async function toggle(id: string, done: boolean) {
 
 function openTodo(id: string) {
   const todo = todos.value.find((item) => item.id === id);
-  if (todo) draft.value = toTodoDraft(todo);
+  if (todo) {
+    focusRepeat.value = false;
+    draft.value = toTodoDraft(todo);
+  }
 }
+
+function openTodoRepeat(id: string) {
+  const todo = todos.value.find((item) => item.id === id);
+  if (todo) {
+    focusRepeat.value = true;
+    draft.value = toTodoDraft(todo);
+  }
+}
+
+function inputFromTodo(todo: Todo): TodoInput {
+  return {
+    id: todo.id,
+    title: todo.title,
+    note: todo.note,
+    dueAt: todo.dueAt,
+    priority: todo.priority,
+    repeat: todo.repeat ? { ...todo.repeat } : null,
+    leadMs: todo.leadMs,
+  };
+}
+
+function offerRepeatUndo(previous: TodoInput | null, savedId: string) {
+  if (undoTimer != null) window.clearTimeout(undoTimer);
+  undoRepeat.value = { previous, savedId };
+  undoTimer = window.setTimeout(() => {
+    undoRepeat.value = null;
+    undoTimer = null;
+  }, 5000);
+}
+
+async function undoRepeatSave() {
+  const pending = undoRepeat.value;
+  if (!pending) return;
+  if (undoTimer != null) window.clearTimeout(undoTimer);
+  undoRepeat.value = null;
+  undoTimer = null;
+  await run(async () => {
+    if (pending.previous) await saveTodo(pending.previous);
+    else await deleteTodo(pending.savedId);
+    await reload();
+  });
+}
+
+onUnmounted(() => {
+  if (undoTimer != null) window.clearTimeout(undoTimer);
+  if (copyTimer != null) window.clearTimeout(copyTimer);
+});
 
 async function saveDraft() {
   const current = draft.value;
   if (!current) return;
+  const previousTodo = current.id ? todos.value.find((item) => item.id === current.id) : null;
+  const previous = previousTodo ? inputFromTodo(previousTodo) : null;
+  const repeat = current.repeat && current.dueAt != null
+    ? {
+        rule: current.repeat.rule,
+        weekday: current.repeat.rule === "weekly" ? new Date(current.dueAt).getDay() : null,
+        intervalDays: current.repeat.rule === "custom" ? Math.max(1, Math.trunc(current.repeat.intervalDays ?? 1)) : null,
+        until: current.repeat.until,
+        skipWeekends: current.repeat.skipWeekends,
+      }
+    : null;
+  const repeatChanged = JSON.stringify(previous?.repeat ?? null) !== JSON.stringify(repeat);
+  let savedId = current.id;
   const ok = await run(async () => {
-    await saveTodo({
+    const saved = await saveTodo({
       id: current.id,
       title: current.title,
       note: current.note,
       dueAt: current.dueAt,
       priority: current.priority,
-      repeat:
-        current.repeat && current.dueAt != null
-          ? {
-              rule: current.repeat.rule,
-              weekday: current.repeat.rule === "weekly" ? new Date(current.dueAt).getDay() : null,
-            }
-          : null,
+      repeat,
       leadMs: current.leadMs,
     });
+    savedId = saved.id;
     await reload();
   });
-  if (ok) draft.value = null;
+  if (ok) {
+    draft.value = null;
+    if (repeatChanged && savedId) offerRepeatUndo(previous, savedId);
+  }
 }
 
 async function removeDraft() {
@@ -184,6 +285,16 @@ async function toggleDraft() {
     if (draft.value?.id === saved.id) draft.value.done = saved.done;
   });
   if (!ok) return;
+}
+
+async function skipDraft() {
+  const id = draft.value?.id;
+  if (!id) return;
+  const ok = await run(async () => {
+    await skipTodoOccurrence(id);
+    await reload();
+  });
+  if (ok) draft.value = null;
 }
 </script>
 
@@ -282,6 +393,7 @@ async function toggleDraft() {
               :todo="todo"
               :now="now"
               @open="openTodo(todo.id)"
+              @repeat="openTodoRepeat(todo.id)"
               @toggle="toggle(todo.id, !todo.done)"
             />
           </div>
@@ -299,6 +411,7 @@ async function toggleDraft() {
               :todo="todo"
               :now="now"
               @open="openTodo(todo.id)"
+              @repeat="openTodoRepeat(todo.id)"
               @toggle="toggle(todo.id, !todo.done)"
             />
           </div>
@@ -316,6 +429,7 @@ async function toggleDraft() {
               :todo="todo"
               :now="now"
               @open="openTodo(todo.id)"
+              @repeat="openTodoRepeat(todo.id)"
               @toggle="toggle(todo.id, !todo.done)"
             />
           </div>
@@ -326,7 +440,13 @@ async function toggleDraft() {
         <div v-if="agenda.length" :class="tier === 'mini' ? 'mini-list' : 'list'">
           <template v-for="todo in agenda" :key="todo.id">
             <div v-if="view === 'agenda' && todo.id === nowId" class="nowline"><i>现在 {{ clockTime(now) }}</i><span></span></div>
-            <TodoRow :todo="todo" :now="now" @open="openTodo(todo.id)" @toggle="toggle(todo.id, !todo.done)" />
+            <TodoRow
+              :todo="todo"
+              :now="now"
+              @open="openTodo(todo.id)"
+              @repeat="openTodoRepeat(todo.id)"
+              @toggle="toggle(todo.id, !todo.done)"
+            />
           </template>
         </div>
         <template v-if="unset.length">
@@ -338,6 +458,7 @@ async function toggleDraft() {
               :todo="todo"
               :now="now"
               @open="openTodo(todo.id)"
+              @repeat="openTodoRepeat(todo.id)"
               @toggle="toggle(todo.id, !todo.done)"
             />
           </div>
@@ -353,6 +474,7 @@ async function toggleDraft() {
       <span class="k">
         <span><span class="kbd">空格</span>完成</span>
         <span><span class="kbd">Enter</span>编辑</span>
+        <span><span class="kbd">R</span>重复设置</span>
         <span><span class="kbd">Ctrl N</span>新建</span>
       </span>
     </div>
@@ -362,11 +484,19 @@ async function toggleDraft() {
       :now="now"
       :saving="saving"
       :error="error"
+      :focus-repeat="focusRepeat"
       @close="draft = null"
       @save="saveDraft"
       @remove="removeDraft"
       @toggle="toggleDraft"
+      @skip="skipDraft"
     />
+    <Teleport to="body">
+      <div v-if="undoRepeat" class="repeat-undo" role="status">
+        <span>重复规则已保存</span>
+        <button type="button" @click="undoRepeatSave">撤销</button>
+      </div>
+    </Teleport>
   </main>
 
   <aside v-if="tier === 'wide'" class="aside">
@@ -405,7 +535,23 @@ async function toggleDraft() {
       <div v-if="weekOpen" class="week-card__body">
         <p>{{ week.done }} 件完成 / {{ week.overdue }} 件逾期 / {{ week.advanced }} 个计划有进展</p>
         <textarea v-model="weekText" rows="6"></textarea>
-        <button type="button" class="btn btn--sm" @click="copyWeek">{{ copied ? "已复制" : "复制成文本" }}</button>
+        <div class="week-card__actions">
+          <button type="button" class="btn btn--sm" @click="copyWeek('all')">
+            {{ copied === "all" ? "已复制" : "复制周报" }}
+          </button>
+          <button type="button" class="btn btn--sm" @click="copyWeek('plans')">
+            {{ copied === "plans" ? "已复制" : "只复制计划" }}
+          </button>
+          <button type="button" class="btn btn--sm btn--ghost" @click="templateOpen = !templateOpen">模板设置</button>
+        </div>
+        <div v-if="templateOpen" class="week-template">
+          <p v-pre>可用变量：{{overview}}、{{todos}}、{{plans}}</p>
+          <textarea v-model="templateDraft" rows="9" aria-label="周报 Markdown 模板"></textarea>
+          <div class="week-card__actions">
+            <button type="button" class="btn btn--sm btn--primary" @click="saveWeekTemplate">应用模板</button>
+            <button type="button" class="btn btn--sm" @click="resetWeekTemplate">恢复默认</button>
+          </div>
+        </div>
       </div>
     </div>
   </aside>

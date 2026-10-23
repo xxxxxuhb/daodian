@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { planPill, relative, stageWhen } from "../../domain/present";
+import { isContainerShortcut } from "../../domain/shortcuts";
 import type { Plan, Stage } from "../../domain/types";
 import { stageProgress } from "./logic";
 import Icon from "../../ui/Icon.vue";
 
 const props = defineProps<{ plan: Plan; now: number }>();
-const emit = defineEmits<{ open: []; fill: []; toggle: []; toggleStage: [Stage]; slip: [number] }>();
+const emit = defineEmits<{
+  open: [];
+  fill: [];
+  toggle: [];
+  toggleStage: [Stage];
+  slip: [number];
+  saveTemplate: [];
+}>();
 
 function slipPreview(days: number) {
   const open = props.plan.stages.filter((stage) => !stage.done && stage.at != null);
@@ -19,10 +27,16 @@ function slipPreview(days: number) {
 const progress = computed(() => stageProgress(props.plan));
 const pill = computed(() => planPill(props.plan, props.now));
 const nextId = computed(() => props.plan.stages.find((stage) => !stage.done)?.id ?? "");
+
+function slipFromKey(event: KeyboardEvent) {
+  if (!isContainerShortcut(event, "t", Boolean(document.querySelector('[role="dialog"]')))) return;
+  event.preventDefault();
+  emit("slip", 1);
+}
 </script>
 
 <template>
-  <article class="plan" tabindex="0" @click="emit('open')" @keydown.enter.prevent="emit('open')">
+  <article class="plan" tabindex="0" @click="emit('open')" @keydown.enter.prevent="emit('open')" @keydown="slipFromKey">
     <div class="plan__head">
       <button
         class="check"
@@ -49,6 +63,8 @@ const nextId = computed(() => props.plan.stages.find((stage) => !stage.done)?.id
           <button type="button" @click="emit('slip', 1)">1 天 <span>{{ slipPreview(1) }}</span></button>
           <button type="button" @click="emit('slip', 3)">3 天 <span>{{ slipPreview(3) }}</span></button>
           <button type="button" @click="emit('slip', 7)">1 周 <span>{{ slipPreview(7) }}</span></button>
+          <p>模板</p>
+          <button type="button" @click="emit('saveTemplate')">另存为模板 <span>{{ plan.stages.length }} 个阶段</span></button>
         </div>
       </div>
       <div v-if="progress.total" class="plan__prog">

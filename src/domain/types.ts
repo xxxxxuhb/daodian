@@ -17,6 +17,8 @@ export interface Todo {
   repeat: Repeat | null;
   leadMs: number;
   leadReminded: boolean;
+  seriesId: string | null;
+  skipped: boolean;
 }
 
 export interface Stage {
@@ -25,6 +27,13 @@ export interface Stage {
   at: number | null;
   done: boolean;
   reminded: boolean;
+  dependsOn: StageDependency | null;
+  completedAt: number | null;
+}
+
+export interface StageDependency {
+  stageId: string;
+  delayMs: number;
 }
 
 export interface Plan {
@@ -59,6 +68,8 @@ export interface StageInput {
   title: string;
   at: number | null;
   done: boolean;
+  dependsOn: StageDependency | null;
+  completedAt: number | null;
 }
 
 export interface PlanInput {
@@ -68,4 +79,24 @@ export interface PlanInput {
   priority: Priority;
   stages: StageInput[];
   templateId: string | null;
+}
+
+export interface TemplateStage {
+  title: string;
+  day: number | null;
+  hour: number | null;
+  minute: number | null;
+}
+
+export interface PlanTemplate {
+  id: string;
+  label: string;
+  stages: TemplateStage[];
+  builtIn: boolean;
+}
+
+export interface TemplateInput {
+  id: string | null;
+  label: string;
+  stages: TemplateStage[];
 }

@@ -1,13 +1,9 @@
 import { priorityRank } from "../../domain/priority";
 import { atClock } from "../../domain/present";
 import { timeMeta } from "../../domain/time";
-import type { Plan, Priority, Stage, StageInput } from "../../domain/types";
+import type { Plan, PlanTemplate, Priority, Stage, StageInput, TemplateStage } from "../../domain/types";
 
-export const PLAN_TEMPLATES: {
-  id: string;
-  label: string;
-  stages: { title: string; day: number; hour: number; minute: number }[];
-}[] = [
+export const BUILTIN_PLAN_TEMPLATES: PlanTemplate[] = [
   {
     id: "release",
     label: "提测 → 发布 → 观察",
@@ -16,6 +12,7 @@ export const PLAN_TEMPLATES: {
       { title: "发布", day: 1, hour: 10, minute: 0 },
       { title: "观察", day: 3, hour: 10, minute: 0 },
     ],
+    builtIn: true,
   },
   {
     id: "meeting",
@@ -25,18 +22,50 @@ export const PLAN_TEMPLATES: {
       { title: "改版", day: 2, hour: 14, minute: 0 },
       { title: "定稿", day: 4, hour: 16, minute: 0 },
     ],
+    builtIn: true,
   },
-  { id: "blank", label: "空计划", stages: [] },
+  { id: "blank", label: "空计划", stages: [], builtIn: true },
 ];
 
-export function stagesFromTemplate(id: string, now: number): StageInput[] {
-  const template = PLAN_TEMPLATES.find((item) => item.id === id) ?? PLAN_TEMPLATES[0]!;
+export function stagesFromTemplate(template: PlanTemplate, now: number): StageInput[] {
   return template.stages.map((stage) => ({
     id: null,
     title: stage.title,
-    at: atClock(now, stage.day, stage.hour, stage.minute),
+    at:
+      stage.day == null || stage.hour == null || stage.minute == null
+        ? null
+        : atClock(now, stage.day, stage.hour, stage.minute),
     done: false,
+    dependsOn: null,
+    completedAt: null,
   }));
+}
+
+function localDayNumber(at: number) {
+  const date = new Date(at);
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000;
+}
+
+export function templateStagesFromPlan(
+  plan: { stages: { title: string; at: number | null }[] },
+  now: number,
+): TemplateStage[] {
+  const today = localDayNumber(now);
+  return plan.stages.map((stage) => {
+    if (stage.at == null) return { title: stage.title, day: null, hour: null, minute: null };
+    const date = new Date(stage.at);
+    return {
+      title: stage.title,
+      day: localDayNumber(stage.at) - today,
+      hour: date.getHours(),
+      minute: date.getMinutes(),
+    };
+  });
+}
+
+export function templatePreview(template: PlanTemplate) {
+  if (!template.stages.length) return "不预设阶段";
+  return template.stages.map((stage) => stage.title).join(" → ");
 }
 
 export type PlanFilter = "active" | "done";
@@ -58,6 +87,8 @@ export interface StageDraft {
   title: string;
   at: number | null;
   done: boolean;
+  dependsOn: { stageId: string; delayMs: number } | null;
+  completedAt: number | null;
 }
 
 export interface PlanDraft {
@@ -75,7 +106,15 @@ export function newStageKey() {
 }
 
 export function emptyStage(): StageDraft {
-  return { key: newStageKey(), id: null, title: "", at: null, done: false };
+  return {
+    key: newStageKey(),
+    id: null,
+    title: "",
+    at: null,
+    done: false,
+    dependsOn: null,
+    completedAt: null,
+  };
 }
 
 export function emptyPlanDraft(): PlanDraft {
@@ -104,6 +143,8 @@ export function toPlanDraft(plan: Plan): PlanDraft {
       title: stage.title,
       at: stage.at,
       done: stage.done,
+      dependsOn: stage.dependsOn,
+      completedAt: stage.completedAt,
     })),
   };
 }
@@ -120,7 +161,14 @@ export function adoptSavedStages(draft: PlanDraft, saved: Plan): PlanDraft {
       const server = saved.stages[index];
       index += 1;
       if (!server) return stage;
-      return { ...stage, id: server.id, done: server.done };
+      return {
+        ...stage,
+        key: server.id,
+        id: server.id,
+        done: server.done,
+        dependsOn: server.dependsOn,
+        completedAt: server.completedAt,
+      };
     }),
   };
 }
@@ -182,15 +230,37 @@ export function stagePlaceholder(index: number) {
 }
 
 export function stagesForSave(stages: StageDraft[]): StageInput[] | string {
-  const meaningful = stages.filter((stage) => stage.title.trim() || stage.at != null || stage.done);
+  const meaningful = stages.filter(
+    (stage) => stage.title.trim() || stage.at != null || stage.done || stage.dependsOn != null,
+  );
   if (meaningful.some((stage) => !stage.title.trim())) return "阶段要有个名字";
   if (meaningful.length > MAX_STAGES) return "最多 20 个阶段";
   return meaningful.map((stage) => ({
-    id: stage.id,
+    id: stage.id ?? stage.key,
     title: stage.title.trim(),
     at: stage.at,
     done: stage.done,
+    dependsOn: stage.dependsOn,
+    completedAt: stage.completedAt,
   }));
+}
+
+export function dependencyCandidates(stages: StageDraft[], current: StageDraft) {
+  const wouldCycle = (candidate: StageDraft) => {
+    const seen = new Set<string>();
+    let cursor: StageDraft | undefined = candidate;
+    while (cursor?.dependsOn) {
+      if (cursor.dependsOn.stageId === current.key) return true;
+      if (seen.has(cursor.key)) return true;
+      seen.add(cursor.key);
+      cursor = stages.find((stage) => stage.key === cursor?.dependsOn?.stageId);
+    }
+    return false;
+  };
+  return stages.filter(
+    (candidate) =>
+      candidate.key !== current.key && Boolean(candidate.title.trim()) && !wouldCycle(candidate),
+  );
 }
 
 export function moveStage(stages: StageDraft[], index: number, direction: -1 | 1) {

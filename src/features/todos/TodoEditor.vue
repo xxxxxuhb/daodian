@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { PRIORITIES } from "../../domain/priority";
 import { atClock } from "../../domain/present";
 import { LEADS, nextLabel, repeatLabel, type RepeatRule } from "../../domain/repeat";
@@ -7,8 +7,9 @@ import Icon from "../../ui/Icon.vue";
 import TimeField from "../../ui/TimeField.vue";
 import type { TodoDraft } from "./logic";
 
-const props = defineProps<{ draft: TodoDraft; now: number; saving: boolean; error: string }>();
-const emit = defineEmits<{ close: []; save: []; remove: []; toggle: [] }>();
+const props = defineProps<{ draft: TodoDraft; now: number; saving: boolean; error: string; focusRepeat?: boolean }>();
+const emit = defineEmits<{ close: []; save: []; remove: []; toggle: []; skip: [] }>();
+const repeatArea = ref<HTMLElement | null>(null);
 
 const none = computed(() => props.draft.dueAt == null);
 const today15 = computed(() => props.draft.dueAt != null && Math.abs(props.draft.dueAt - atClock(props.now, 0, 15, 0)) < 60_000);
@@ -16,11 +17,32 @@ const tomorrow9 = computed(() => props.draft.dueAt != null && Math.abs(props.dra
 
 const rules: { id: RepeatRule | "none"; label: string }[] = [
   { id: "none", label: "不重复" },
+  { id: "daily", label: "每天" },
   { id: "weekly", label: "每周" },
   { id: "weekdays", label: "每个工作日" },
   { id: "monthEnd", label: "每月最后一天" },
+  { id: "custom", label: "自定义" },
 ];
 const following = computed(() => nextLabel(props.draft.repeat, props.draft.dueAt));
+
+function localDateText(value: number): string {
+  const date = new Date(value);
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+const dueDateMin = computed(() => props.draft.dueAt == null ? undefined : localDateText(props.draft.dueAt));
+const untilText = computed({
+  get() {
+    if (props.draft.repeat?.until == null) return "";
+    return localDateText(props.draft.repeat.until);
+  },
+  set(value: string) {
+    if (!props.draft.repeat) return;
+    props.draft.repeat.until = value ? new Date(`${value}T23:59:59.999`).getTime() : null;
+  },
+});
 
 function setRepeat(id: RepeatRule | "none") {
   if (id === "none" || props.draft.dueAt == null) {
@@ -30,6 +52,9 @@ function setRepeat(id: RepeatRule | "none") {
   props.draft.repeat = {
     rule: id,
     weekday: id === "weekly" ? new Date(props.draft.dueAt).getDay() : null,
+    intervalDays: id === "custom" ? 2 : null,
+    until: null,
+    skipWeekends: false,
   };
 }
 
@@ -47,7 +72,15 @@ function onKey(event: KeyboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener("keydown", onKey));
+onMounted(() => {
+  window.addEventListener("keydown", onKey);
+  if (props.focusRepeat) {
+    void nextTick(() => {
+      repeatArea.value?.scrollIntoView({ block: "center" });
+      repeatArea.value?.querySelector<HTMLButtonElement>(".chip.on")?.focus();
+    });
+  }
+});
 onUnmounted(() => window.removeEventListener("keydown", onKey));
 </script>
 
@@ -79,7 +112,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
             <button type="button" class="chip" :class="{ on: tomorrow9 }" @click="pick('tomorrow9')">明天 09:00</button>
           </div>
           <TimeField :at="draft.dueAt" :now="now" @update:at="draft.dueAt = $event" />
-          <div class="composer__row" style="border: 0; margin: 8px 0 0; padding: 0">
+          <div ref="repeatArea" class="composer__row" style="border: 0; margin: 8px 0 0; padding: 0">
             <button
               v-for="item in rules"
               :key="item.id"
@@ -93,6 +126,28 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
             <select class="lead" :value="draft.leadMs" @change="draft.leadMs = Number(($event.target as HTMLSelectElement).value)">
               <option v-for="item in LEADS" :key="item.ms" :value="item.ms">{{ item.label }}</option>
             </select>
+          </div>
+          <div v-if="draft.repeat" class="repeat-options">
+            <label v-if="draft.repeat.rule === 'custom'">
+              间隔
+              <input
+                class="repeat-number"
+                type="number"
+                min="1"
+                max="3650"
+                :value="draft.repeat.intervalDays ?? 1"
+                @input="draft.repeat!.intervalDays = Number(($event.target as HTMLInputElement).value)"
+              />
+              天
+            </label>
+            <label>
+              结束于
+              <input v-model="untilText" class="repeat-date" type="date" :min="dueDateMin" />
+            </label>
+            <label class="repeat-check">
+              <input v-model="draft.repeat.skipWeekends" type="checkbox" />
+              跳过周末
+            </label>
           </div>
           <p v-if="following" class="field__hint">{{ following }}</p>
         </div>
@@ -122,6 +177,15 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
         <button class="btn btn--primary" type="button" :disabled="saving" @click="emit('save')">保存</button>
         <button v-if="draft.id" class="btn" type="button" :disabled="saving" @click="emit('toggle')">
           {{ draft.done ? "标为未完成" : "标为完成" }}
+        </button>
+        <button
+          v-if="draft.id && draft.repeat && !draft.done"
+          class="btn"
+          type="button"
+          :disabled="saving"
+          @click="emit('skip')"
+        >
+          跳过本次
         </button>
         <button
           v-if="draft.id"

@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { computed, inject, ref, watch } from "vue";
-import { deletePlan, savePlan, setPlanDone, setStageDone } from "../../api/library";
+import { computed, inject, onMounted, ref, watch } from "vue";
+import {
+  deletePlan,
+  deleteTemplate,
+  renameTemplate,
+  savePlan,
+  saveTemplate,
+  setPlanDone,
+  setStageDone,
+} from "../../api/library";
 import { useLibrary } from "../../data/useLibrary";
+import { useTemplates } from "../../data/useTemplates";
 import { useNow } from "../../domain/clock";
 import {
   axisRange,
@@ -29,8 +38,9 @@ import {
   emptyPlanDraft,
   emptyStage,
   matchesPlan,
-  PLAN_TEMPLATES,
   stagesFromTemplate,
+  templatePreview,
+  templateStagesFromPlan,
   PLAN_FILTERS,
   planMatchesQuery,
   stagesForSave,
@@ -45,6 +55,7 @@ const props = defineProps<{ filter: PlanFilter; query: string; loadError: string
 
 const now = useNow();
 const { todos, plans, loading, reload } = useLibrary();
+const { templates, templateError, reloadTemplates } = useTemplates();
 const { saving, error, run } = useRun();
 const face = computed(() => clockFace(now.value));
 const view = ref<"cards" | "gantt">("cards");
@@ -56,9 +67,19 @@ const templateId = ref("release");
 const undo = ref<{ plan: Plan; timer: number } | null>(null);
 const composer = ref<HTMLInputElement | null>(null);
 const draft = ref<PlanDraft | null>(null);
+const templateSource = ref<Pick<Plan, "title" | "stages"> | PlanDraft | null>(null);
+const templateName = ref("");
+const managingTemplates = ref(false);
+const templateNames = ref<Record<string, string>>({});
 const doneStamp = ref("");
 const createTick = inject(createTickKey, null);
 const tier = inject(tierKey, computed(() => "wide" as const));
+const selectedTemplate = computed(
+  () => templates.value.find((item) => item.id === templateId.value) ?? templates.value[0],
+);
+const customTemplates = computed(() => templates.value.filter((item) => !item.builtIn));
+
+onMounted(reloadTemplates);
 
 const shown = computed(() =>
   plans.value
@@ -165,7 +186,12 @@ async function commit() {
     composer.value?.focus();
     return;
   }
-  const stages = stagesFromTemplate(templateId.value, now.value);
+  const template = selectedTemplate.value;
+  if (!template) {
+    error.value = "模板还没有加载好";
+    return;
+  }
+  const stages = stagesFromTemplate(template, now.value);
   const ok = await run(async () => {
     const saved = await savePlan({
       id: null,
@@ -184,6 +210,56 @@ async function commit() {
   templateId.value = "release";
 }
 
+function beginSaveTemplate(source: Pick<Plan, "title" | "stages"> | PlanDraft) {
+  templateSource.value = source;
+  templateName.value = source.title.trim() || "新模板";
+}
+
+async function confirmSaveTemplate() {
+  const source = templateSource.value;
+  if (!source) return;
+  const label = templateName.value.trim();
+  if (!label) {
+    error.value = "模板要有个名字";
+    return;
+  }
+  const ok = await run(async () => {
+    const saved = await saveTemplate({
+      id: null,
+      label,
+      stages: templateStagesFromPlan(source, now.value),
+    });
+    await reloadTemplates();
+    templateId.value = saved.id;
+  });
+  if (ok) templateSource.value = null;
+}
+
+function openTemplateManager() {
+  templateNames.value = Object.fromEntries(customTemplates.value.map((item) => [item.id, item.label]));
+  managingTemplates.value = true;
+}
+
+async function renameCustomTemplate(id: string) {
+  const label = templateNames.value[id]?.trim();
+  if (!label) {
+    error.value = "模板要有个名字";
+    return;
+  }
+  await run(async () => {
+    await renameTemplate(id, label);
+    await reloadTemplates();
+  });
+}
+
+async function removeCustomTemplate(id: string) {
+  await run(async () => {
+    await deleteTemplate(id);
+    await reloadTemplates();
+    if (templateId.value === id) templateId.value = "release";
+  });
+}
+
 function openStages(plan: Plan) {
   return plan.stages.filter((stage) => !stage.done && stage.at != null);
 }
@@ -194,6 +270,8 @@ async function slip(plan: Plan, days: number) {
     title: stage.title,
     done: stage.done,
     at: stage.done || stage.at == null ? stage.at : stage.at + days * 86_400_000,
+    dependsOn: stage.dependsOn,
+    completedAt: stage.completedAt,
   }));
   const ok = await run(async () => {
     await savePlan({
@@ -233,6 +311,8 @@ async function undoSlip() {
         title: stage.title,
         at: stage.at,
         done: stage.done,
+        dependsOn: stage.dependsOn,
+        completedAt: stage.completedAt,
       })),
     });
     await reload();
@@ -267,6 +347,8 @@ async function shift(plan: Plan, changes: { id: string; at: number }[]) {
         title: stage.title,
         at: next.get(stage.id) ?? stage.at,
         done: stage.done,
+        dependsOn: stage.dependsOn,
+        completedAt: stage.completedAt,
       })),
     });
     await reload();
@@ -353,7 +435,7 @@ async function removeDraft() {
       </div>
       <div class="mini-add__row">
         <button
-          v-for="item in PLAN_TEMPLATES"
+          v-for="item in templates"
           :key="item.id"
           type="button"
           class="chip"
@@ -362,7 +444,9 @@ async function removeDraft() {
         >
           {{ item.label }}
         </button>
+        <button type="button" class="chip" @click="openTemplateManager">管理</button>
       </div>
+      <p v-if="selectedTemplate" class="template-preview">{{ templatePreview(selectedTemplate) }}</p>
     </div>
 
     <div v-if="tier === 'mini'" class="toolbar mini-toolbar">
@@ -374,7 +458,7 @@ async function removeDraft() {
     </div>
 
     <div :class="tier === 'mini' ? 'mini-scroll' : 'main__scroll'">
-      <p v-if="error || loadError" class="banner">{{ error || loadError }}</p>
+      <p v-if="error || loadError || templateError" class="banner">{{ error || loadError || templateError }}</p>
 
       <div v-if="view === 'cards' && tier !== 'mini'" class="composer">
         <div class="composer__line">
@@ -390,7 +474,7 @@ async function removeDraft() {
         </div>
         <div class="composer__row">
           <button
-            v-for="item in PLAN_TEMPLATES"
+            v-for="item in templates"
             :key="item.id"
             type="button"
             class="chip"
@@ -399,9 +483,13 @@ async function removeDraft() {
           >
             {{ item.label }}
           </button>
+          <button type="button" class="chip" @click="openTemplateManager">管理模板</button>
           <span class="grow"></span>
           <button class="btn btn--primary btn--sm" type="button" :disabled="saving" @click="commit">记下</button>
         </div>
+        <p v-if="selectedTemplate" class="template-preview">
+          <span>阶段预览</span>{{ templatePreview(selectedTemplate) }}
+        </p>
       </div>
 
       <div v-else-if="tier !== 'mini'" class="toolbar">
@@ -425,6 +513,7 @@ async function removeDraft() {
           @toggle="togglePlan(plan)"
           @toggle-stage="toggleStage(plan, $event)"
           @slip="slip(plan, $event)"
+          @save-template="beginSaveTemplate(plan)"
         />
       </template>
       <GanttBoard v-else :plans="shown" :now="now" :mode="span" @open="openPlan" @shift="shift" />
@@ -442,6 +531,7 @@ async function removeDraft() {
       </span>
       <span class="k">
         <span><span class="kbd">Enter</span>打开</span>
+        <span><span class="kbd">T</span>顺延 1 天</span>
         <span><span class="kbd">Ctrl N</span>新建</span>
       </span>
     </div>
@@ -455,7 +545,62 @@ async function removeDraft() {
       @save="saveDraft"
       @remove="removeDraft"
       @toggle="finishDraft"
+      @save-template="beginSaveTemplate(draft)"
     />
+
+    <Teleport v-if="templateSource" to="body">
+      <div class="scrim" @click="templateSource = null"></div>
+      <div class="drawer drawer--sm template-drawer" role="dialog" aria-modal="true">
+        <div class="drawer__head">
+          <div>
+            <p class="eyebrow">模板</p>
+            <div class="drawer__title">另存为模板</div>
+          </div>
+          <button class="icon-btn" type="button" aria-label="关闭" @click="templateSource = null"><Icon name="x" small /></button>
+        </div>
+        <div class="drawer__body">
+          <div class="field">
+            <div class="field__label"><span>模板名称</span></div>
+            <div class="input input--big">
+              <input v-model="templateName" maxlength="40" autofocus @keydown.enter.prevent="confirmSaveTemplate" />
+            </div>
+          </div>
+          <div class="template-stage-list">
+            <span v-for="(stage, index) in templateSource.stages" :key="index">{{ stage.title || "未命名阶段" }}</span>
+            <p v-if="templateSource.stages.length === 0" class="field__hint">这个模板不预设阶段。</p>
+          </div>
+        </div>
+        <div class="drawer__foot">
+          <button class="btn btn--primary" type="button" :disabled="saving" @click="confirmSaveTemplate">保存模板</button>
+          <button class="btn" type="button" @click="templateSource = null">取消</button>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport v-if="managingTemplates" to="body">
+      <div class="scrim" @click="managingTemplates = false"></div>
+      <div class="drawer drawer--sm template-drawer" role="dialog" aria-modal="true">
+        <div class="drawer__head">
+          <div>
+            <p class="eyebrow">模板</p>
+            <div class="drawer__title">管理自定义模板</div>
+          </div>
+          <button class="icon-btn" type="button" aria-label="关闭" @click="managingTemplates = false"><Icon name="x" small /></button>
+        </div>
+        <div class="drawer__body">
+          <p v-if="customTemplates.length === 0" class="empty">还没有自定义模板，可从计划菜单中另存。</p>
+          <div v-for="item in customTemplates" :key="item.id" class="template-manage-row">
+            <div class="input"><input v-model="templateNames[item.id]" maxlength="40" /></div>
+            <button class="btn btn--sm" type="button" :disabled="saving" @click="renameCustomTemplate(item.id)">重命名</button>
+            <button class="icon-btn template-delete" type="button" aria-label="删除模板" :disabled="saving" @click="removeCustomTemplate(item.id)">
+              <Icon name="trash" small />
+            </button>
+            <p>{{ templatePreview(item) }}</p>
+          </div>
+          <p class="field__hint">内置模板始终保留，不能重命名或删除。</p>
+        </div>
+      </div>
+    </Teleport>
   </main>
 
   <aside v-if="tier === 'wide'" class="aside">

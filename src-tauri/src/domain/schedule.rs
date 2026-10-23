@@ -1,4 +1,5 @@
 use super::model::{Document, Plan, Stage, Todo};
+use std::collections::HashSet;
 
 /// 刚到点的阶段都响；睡着错过的一串里只响最近一次。
 pub const FRESH_MS: i64 = 90_000;
@@ -46,7 +47,7 @@ pub fn next_due_at(doc: &Document, now: i64) -> Option<i64> {
             continue;
         }
         for stage in &plan.stages {
-            if stage.done {
+            if stage.done || !stage_has_valid_schedule(plan, stage) {
                 continue;
             }
             if let Some(at) = stage.at {
@@ -133,7 +134,7 @@ fn stage_actions(plan: &Plan, now: i64) -> Vec<RemindAction> {
         .stages
         .iter()
         .enumerate()
-        .filter(|(_, stage)| stage_is_due(stage, now))
+        .filter(|(_, stage)| stage_is_due(plan, stage, now))
         .collect();
     pending.sort_by_key(|(_, stage)| stage.at.unwrap_or(0));
     if pending.is_empty() {
@@ -169,16 +170,44 @@ fn stage_actions(plan: &Plan, now: i64) -> Vec<RemindAction> {
         .collect()
 }
 
-fn stage_is_due(stage: &Stage, now: i64) -> bool {
+fn stage_is_due(plan: &Plan, stage: &Stage, now: i64) -> bool {
     if stage.done || stage.reminded {
         return false;
     }
-    matches!(stage.at, Some(at) if at <= now)
+    stage_has_valid_schedule(plan, stage) && matches!(stage.at, Some(at) if at <= now)
+}
+
+pub fn stage_has_valid_schedule(plan: &Plan, stage: &Stage) -> bool {
+    fn chain_ready(plan: &Plan, stage: &Stage, visiting: &mut HashSet<String>) -> bool {
+        if !visiting.insert(stage.id.clone()) {
+            return false;
+        }
+        let result = match &stage.depends_on {
+            None => true,
+            Some(dependency) => plan
+                .stages
+                .iter()
+                .find(|candidate| candidate.id == dependency.stage_id)
+                .is_some_and(|upstream| {
+                    let expected = upstream
+                        .completed_at
+                        .and_then(|at| at.checked_add(dependency.delay_ms));
+                    upstream.done
+                        && expected.is_some()
+                        && stage.at == expected
+                        && chain_ready(plan, upstream, visiting)
+                }),
+        };
+        visiting.remove(&stage.id);
+        result
+    }
+    stage.at.is_some() && chain_ready(plan, stage, &mut HashSet::new())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::StageDependency;
 
     fn todo(id: &str, due: i64) -> Todo {
         Todo {
@@ -194,6 +223,8 @@ mod tests {
             repeat: None,
             lead_ms: 0,
             lead_reminded: false,
+            series_id: None,
+            skipped: false,
         }
     }
 
@@ -204,6 +235,8 @@ mod tests {
             at: Some(at),
             done: false,
             reminded: false,
+            depends_on: None,
+            completed_at: None,
         }
     }
 
@@ -315,5 +348,50 @@ mod tests {
         };
         assert_eq!(next_due_at(&doc, now), Some(now + 30_000));
         assert_eq!(next_due_at(&Document::default(), now), None);
+    }
+
+    #[test]
+    fn dependent_stage_only_schedules_after_valid_upstream_completion() {
+        let now = 1_000_000;
+        let mut upstream = stage("a", "提测", now - 20_000);
+        let mut downstream = stage("b", "发布", now - 10_000);
+        downstream.depends_on = Some(StageDependency {
+            stage_id: upstream.id.clone(),
+            delay_ms: 10_000,
+        });
+        let mut dependent_plan = plan(vec![upstream.clone(), downstream.clone()]);
+        assert!(
+            plan_actions(
+                &Document {
+                    version: 2,
+                    todos: vec![],
+                    plans: vec![dependent_plan.clone()],
+                },
+                now,
+            )
+            .iter()
+            .all(|action| {
+                !matches!(&action.target, RemindTarget::Stage { stage_id, .. } if stage_id == "b")
+            })
+        );
+
+        upstream.done = true;
+        upstream.completed_at = Some(now - 20_000);
+        downstream.at = Some(now - 10_000);
+        dependent_plan.stages = vec![upstream, downstream];
+        assert!(
+            plan_actions(
+                &Document {
+                    version: 2,
+                    todos: vec![],
+                    plans: vec![dependent_plan],
+                },
+                now,
+            )
+            .iter()
+            .any(|action| {
+                matches!(&action.target, RemindTarget::Stage { stage_id, .. } if stage_id == "b")
+            })
+        );
     }
 }

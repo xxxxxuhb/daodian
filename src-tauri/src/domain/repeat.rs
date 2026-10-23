@@ -2,16 +2,42 @@ use super::model::Repeat;
 
 /// 完成这一次之后，下一次的本地时间。`offset_secs` 是本地时区相对 UTC 的秒数，中国是 28800。
 pub fn next_due(repeat: &Repeat, due_ms: i64, offset_secs: i64) -> Option<i64> {
-    let local = due_ms / 1000 + offset_secs;
-    let days = local.div_euclid(86_400);
-    let clock = local.rem_euclid(86_400);
-    let next_days = match repeat.rule.as_str() {
-        "weekly" => days + 7,
+    let local = due_ms + offset_secs * 1000;
+    let days = local.div_euclid(86_400_000);
+    let clock = local.rem_euclid(86_400_000);
+    let mut next_days = match repeat.rule.as_str() {
+        "daily" => days + 1,
+        "weekly" => next_weekly(days, repeat.weekday),
         "weekdays" => next_weekday(days),
         "monthEnd" => next_month_end(days),
+        "custom" => days + i64::from(repeat.interval_days.unwrap_or(1).max(1)),
         _ => return None,
     };
-    Some((next_days * 86_400 + clock - offset_secs) * 1000)
+    if repeat.skip_weekends {
+        if repeat.rule == "monthEnd" {
+            while matches!(weekday(next_days), 0 | 6) {
+                next_days -= 1;
+            }
+        } else {
+            while matches!(weekday(next_days), 0 | 6) {
+                next_days += 1;
+            }
+        }
+    }
+    let next = next_days * 86_400_000 + clock - offset_secs * 1000;
+    if repeat.until.is_some_and(|until| next > until) {
+        None
+    } else {
+        Some(next)
+    }
+}
+
+fn next_weekly(days: i64, wanted: Option<u8>) -> i64 {
+    let Some(wanted) = wanted.filter(|day| *day <= 6) else {
+        return days + 7;
+    };
+    let delta = (i64::from(wanted) - weekday(days)).rem_euclid(7);
+    days + if delta == 0 { 7 } else { delta }
 }
 
 fn next_weekday(days: i64) -> i64 {
@@ -24,7 +50,11 @@ fn next_weekday(days: i64) -> i64 {
 
 fn next_month_end(days: i64) -> i64 {
     let (year, month, _, _) = civil(days);
-    let (year, month) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    let (year, month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
     days_from_civil(year, month, last_day(year, month))
 }
 
@@ -107,6 +137,9 @@ mod tests {
         Repeat {
             rule: rule.to_string(),
             weekday: None,
+            interval_days: None,
+            until: None,
+            skip_weekends: false,
         }
     }
 
@@ -133,5 +166,40 @@ mod tests {
         let next_days = (next / 1000).div_euclid(86_400);
         assert_eq!(civil_from_days(next_days), (2026, 2, 28));
         assert_eq!(next.rem_euclid(86_400_000), 9 * 3_600_000);
+    }
+
+    #[test]
+    fn daily_preserves_local_clock_across_offset() {
+        let due = days_from_civil(2026, 10, 23) * 86_400_000 + 17 * 3_600_000;
+        let next = next_due(&repeat("daily"), due, 8 * 3_600).unwrap();
+        assert_eq!(next - due, 86_400_000);
+    }
+
+    #[test]
+    fn custom_interval_can_skip_weekends() {
+        let friday = days_from_civil(2026, 10, 23) * 86_400_000;
+        let mut rule = repeat("custom");
+        rule.interval_days = Some(1);
+        rule.skip_weekends = true;
+        let next = next_due(&rule, friday, 0).unwrap();
+        assert_eq!(civil_from_days(next.div_euclid(86_400_000)), (2026, 10, 26));
+    }
+
+    #[test]
+    fn until_is_inclusive_and_stops_later_instances() {
+        let due = days_from_civil(2026, 10, 23) * 86_400_000;
+        let mut rule = repeat("daily");
+        rule.until = Some(due + 86_400_000);
+        assert_eq!(next_due(&rule, due, 0), rule.until);
+        assert_eq!(next_due(&rule, rule.until.unwrap(), 0), None);
+    }
+
+    #[test]
+    fn month_end_skips_weekend_within_the_month() {
+        let january = days_from_civil(2026, 1, 31) * 86_400_000;
+        let mut rule = repeat("monthEnd");
+        rule.skip_weekends = true;
+        let next = next_due(&rule, january, 0).unwrap();
+        assert_eq!(civil_from_days(next.div_euclid(86_400_000)), (2026, 2, 27));
     }
 }

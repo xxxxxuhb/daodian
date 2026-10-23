@@ -9,8 +9,8 @@ use tauri::{AppHandle, Emitter, Manager};
 #[cfg(not(windows))]
 use tauri_plugin_notification::NotificationExt;
 
-use crate::domain::{now_ms, RemindAction, RemindTarget};
-use crate::store::{due_open_count, mark_reminded, next_due, plan_from_store, SharedStore};
+use crate::domain::{RemindAction, RemindTarget, now_ms};
+use crate::store::{SharedStore, due_open_count, mark_reminded, next_due, plan_from_store};
 
 /// 每小时最多几条系统通知，超出的先攒着。
 const MAX_PER_HOUR: usize = 3;
@@ -140,10 +140,7 @@ fn run_check(app: &AppHandle) -> Result<(), String> {
 
     match send(app, &ring) {
         Ok(()) => {
-            crate::logging::info(format_args!(
-                "notification sent: count={}",
-                ring.len()
-            ));
+            crate::logging::info(format_args!("notification sent: count={}", ring.len()));
             crate::tray::alert(app);
             let payload = ring.iter().map(reminder_event).collect::<Vec<_>>();
             match app.emit("reminder-fired", payload) {
@@ -151,9 +148,9 @@ fn run_check(app: &AppHandle) -> Result<(), String> {
                     "reminder event emitted: count={}",
                     ring.len()
                 )),
-                Err(err) => crate::logging::error(format_args!(
-                    "reminder event emit failed: {err}"
-                )),
+                Err(err) => {
+                    crate::logging::error(format_args!("reminder event emit failed: {err}"))
+                }
             }
             remember_sent(now);
             for action in &ring {
@@ -269,7 +266,11 @@ fn compose(batch: &[RemindAction]) -> (String, String) {
     if let [one] = batch {
         return (one.title.clone(), one.detail.clone());
     }
-    let names: Vec<&str> = batch.iter().take(2).map(|item| item.title.as_str()).collect();
+    let names: Vec<&str> = batch
+        .iter()
+        .take(2)
+        .map(|item| item.title.as_str())
+        .collect();
     let mut body = names.join("、");
     if batch.len() > 2 {
         body.push_str(&format!(" 等 {} 件", batch.len()));
@@ -347,10 +348,7 @@ fn remember_sent(now: i64) {
 fn key_of(target: &RemindTarget) -> String {
     match target {
         RemindTarget::Todo { id } => format!("todo:{id}"),
-        RemindTarget::Stage {
-            plan_id,
-            stage_id,
-        } => format!("stage:{plan_id}:{stage_id}"),
+        RemindTarget::Stage { plan_id, stage_id } => format!("stage:{plan_id}:{stage_id}"),
     }
 }
 

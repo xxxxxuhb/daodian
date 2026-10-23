@@ -33,7 +33,9 @@ pub fn run() {
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            logging::info(format_args!("second instance requested; showing main window"));
+            logging::info(format_args!(
+                "second instance requested; showing main window"
+            ));
             tray::show_main(&app);
         }))
         .plugin(tauri_plugin_notification::init())
@@ -47,7 +49,9 @@ pub fn run() {
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if tray::QUITTING.load(std::sync::atomic::Ordering::SeqCst) {
-                    logging::info(format_args!("main window close allowed because app is quitting"));
+                    logging::info(format_args!(
+                        "main window close allowed because app is quitting"
+                    ));
                     return;
                 }
                 api.prevent_close();
@@ -79,11 +83,16 @@ pub fn run() {
             store::load_library,
             store::todos::save_todo,
             store::todos::set_todo_done,
+            store::todos::skip_todo_occurrence,
             store::todos::delete_todo,
             store::plans::save_plan,
             store::plans::set_plan_done,
             store::plans::set_stage_done,
             store::plans::delete_plan,
+            store::templates::load_templates,
+            store::templates::save_template,
+            store::templates::rename_template,
+            store::templates::delete_template,
             remind::sync_clock,
             remind::sync_reminders,
             frontend_log,
@@ -94,7 +103,9 @@ pub fn run() {
             app.run(|app, event| {
                 if matches!(event, tauri::RunEvent::Ready) {
                     match tray::setup(app) {
-                        Ok(()) => logging::info(format_args!("tray initialized after event loop ready")),
+                        Ok(()) => {
+                            logging::info(format_args!("tray initialized after event loop ready"))
+                        }
                         Err(err) => logging::error(format_args!("初始化托盘: {err:#}")),
                     }
                 }
@@ -136,6 +147,11 @@ fn data_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
             if let Err(err) = copy_if_present(&roaming, &dir, "todos.json") {
                 logging::warn(format_args!("legacy store migration failed: {err:#}"));
             }
+        }
+    }
+    if dir != roaming && !dir.join("templates.json").exists() {
+        if let Err(err) = copy_if_present(&roaming, &dir, "templates.json") {
+            logging::warn(format_args!("template migration failed: {err:#}"));
         }
     }
     Ok(dir)
@@ -257,13 +273,20 @@ fn copy_if_present(from: &Path, to: &Path, name: &str) -> Result<(), Box<dyn std
         return Ok(());
     }
     if let Err(err) = std::fs::copy(&source, &target) {
-        return Err(std::io::Error::other(format!("把 {name} 拷到 {} 失败: {err}", target.display())).into());
+        return Err(std::io::Error::other(format!(
+            "把 {name} 拷到 {} 失败: {err}",
+            target.display()
+        ))
+        .into());
     }
     Ok(())
 }
 
 /// 出错时说清楚是哪一步，别把 io 错误直接甩给用户。
-fn step(context: impl std::fmt::Display, err: Box<dyn std::error::Error>) -> Box<dyn std::error::Error> {
+fn step(
+    context: impl std::fmt::Display,
+    err: Box<dyn std::error::Error>,
+) -> Box<dyn std::error::Error> {
     std::io::Error::other(format!("{context}: {err}")).into()
 }
 

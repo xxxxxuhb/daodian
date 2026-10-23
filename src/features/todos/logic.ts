@@ -41,7 +41,7 @@ export function toTodoDraft(todo: Todo): TodoDraft {
     dueAt: todo.dueAt,
     priority: todo.priority,
     done: todo.done,
-    repeat: todo.repeat,
+    repeat: todo.repeat ? { ...todo.repeat } : null,
     leadMs: todo.leadMs ?? 0,
   };
 }

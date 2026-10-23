@@ -1,5 +1,5 @@
-import { startOfDay } from "./time";
-import type { Plan, Todo } from "./types";
+import { startOfDay } from "./time.ts";
+import type { Plan, Todo } from "./types.ts";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -215,23 +215,92 @@ export function todayProgress(todos: Todo[], now: number) {
   return { done, total, ratio: total === 0 ? 0 : done / total };
 }
 
-export function weekSummary(todos: Todo[], plans: Plan[], now: number) {
+export const DEFAULT_WEEK_REPORT_TEMPLATE = `# 本周周报
+
+## 概览
+{{overview}}
+
+## 待办
+{{todos}}
+
+## 计划推进
+{{plans}}`;
+
+export interface WeekSummary {
+  done: number;
+  overdue: number;
+  advanced: number;
+  overview: string;
+  todoText: string;
+  planText: string;
+  planMarkdown: string;
+  text: string;
+}
+
+export function renderWeekReport(
+  template: string,
+  values: Pick<WeekSummary, "overview" | "todoText" | "planText">,
+): string {
+  return template
+    .split("{{overview}}").join(values.overview)
+    .split("{{todos}}").join(values.todoText)
+    .split("{{plans}}").join(values.planText)
+    .trim();
+}
+
+export function weekSummary(
+  todos: Todo[],
+  plans: Plan[],
+  now: number,
+  template = DEFAULT_WEEK_REPORT_TEMPLATE,
+): WeekSummary {
   const { monday, next } = weekBounds(now);
-  const done = todos.filter((todo) => todo.done && todo.updatedAt >= monday && todo.updatedAt < next).length;
+  const completedTodos = todos.filter(
+    (todo) => todo.done && todo.updatedAt >= monday && todo.updatedAt < next,
+  );
+  const openTodos = todos.filter(
+    (todo) => !todo.done && todo.dueAt != null && todo.dueAt >= monday && todo.dueAt < next,
+  );
+  const done = completedTodos.length;
   const overdue = todos.filter(
     (todo) => !todo.done && todo.dueAt != null && todo.dueAt < now && todo.dueAt >= monday,
   ).length;
-  const advanced = plans.filter((plan) => !plan.done && plan.stages.some((stage) => stage.done)).length;
-  const lines = [
-    `本周完成 ${done} 件`,
-    `逾期 ${overdue} 件`,
-    `${advanced} 个计划有进展`,
-    "",
-    ...todos
-      .filter((todo) => todo.done && todo.updatedAt >= monday && todo.updatedAt < next)
-      .map((todo) => `- ${todo.title}`),
-  ];
-  return { done, overdue, advanced, text: lines.join("\n") };
+  const planRows = plans.flatMap((plan) => {
+    const completed = plan.stages.filter((stage) => {
+      if (!stage.done) return false;
+      if (stage.completedAt != null) return stage.completedAt >= monday && stage.completedAt < next;
+      return stage.at != null && stage.at >= monday && stage.at < next;
+    });
+    const current = plan.stages.find((stage) => !stage.done);
+    if (completed.length === 0 && !current) return [];
+    const details: string[] = [];
+    if (completed.length) details.push(`本周完成：${completed.map((stage) => stage.title).join("、")}`);
+    if (current) details.push(`当前：${current.title}`);
+    else if (plan.done || plan.stages.length > 0) details.push("当前：全部阶段已完成");
+    return [{ text: `- ${plan.title} — ${details.join("；")}`, advanced: completed.length > 0 }];
+  });
+  const advanced = planRows.filter((row) => row.advanced).length;
+  const overview = `- 完成待办 ${done} 件\n- 逾期待办 ${overdue} 件\n- ${advanced} 个计划本周有推进`;
+  const completedText = completedTodos.length
+    ? completedTodos.map((todo) => `- [x] ${todo.title}`).join("\n")
+    : "- [x] 本周暂无已完成待办";
+  const openText = openTodos.length
+    ? openTodos.map((todo) => `- [ ] ${todo.title}`).join("\n")
+    : "- [ ] 本周暂无未完成待办";
+  const todoText = `### 已完成\n${completedText}\n\n### 未完成\n${openText}`;
+  const planText = planRows.length ? planRows.map((row) => row.text).join("\n") : "- 本周暂无计划推进";
+  const planMarkdown = `## 计划推进\n${planText}`;
+  const values = { overview, todoText, planText };
+  return {
+    done,
+    overdue,
+    advanced,
+    overview,
+    todoText,
+    planText,
+    planMarkdown,
+    text: renderWeekReport(template, values),
+  };
 }
 
 export function weekBounds(now: number) {

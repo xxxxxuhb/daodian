@@ -27,6 +27,32 @@ function segment(plan: Plan) {
   return { left: `${left * 100}%`, width: `${(right - left) * 100}%` };
 }
 
+function dependencyLinks(plan: Plan) {
+  return plan.stages.flatMap((stage) => {
+    const dependency = stage.dependsOn;
+    if (!dependency) return [];
+    const upstream = plan.stages.find((candidate) => candidate.id === dependency.stageId);
+    const from = upstream && atOf(upstream);
+    const to = atOf(stage);
+    if (from == null || to == null) return [];
+    const left = Math.min(
+      1,
+      Math.max(0, axisRatio(Math.min(from, to), range.value.start, range.value.end)),
+    );
+    const right = Math.min(
+      1,
+      Math.max(0, axisRatio(Math.max(from, to), range.value.start, range.value.end)),
+    );
+    if (right <= left) return [];
+    return [{
+      id: `${dependency.stageId}-${stage.id}`,
+      left: `${left * 100}%`,
+      width: `${(right - left) * 100}%`,
+      reverse: to < from,
+    }];
+  });
+}
+
 function pins(plan: Plan) {
   const next = plan.stages.find((stage) => !stage.done && stage.at != null);
   return plan.stages.flatMap((stage) => {
@@ -47,6 +73,10 @@ function caption(plan: Plan) {
 }
 
 function onPinDown(event: PointerEvent, plan: Plan, stage: Stage) {
+  if (plan.stages.some((item) => item.dependsOn)) {
+    emit("open", plan.id);
+    return;
+  }
   const pin = event.currentTarget as HTMLElement;
   const track = pin.closest(".gantt__track") as HTMLElement | null;
   const origin = stage.at;
@@ -110,10 +140,21 @@ function onPinDown(event: PointerEvent, plan: Plan, stage: Stage) {
             :style="{ left: segment(plan)?.left, width: segment(plan)?.width }"
           ></span>
           <span
+            v-for="link in dependencyLinks(plan)"
+            :key="link.id"
+            class="gantt__dep"
+            :class="{ reverse: link.reverse }"
+            :style="{ left: link.left, width: link.width }"
+          ></span>
+          <span
             v-for="pin in pins(plan)"
             :key="pin.id"
             class="pin"
-            :class="[pin.kind, preview[pin.id] != null && pin.id !== dragging ? 'is-preview' : '']"
+            :class="[
+              pin.kind,
+              preview[pin.id] != null && pin.id !== dragging ? 'is-preview' : '',
+              plan.stages.some((stage) => stage.dependsOn) ? 'is-locked' : '',
+            ]"
             :style="{ left: pin.left }"
             @pointerdown="onPinDown($event, plan, pin.stage)"
           >
@@ -129,8 +170,8 @@ function onPinDown(event: PointerEvent, plan: Plan, stage: Stage) {
     <span><i style="background: var(--done)"></i>已完成</span>
     <span><i style="background: var(--accent)"></i>下一个到点</span>
     <span><i style="background: var(--fill-2)"></i>还没到</span>
-    <span style="margin-left: auto; color: var(--ink-4)">拖动节点可以直接改时间</span>
+    <span style="margin-left: auto; color: var(--ink-4)">无依赖计划可拖动；依赖计划请编辑延迟</span>
   </div>
-  <p class="foot-note">每个点都是一个阶段时间；细线是计划从第一个阶段到最后一个阶段的跨度。</p>
+  <p class="foot-note">虚线箭头表示完成后推进的依赖关系；实线是计划的整体跨度。</p>
   </div>
 </template>
