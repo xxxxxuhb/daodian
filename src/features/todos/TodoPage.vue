@@ -673,7 +673,9 @@ async function skipDraft() {
           <button type="button" class="btn btn--sm btn--ghost" @click="templateOpen = !templateOpen">模板设置</button>
         </div>
         <div v-if="templateOpen" class="week-template">
-          <p v-pre>可用变量：{{overview}}、{{todos}}、{{plans}}</p>
+          <p v-pre>
+            可用变量：{{overview}}、{{todos}}、{{plans}}、{{completed}}、{{activePlans}}、{{nextWeek}}
+          </p>
           <textarea v-model="templateDraft" rows="9" aria-label="周报 Markdown 模板"></textarea>
           <div class="week-card__actions">
             <button type="button" class="btn btn--sm btn--primary" @click="saveWeekTemplate">应用模板</button>

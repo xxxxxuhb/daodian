@@ -1,0 +1,126 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>到点 · 桌面珠子</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#0E1613;--ink2:#47564F;--ink3:#74847C;--ink4:#98A69F;--acc:#15637B;--warn:#9C640E;--card:#FAFCFB;--line:#D3DFD9;
+--sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;--serif:Georgia,"Songti SC",serif}
+body{background:#0B0D10;color:#E7ECF2;font-family:var(--sans);padding:30px 34px 24px}
+.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:18px}
+.kicker{font-size:9.5px;letter-spacing:.24em;color:#59636E}
+h1{margin:6px 0 0;font-size:23px;font-weight:600;letter-spacing:-.01em}
+.head p{margin-left:auto;text-align:right;font-size:10.5px;color:#8B95A1;line-height:1.9}
+.cols{display:flex;gap:22px;align-items:flex-start}
+
+/* 桌面 */
+.desk{width:880px;height:372px;border-radius:12px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#DDE7E2 0%,#C3D3CC 55%,#AEC1B9 100%);border:1px solid #2A323C}
+.desk__bar{position:absolute;left:0;right:0;bottom:0;height:30px;background:rgba(12,20,17,.86);
+  display:flex;align-items:center;gap:10px;padding:0 12px;font-size:9.5px;color:rgba(233,241,236,.55)}
+.desk__bar .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+.desk__bar i{width:11px;height:11px;border-radius:3px;background:rgba(233,241,236,.28)}
+.desk__note{position:absolute;left:14px;top:12px;font-size:10px;color:rgba(14,22,19,.42);letter-spacing:.08em}
+
+.petwrap{position:absolute;right:64px;bottom:52px;display:flex;flex-direction:column;align-items:center;gap:9px}
+.bubble{background:rgba(12,20,17,.9);color:#EAF2ED;border-radius:9px;padding:7px 10px;font-size:10.5px;line-height:1.5;
+  box-shadow:0 8px 20px -8px rgba(0,0,0,.5);position:relative;white-space:nowrap}
+.bubble b{color:#F0B79B;font-weight:600}
+.bubble::after{content:"";position:absolute;left:50%;bottom:-4px;width:8px;height:8px;background:rgba(12,20,17,.9);transform:translateX(-50%) rotate(45deg)}
+.shadow{width:34px;height:5px;border-radius:50%;background:rgba(12,20,17,.18);filter:blur(1px)}
+
+.cardmini{position:absolute;left:54px;bottom:70px;width:300px;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 18px 40px -18px rgba(12,20,17,.45);padding:12px 13px;color:var(--ink)}
+.cardmini .top{display:flex;align-items:center;gap:7px;font-size:9.5px;letter-spacing:.16em;color:var(--ink3);font-weight:600}
+.cardmini .top time{margin-left:auto;font-family:var(--serif);font-size:11px;color:var(--ink2)}
+.cardmini h3{margin-top:7px;font-size:14px;font-weight:600}
+.cardmini p{margin-top:2px;font-size:10.5px;color:var(--ink3)}
+.cardmini .acts{display:flex;gap:6px;margin-top:10px}
+.cardmini .btn{height:25px;padding:0 10px;border-radius:7px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;
+  border:1px solid var(--line);background:var(--card);color:var(--ink2)}
+.cardmini .btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.cardmini .zones{display:flex;gap:6px;margin-top:9px;padding-top:8px;border-top:1px dashed var(--line)}
+.cardmini .zone{flex:1;height:20px;border-radius:5px;background:#E1E8E4;font-size:9.5px;color:var(--ink3);display:grid;place-items:center}
+
+/* 状态 */
+.states{display:flex;gap:10px;margin-top:20px}
+.tile{width:134px;background:#101419;border:1px solid #1C222A;border-radius:11px;padding:8px 8px 10px;text-align:center}
+.tile__art{height:104px;display:grid;place-items:center}
+.tile b{display:block;font-size:11px;font-weight:600}
+.tile span{display:block;font-size:9.5px;color:#59636E;margin-top:2px;line-height:1.5}
+
+/* 右栏 */
+.side{flex:1;display:flex;flex-direction:column;gap:16px}
+.box{border:1px solid #1C222A;border-radius:12px;background:#101419;padding:14px 16px}
+.box h4{margin:0 0 10px;font-size:9.5px;letter-spacing:.18em;color:#59636E;font-weight:600}
+.row{display:flex;gap:10px;font-size:10.5px;color:#A9B4C2;line-height:1.6;padding:5px 0;border-bottom:1px dashed #1A1F26}
+.row:last-child{border-bottom:0}
+.row .k{width:64px;flex:none;color:#E7ECF2;font-weight:600}
+.row .k em{display:block;font-style:normal;font-size:9px;color:#59636E;font-weight:400;letter-spacing:.04em}
+.note{font-size:10px;color:#78828E;line-height:1.8}
+.note b{color:#C3CCD6;font-weight:600}
+</style></head><body>
+
+<div class="head">
+  <div><div class="kicker">到点 · 桌面珠子</div><h1>一颗会等你的珠子</h1></div>
+  <p>不用另造形象：它就是标志上那颗珠，指针那根手是它的触角<br>96 × 96 的透明窗，常驻桌面</p>
+</div>
+
+<div class="cols">
+  <div>
+    <div class="desk">
+      <div class="desk__note">桌面 · 右下角</div>
+
+      <div class="cardmini">
+        <div class="top">到点 <time>14:00</time></div>
+        <h3>提测评审</h3>
+        <p>1.2 版本 · 阶段 2 / 4</p>
+        <div class="acts"><span class="btn pri">完成</span><span class="btn">打开</span></div>
+        <div class="zones"><span class="zone">10 分</span><span class="zone">30 分</span><span class="zone">1 小时</span></div>
+      </div>
+
+      <div class="petwrap">
+        <div class="bubble">下一个 <b>14:00</b> 提测评审 · 还有 4 小时</div>
+        <svg width="92" height="92" viewBox="0 0 92 92" fill="none"><circle cx="46" cy="50" r="24" stroke="#15637B" stroke-opacity=".2" stroke-width="1.4"/><g transform=""><path d="M46 37.5 L50.9 25.4" stroke="#15637B" stroke-width="2.8" stroke-linecap="round" stroke-opacity=".5"/><circle cx="50.9" cy="25.4" r="3.4" fill="#15637B" fill-opacity=".75"/><circle cx="46" cy="50" r="15" fill="#15637B"/><circle cx="41" cy="48" r="2.3" fill="#fff"/><circle cx="51" cy="48" r="2.3" fill="#fff"/></g></svg>
+        <div class="shadow"></div>
+      </div>
+
+      <div class="desk__bar">
+        <span>到点</span>
+        <span class="sp"><i></i><i></i><i></i><span>19:13</span></span>
+      </div>
+    </div>
+
+    <div class="states">
+      <div class="tile"><div class="tile__art"><svg width="82" height="82" viewBox="0 0 82 82" fill="none"><circle cx="41" cy="45" r="23" stroke="#15637B" stroke-opacity=".2" stroke-width="1.4"/><g transform=""><path d="M41 32.5 L45.9 20.4" stroke="#15637B" stroke-width="2.8" stroke-linecap="round" stroke-opacity=".5"/><circle cx="45.9" cy="20.4" r="3.4" fill="#15637B" fill-opacity=".75"/><circle cx="41" cy="45" r="15" fill="#15637B"/><circle cx="36" cy="43" r="2.3" fill="#fff"/><circle cx="46" cy="43" r="2.3" fill="#fff"/></g></svg></div><b>发呆</b><span>呼吸 3.6s<br>偶尔歪头</span></div>
+      <div class="tile"><div class="tile__art"><svg width="82" height="82" viewBox="0 0 82 82" fill="none"><circle cx="41" cy="45" r="23" stroke="#15637B" stroke-opacity=".2" stroke-width="1.4"/><g transform=""><path d="M41 32.5 L49.4 22.5" stroke="#15637B" stroke-width="2.8" stroke-linecap="round" stroke-opacity=".5"/><circle cx="49.4" cy="22.5" r="3.4" fill="#15637B" fill-opacity=".75"/><circle cx="41" cy="45" r="15" fill="#15637B"/><circle cx="39" cy="43" r="2.3" fill="#fff"/><circle cx="49" cy="43" r="2.3" fill="#fff"/></g></svg></div><b>看你</b><span>触角转向指针<br>跟着鼠标</span></div>
+      <div class="tile"><div class="tile__art"><svg width="82" height="82" viewBox="0 0 82 82" fill="none"><circle cx="41" cy="45" r="29" stroke="#9C640E" stroke-opacity=".2" stroke-width="1.4"/><g transform=""><path d="M41 32.5 L41.5 19.5" stroke="#9C640E" stroke-width="2.8" stroke-linecap="round" stroke-opacity=".5"/><circle cx="41.5" cy="19.5" r="3.4" fill="#9C640E" fill-opacity=".75"/><circle cx="41" cy="45" r="15" fill="#9C640E"/><circle cx="36" cy="43" r="2.3" fill="#fff"/><circle cx="46" cy="43" r="2.3" fill="#fff"/></g><text x="38.5" y="20" font-size="12" fill="#9C640E" font-family="Georgia,serif">!</text></svg></div><b>临近</b><span>变琥珀色<br>圈开始走一圈</span></div>
+      <div class="tile"><div class="tile__art"><svg width="82" height="82" viewBox="0 0 82 82" fill="none"><circle cx="41" cy="45" r="23" stroke="#15637B" stroke-opacity=".2" stroke-width="1.4"/><g transform="translate(41 45) scale(1.14 .84) translate(-41 -45)"><path d="M41 32.5 L46.7 20.8" stroke="#15637B" stroke-width="2.8" stroke-linecap="round" stroke-opacity=".5"/><circle cx="46.7" cy="20.8" r="3.4" fill="#15637B" fill-opacity=".75"/><circle cx="41" cy="45" r="15" fill="#15637B"/><path d="M33 44 q 3 -3 6 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M43 44 q 3 -3 6 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></g></svg></div><b>被捏</b><span>按住压扁<br>松手回弹</span></div>
+      <div class="tile"><div class="tile__art"><svg width="82" height="82" viewBox="0 0 82 82" fill="none"><circle cx="41" cy="45" r="35" stroke="#15637B" stroke-opacity=".2" stroke-width="1.4"/><g transform=""><path d="M41 32.5 L54.0 32.0" stroke="#15637B" stroke-width="2.8" stroke-linecap="round" stroke-opacity=".5"/><circle cx="54.0" cy="32.0" r="3.4" fill="#15637B" fill-opacity=".75"/><circle cx="41" cy="45" r="15" fill="#15637B"/><circle cx="36" cy="43" r="2.3" fill="#fff"/><circle cx="46" cy="43" r="2.3" fill="#fff"/></g></svg></div><b>到点</b><span>摊开成卡片<br>珠落盘心</span></div>
+      <div class="tile"><div class="tile__art"><svg width="82" height="82" viewBox="0 0 82 82" fill="none"><g transform=""><path d="M41 32.5 L47.9 43.5" stroke="#98A69F" stroke-width="2.8" stroke-linecap="round" stroke-opacity=".5"/><circle cx="47.9" cy="43.5" r="3.4" fill="#98A69F" fill-opacity=".75"/><circle cx="41" cy="45" r="15" fill="#98A69F"/><path d="M33 44 q 3 -3 6 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M43 44 q 3 -3 6 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></g><text x="56" y="28" font-size="12" fill="#98A69F" font-family="Georgia,serif">z</text></svg></div><b>睡了</b><span>22 点后变灰<br>不再打扰</span></div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="box">
+      <h4>怎么摸它</h4>
+      <div class="row"><span class="k">悬停<em>HOVER</em></span><span>气泡报出下一个到点和倒计时，珠子转向鼠标方向</span></div>
+      <div class="row"><span class="k">单击<em>CLICK</em></span><span>把这一刻摊成一张小卡：完成 / 打开；下面三个刻度可以先不动</span></div>
+      <div class="row"><span class="k">双击<em>DBL</em></span><span>打开主窗口，并定位到这张卡对应的那条</span></div>
+      <div class="row"><span class="k">按住拖<em>DRAG</em></span><span>想去哪放哪；松手吸到最近的屏幕边，位置记住</span></div>
+      <div class="row"><span class="k">拖到刻度<em>SNAP</em></span><span>在展开的卡片上把它拖到 10 / 30 / 60 分，就是推后</span></div>
+      <div class="row"><span class="k">滚轮<em>WHEEL</em></span><span>在珠子上滚一格 = 推后 5 分钟，滚回来取消</span></div>
+      <div class="row"><span class="k">右键<em>MENU</em></span><span>暂停 1 小时 / 打开主窗口 / 今天不再出现</span></div>
+      <div class="row"><span class="k">长按<em>HOLD</em></span><span>捏扁再弹回，换一个表情——它记得你捏过它几次</span></div>
+    </div>
+
+    <div class="box">
+      <h4>做起来要注意</h4>
+      <p class="note">
+        <b>一个独立窗口</b>：96×96，transparent + decorations:false + alwaysOnTop + skipTaskbar + shadow:false，和主窗口互不依赖。<br>
+        <b>只有珠子可点</b>：窗口缩到最小，其余透明区域 <b>set_ignore_cursor_events</b>，不挡你点桌面图标。<br>
+        <b>主窗口关掉它还在</b>：它挂在 app 上，跟着托盘一起活；托盘「退出」才一起走。<br>
+        <b>代价</b>：多一个 WebView2 进程（约 60–90MB）。嫌重就退化成「托盘里一颗会呼吸的珠子」——同一个形状，只是没手。
+      </p>
+    </div>
+  </div>
+</div>
+
+</body></html>

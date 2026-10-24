@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 pub type SharedSettings = Mutex<SettingsStore>;
 
@@ -16,7 +16,9 @@ const DEFAULT_WEEK_TEMPLATE: &str =
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub theme: String,
+    pub launch_at_startup: bool,
     pub window: WindowSettings,
+    pub pet: PetSettings,
     pub repeat: RepeatSettings,
     pub work_hours: WorkHoursSettings,
     pub week_report: WeekReportSettings,
@@ -31,7 +33,9 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: "celadon".into(),
+            launch_at_startup: false,
             window: WindowSettings::default(),
+            pet: PetSettings::default(),
             repeat: RepeatSettings::default(),
             work_hours: WorkHoursSettings::default(),
             week_report: WeekReportSettings::default(),
@@ -40,6 +44,28 @@ impl Default for Settings {
             wecom: WebhookSettings::default(),
             quick_capture: QuickCaptureSettings::default(),
             deep_seek: DeepSeekSettings::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PetSettings {
+    pub enabled: bool,
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+    pub pinches: u32,
+    pub hidden_until: i64,
+}
+
+impl Default for PetSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            x: None,
+            y: None,
+            pinches: 0,
+            hidden_until: 0,
         }
     }
 }
@@ -64,12 +90,24 @@ impl Default for WorkHoursSettings {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WindowSettings {
     pub frames: BTreeMap<String, WindowFrame>,
     pub last_tier: String,
     pub last_non_mini_tier: String,
+    pub default_tier: String,
+}
+
+impl Default for WindowSettings {
+    fn default() -> Self {
+        Self {
+            frames: BTreeMap::new(),
+            last_tier: String::new(),
+            last_non_mini_tier: String::new(),
+            default_tier: "standard".into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -283,7 +321,7 @@ impl SettingsStore {
         Ok(store)
     }
 
-    fn public_settings(&self) -> Settings {
+    pub(crate) fn public_settings(&self) -> Settings {
         let mut settings = self.doc.settings.clone();
         settings.deep_seek.has_api_key = self.secret_path.exists();
         settings
@@ -292,6 +330,12 @@ impl SettingsStore {
     fn persist(&self) -> Result<(), String> {
         let raw = serde_json::to_string_pretty(&self.doc).map_err(|err| err.to_string())?;
         fs::write(&self.path, raw).map_err(|err| err.to_string())
+    }
+
+    pub(crate) fn reload_from_disk(&mut self) -> Result<(), String> {
+        let raw = fs::read_to_string(&self.path).map_err(|err| err.to_string())?;
+        self.doc = serde_json::from_str(&raw).map_err(|err| format!("备份设置读不出来: {err}"))?;
+        Ok(())
     }
 
     fn save(
@@ -304,9 +348,22 @@ impl SettingsStore {
         crate::webhook::validate_settings(&settings.wecom, crate::webhook::Provider::Wecom)?;
         crate::deepseek::validate_settings(&settings.deep_seek)?;
         validate_work_hours(&settings.work_hours)?;
-        // Window state is owned by the native window service. A settings form
-        // can otherwise overwrite a newer resize/move event with a stale copy.
+        if !matches!(
+            settings.window.default_tier.as_str(),
+            "mini" | "standard" | "wide"
+        ) {
+            return Err("默认窗口大小无效".into());
+        }
+        let default_tier = settings.window.default_tier.clone();
+        // Window frames and active tier are owned by the native window service.
+        // A settings form can otherwise overwrite a newer resize/move event.
         settings.window = self.doc.settings.window.clone();
+        settings.window.default_tier = default_tier;
+        // 位置和互动次数由桌面珠子窗口写入，设置抽屉只负责启用开关。
+        settings.pet.x = self.doc.settings.pet.x;
+        settings.pet.y = self.doc.settings.pet.y;
+        settings.pet.pinches = self.doc.settings.pet.pinches;
+        settings.pet.hidden_until = self.doc.settings.pet.hidden_until;
         settings.deep_seek.has_api_key = false;
         if clear_api_key {
             match fs::remove_file(&self.secret_path) {
@@ -327,6 +384,27 @@ impl SettingsStore {
         self.doc.settings.window.clone()
     }
 
+    pub(crate) fn pet_settings(&self) -> PetSettings {
+        self.doc.settings.pet.clone()
+    }
+
+    pub(crate) fn save_pet_position(&mut self, x: i32, y: i32) -> Result<(), String> {
+        self.doc.settings.pet.x = Some(x);
+        self.doc.settings.pet.y = Some(y);
+        self.persist()
+    }
+
+    pub(crate) fn record_pet_pinch(&mut self) -> Result<u32, String> {
+        self.doc.settings.pet.pinches = self.doc.settings.pet.pinches.saturating_add(1);
+        self.persist()?;
+        Ok(self.doc.settings.pet.pinches)
+    }
+
+    pub(crate) fn hide_pet_until(&mut self, until: i64) -> Result<(), String> {
+        self.doc.settings.pet.hidden_until = until;
+        self.persist()
+    }
+
     pub(crate) fn repeat_calendar(&self) -> (Vec<String>, Vec<String>) {
         (
             self.doc.settings.repeat.holidays.clone(),
@@ -336,6 +414,13 @@ impl SettingsStore {
 
     pub(crate) fn work_hours_settings(&self) -> WorkHoursSettings {
         self.doc.settings.work_hours.clone()
+    }
+
+    pub(crate) fn backup_schedule(&self) -> (WorkHoursSettings, RepeatSettings) {
+        (
+            self.doc.settings.work_hours.clone(),
+            self.doc.settings.repeat.clone(),
+        )
     }
 
     pub(crate) fn webhook_settings(&self) -> (WebhookSettings, WebhookSettings) {
@@ -455,8 +540,13 @@ pub fn save_settings(
             clear_deep_seek_api_key.unwrap_or(false),
         )?;
     }
+    let launch_at_startup = lock(&store)?.public_settings().launch_at_startup;
+    crate::autostart::sync(launch_at_startup).map_err(|err| format!("更新开机启动失败: {err}"))?;
     crate::quick_capture::persist_registration_status(&app)?;
-    Ok(lock(&store)?.public_settings())
+    crate::pet::sync_visibility(&app)?;
+    let saved = lock(&store)?.public_settings();
+    let _ = app.emit("settings-changed", saved.clone());
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -579,6 +669,7 @@ mod tests {
     #[test]
     fn defaults_keep_all_external_features_off() {
         let settings = Settings::default();
+        assert!(!settings.launch_at_startup);
         assert!(!settings.calendar.enabled);
         assert!(!settings.feishu.enabled);
         assert!(!settings.wecom.enabled);
@@ -587,6 +678,7 @@ mod tests {
         assert!(!settings.deep_seek.enabled);
         assert!(!settings.deep_seek.has_api_key);
         assert!(settings.repeat.default_skip_weekends);
+        assert_eq!(settings.window.default_tier, "standard");
     }
 
     #[test]
@@ -614,11 +706,13 @@ mod tests {
         let mut settings = store.public_settings();
         settings.theme = "night".into();
         settings.repeat.default_skip_weekends = true;
+        settings.window.default_tier = "wide".into();
         store.save(settings, None, false).unwrap();
 
         let reopened = SettingsStore::open(&dir).unwrap();
         assert_eq!(reopened.public_settings().theme, "night");
         assert!(reopened.public_settings().repeat.default_skip_weekends);
+        assert_eq!(reopened.public_settings().window.default_tier, "wide");
         assert!(dir.join("settings.json").exists());
         let _ = fs::remove_dir_all(dir);
     }

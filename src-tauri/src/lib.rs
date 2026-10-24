@@ -1,7 +1,10 @@
+mod autostart;
+mod backup;
 mod calendar;
 mod deepseek;
 mod domain;
 mod logging;
+mod pet;
 mod quick_capture;
 mod remind;
 mod settings;
@@ -88,6 +91,7 @@ pub fn run() {
             app.manage(quick_capture::QuickCaptureRuntime::default());
             let dir = data_dir(app).map_err(|err| logged_step("取数据目录", err))?;
             logging::info(format_args!("data directory selected: {}", dir.display()));
+            app.manage(backup::BackupState::new(&dir));
             let library = store::Library::open(&dir)
                 .map_err(|err| logged_step(format!("打开 {}", dir.display()), err.into()))?;
             app.manage(Mutex::new(library));
@@ -98,15 +102,30 @@ pub fn run() {
                     err.into(),
                 )
             })?;
+            if let Err(err) = autostart::sync(settings.public_settings().launch_at_startup) {
+                logging::warn(format_args!("同步开机启动失败: {err}"));
+            }
             app.manage(Mutex::new(settings));
+            app.manage(pet::PetRuntime::default());
             logging::info(format_args!("settings opened"));
             open_main(app).map_err(|err| logged_step("打开主窗口", err))?;
+            if autostart::launched_automatically() {
+                if let Some(window) = app.get_webview_window("main") {
+                    window
+                        .hide()
+                        .map_err(|err| logged_step("隐藏开机启动窗口", err.into()))?;
+                    logging::info(format_args!("autostart launch; main window hidden"));
+                }
+            }
+            pet::sync_visibility(app.handle())
+                .map_err(|err| logged_step("打开桌面珠子", std::io::Error::other(err).into()))?;
             quick_capture::install_windows_alt_space_fallback(app.handle().clone());
             match quick_capture::persist_registration_status(app.handle()) {
                 Ok(status) => logging::info(format_args!("快速记录快捷键: {status}")),
                 Err(err) => logging::warn(format_args!("保存快速记录状态失败: {err}")),
             }
             remind::spawn(app.handle().clone());
+            backup::spawn(app.handle().clone());
             logging::info(format_args!("reminder worker spawned; setup complete"));
             Ok(())
         })
@@ -138,6 +157,16 @@ pub fn run() {
             window_state::toggle_window_tier,
             quick_capture::dismiss_quick_capture,
             quick_capture::is_quick_capture_active,
+            backup::list_backups,
+            backup::restore_backup,
+            pet::pet_set_mode,
+            pet::pet_move_to,
+            pet::pet_snap,
+            pet::pet_record_pinch,
+            pet::pet_snapshot,
+            pet::pet_can_idle,
+            pet::pet_hide_until,
+            pet::pet_open_main,
             frontend_log,
         ]);
 
@@ -162,47 +191,28 @@ pub fn run() {
     }
 }
 
-/// 正式版优先写在程序旁边。这个进程要是写不进去，就换一个真能落盘的目录。
+/// 用户数据必须放在卸载程序不会清理的目录中，不能再写入安装目录。
 fn data_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let roaming = app.path().app_data_dir()?;
-    let preferred = if cfg!(debug_assertions) {
+    let dir = if usable(&roaming) {
         roaming.clone()
     } else {
-        std::env::current_exe()?
+        logging::warn(format_args!(
+            "user data directory is not writable: {}",
+            roaming.display()
+        ));
+        writable_elsewhere(&roaming)
+    };
+
+    if !cfg!(debug_assertions) {
+        let install_dir = std::env::current_exe()?
             .parent()
             .ok_or_else(|| std::io::Error::other("找不到安装目录"))?
-            .to_path_buf()
-    };
-    let dir = if usable(&preferred) {
-        preferred
-    } else {
-        logging::warn(format_args!(
-            "preferred data directory is not writable: {}",
-            preferred.display()
-        ));
-        writable_elsewhere(&preferred)
-    };
-    if dir != roaming && !dir.join("store.json").exists() {
-        if let Err(err) = copy_if_present(&roaming, &dir, "store.json") {
-            logging::warn(format_args!("existing store migration failed: {err:#}"));
-        }
-        if !dir.join("store.json").exists() {
-            if let Err(err) = copy_if_present(&roaming, &dir, "todos.json") {
-                logging::warn(format_args!("legacy store migration failed: {err:#}"));
+            .to_path_buf();
+        if install_dir != dir {
+            if let Err(err) = migrate_install_data(&install_dir, &dir) {
+                logging::warn(format_args!("安装目录数据迁移失败: {err:#}"));
             }
-        }
-    }
-    if dir != roaming && !dir.join("templates.json").exists() {
-        if let Err(err) = copy_if_present(&roaming, &dir, "templates.json") {
-            logging::warn(format_args!("template migration failed: {err:#}"));
-        }
-    }
-    if dir != roaming && !dir.join("settings.json").exists() {
-        if let Err(err) = copy_if_present(&roaming, &dir, "settings.json") {
-            logging::warn(format_args!("settings migration failed: {err:#}"));
-        }
-        if let Err(err) = copy_if_present(&roaming, &dir, "deepseek-key.dpapi") {
-            logging::warn(format_args!("settings secret migration failed: {err:#}"));
         }
     }
     Ok(dir)
@@ -243,7 +253,7 @@ fn open_main(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn webview_data_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub(crate) fn webview_data_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let mut candidates = Vec::new();
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         candidates.push(PathBuf::from(local).join("daodian").join("webview"));
@@ -293,14 +303,9 @@ fn usable(dir: &Path) -> bool {
     true
 }
 
-/// 主目录用不了时，先用 exe 所在的现成目录，避免安全软件拦截创建目录。
+/// Roaming 不可写时也只能退到用户目录，绝不退回会被卸载器删除的安装目录。
 fn writable_elsewhere(preferred: &Path) -> PathBuf {
     let mut candidates = Vec::new();
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            candidates.push(parent.to_path_buf());
-        }
-    }
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         candidates.push(PathBuf::from(local).join("daodian-data"));
     }
@@ -318,10 +323,22 @@ fn writable_elsewhere(preferred: &Path) -> PathBuf {
     preferred.to_path_buf()
 }
 
-fn copy_if_present(from: &Path, to: &Path, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_newer_if_present(
+    from: &Path,
+    to: &Path,
+    name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let source = from.join(name);
     let target = to.join(name);
-    if target.exists() || !source.exists() {
+    if !source.is_file() {
+        return Ok(());
+    }
+    let source_modified = source.metadata()?.modified()?;
+    let target_is_newer = target
+        .metadata()
+        .and_then(|metadata| metadata.modified())
+        .is_ok_and(|modified| modified >= source_modified);
+    if target_is_newer {
         return Ok(());
     }
     if let Err(err) = std::fs::copy(&source, &target) {
@@ -330,6 +347,54 @@ fn copy_if_present(from: &Path, to: &Path, name: &str) -> Result<(), Box<dyn std
             target.display()
         ))
         .into());
+    }
+    Ok(())
+}
+
+fn migrate_install_data(
+    install_dir: &Path,
+    user_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    std::fs::create_dir_all(user_dir)?;
+    for name in [
+        "store.json",
+        "store.v1.bak.json",
+        "todos.json",
+        "templates.json",
+        "settings.json",
+        "deepseek-key.dpapi",
+    ] {
+        copy_newer_if_present(install_dir, user_dir, name)?;
+    }
+    copy_directory_newer(&install_dir.join("backups"), &user_dir.join("backups"))?;
+    logging::info(format_args!(
+        "install data migration checked: {} -> {}",
+        install_dir.display(),
+        user_dir.display()
+    ));
+    Ok(())
+}
+
+fn copy_directory_newer(source: &Path, target: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    if !source.is_dir() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(target)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let destination = target.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_directory_newer(&entry.path(), &destination)?;
+        } else {
+            let source_modified = entry.metadata()?.modified()?;
+            let target_is_newer = destination
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .is_ok_and(|modified| modified >= source_modified);
+            if !target_is_newer {
+                std::fs::copy(entry.path(), destination)?;
+            }
+        }
     }
     Ok(())
 }

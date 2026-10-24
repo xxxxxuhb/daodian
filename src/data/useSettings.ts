@@ -20,7 +20,9 @@ interface WebhookStatusEvent {
 function fallbackSettings(): Settings {
   return {
     theme: readLocal("daodian-theme") === "night" ? "night" : "celadon",
-    window: { frames: readFrames(), lastTier: "" },
+    launchAtStartup: false,
+    window: { frames: readFrames(), lastTier: "", defaultTier: "standard" },
+    pet: { enabled: true, pinches: 0, hiddenUntil: 0 },
     repeat: { defaultSkipWeekends: true, holidays: [], workdays: [] },
     workHours: {
       morningStart: "09:00",

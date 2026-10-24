@@ -98,6 +98,15 @@ function slipFromKey(event: KeyboardEvent) {
           <span v-if="!stage.done && stage.at != null" class="pill" :class="`pill--${relative(stage.at, now).tone}`">
             {{ relative(stage.at, now).text }}
           </span>
+          <button
+            class="stage-complete"
+            :class="{ 'is-done': stage.done }"
+            type="button"
+            :aria-label="stage.done ? `撤销完成：${stage.title}` : `完成阶段：${stage.title}`"
+            @click.stop="emit('toggleStage', stage)"
+          >
+            {{ stage.done ? "撤销" : "完成" }}
+          </button>
         </span>
       </li>
     </ol>

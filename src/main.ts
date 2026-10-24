@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App.vue";
 import "./features/shell/theme";
+import "./features/pet/pet.css";
 import "./styles.css";
 import "../design/v2/v2.css";
 import "./v2-live.css";
@@ -22,6 +23,10 @@ window.addEventListener("unhandledrejection", (event) => {
       : String(event.reason);
   logFrontend("error", `unhandled rejection: ${reason}`);
 });
+
+const petWindow = new URLSearchParams(location.search).get("window") === "pet";
+document.documentElement.classList.toggle("pet-host", petWindow);
+document.body.classList.toggle("pet-host", petWindow);
 
 logFrontend("info", `Vue bootstrap; url=${location.href}`);
 

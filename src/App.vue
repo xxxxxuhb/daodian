@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import AppShell from "./features/shell/AppShell.vue";
+import PetApp from "./features/pet/PetApp.vue";
+
+const isPetWindow = new URLSearchParams(location.search).get("window") === "pet";
 </script>
 
 <template>
+  <PetApp v-if="isPetWindow" />
+  <template v-else>
   <svg class="sprite" aria-hidden="true">
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" /><path d="M12 7.6v4.9l3.3 1.9" /></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13" /></symbol>
@@ -20,4 +25,5 @@ import AppShell from "./features/shell/AppShell.vue";
     <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 8h9a3 3 0 0 1 0 6h-1" /><path d="m9.5 5.5L7 8l2.5 2.5" /><path d="M17 16H8a3 3 0 0 1 0-6h1" /><path d="m14.5 18.5L17 16l-2.5-2.5" /></symbol>
   </svg>
   <app-shell />
+  </template>
 </template>

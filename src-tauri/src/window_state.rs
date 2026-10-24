@@ -225,7 +225,9 @@ fn remember_window(window: &WebviewWindow) -> Result<(), String> {
 
 pub fn restore(window: &WebviewWindow) -> Result<(), String> {
     let settings = current_settings(window.app_handle())?;
-    let Some(tier) = Tier::from_name(&settings.last_tier) else {
+    let Some(tier) =
+        Tier::from_name(&settings.default_tier).or_else(|| Tier::from_name(&settings.last_tier))
+    else {
         return Ok(());
     };
     apply_tier(window, tier)

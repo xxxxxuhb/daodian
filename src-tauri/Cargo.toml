@@ -1,6 +1,6 @@
 [package]
 name = "daodian"
-version = "0.1.5"
+version = "0.1.6"
 description = "桌面待办，到点提醒"
 authors = ["you"]
 edition = "2024"
@@ -30,6 +30,7 @@ tauri-winrt-notification = "0.8"
 windows-registry = "0.6"
 windows-sys = { version = "0.61", features = [
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_Security_Cryptography",
   "Win32_System_LibraryLoader",
   "Win32_System_Time",

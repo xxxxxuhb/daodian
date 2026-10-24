@@ -1,0 +1,273 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>到点 · 珠子的随机动作</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0B0D10;color:#E7ECF2;font-family:"Segoe UI","Microsoft YaHei UI",sans-serif;padding:30px 34px 26px}
+.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:18px}
+.kicker{font-size:9.5px;letter-spacing:.24em;color:#59636E}
+h1{margin:6px 0 0;font-size:23px;font-weight:600;letter-spacing:-.01em}
+.head p{margin-left:auto;text-align:right;font-size:10.5px;color:#8B95A1;line-height:1.9}
+.cols{display:flex;gap:22px;align-items:flex-start}
+.left{width:820px}
+.grp{display:flex;align-items:center;gap:9px;margin:0 0 9px}
+.grp b{font-size:11.5px;font-weight:600}
+.grp span{font-size:10px;color:#59636E}
+.grp i{flex:1;height:1px;background:#1C222A}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin-bottom:18px}
+.t{background:#101419;border:1px solid #1C222A;border-radius:10px;padding:6px 4px 9px;text-align:center;position:relative}
+.t.rare{border-color:#2A2318;background:#12100D}
+.art{height:88px;display:grid;place-items:center;position:relative}
+.t b{display:block;font-size:10.5px;font-weight:600}
+.t span{display:block;font-size:9px;color:#59636E;margin-top:1px}
+.chip{position:absolute;top:2px;left:50%;transform:translateX(-50%);background:#1B2230;color:#9DBBFF;border-radius:5px;
+  padding:2px 6px;font-size:8.5px;white-space:nowrap;box-shadow:0 4px 12px -6px rgba(0,0,0,.6)}
+.side{flex:1;display:flex;flex-direction:column;gap:12px}
+.box{border:1px solid #1C222A;border-radius:12px;background:#101419;padding:13px 15px}
+.box h4{margin:0 0 9px;font-size:9.5px;letter-spacing:.18em;color:#59636E;font-weight:600}
+.r{display:flex;gap:9px;font-size:10px;color:#A9B4C2;line-height:1.6;padding:4px 0;border-bottom:1px dashed #1A1F26}
+.r:last-child{border-bottom:0}
+.r b{width:58px;flex:none;color:#E7ECF2;font-weight:600}
+.r em{font-style:normal;color:#9DBBFF}
+.note{font-size:9.8px;color:#78828E;line-height:1.85}
+.note b{color:#C3CCD6;font-weight:600}
+/* 时间轴条 */
+.tl{margin-top:4px;border:1px solid #1C222A;border-radius:10px;background:#101419;padding:12px 14px}
+.tl__bar{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:8px 0 6px}
+.tl__bar i{display:block;height:100%}
+.tl__lbl{display:flex;justify-content:space-between;font-size:9px;color:#59636E;font-family:Georgia,serif}
+</style></head><body>
+
+<div class="head">
+  <div><div class="kicker">到点 · 桌面珠子</div><h1>它会自己动</h1></div>
+  <p>平均 3–8 分钟来一下，90% 是小动作<br>任何到点、悬停、点击都会立刻打断</p>
+</div>
+
+<div class="cols">
+  <div class="left">
+    <div class="grp"><b>常见</b><span>约 85% · 每次 0.4–1.2 秒</span><i></i></div>
+    <div class="grid">
+<div class="t">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" ">
+      <path d="M37 29 L40.9 18.2" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="40.9" cy="18.2" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <path d="M30 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M38.8 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>眨眼</b><span>每 4–9 秒</span>
+</div>
+<div class="t">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" ">
+      <path d="M37 29 L46.1 21.9" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="46.1" cy="21.9" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="32.4" cy="38" r="2" fill="#fff"/><circle cx="41.6" cy="38" r="2" fill="#fff"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>歪头</b><span>触角偏 35°</span>
+</div>
+<div class="t">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" ">
+      <path d="M37 29 L43.4 19.5" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="43.4" cy="19.5" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="35.6" cy="38" r="2" fill="#fff"/><circle cx="44.800000000000004" cy="38" r="2" fill="#fff"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>追鼠标</b><span>靠近才触发</span>
+</div>
+<div class="t">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform="translate(37 40) scale(1.12 0.82) translate(-37 -40) ">
+      <path d="M37 29 L40.9 18.2" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="40.9" cy="18.2" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <path d="M30 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M38.8 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>打哈欠</b><span>压扁 1.1×0.8</span>
+</div>
+<div class="t">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" ">
+      <path d="M37 29 L42.8 39.0" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="42.8" cy="39.0" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="32.4" cy="38" r="2" fill="#fff"/><circle cx="41.6" cy="38" r="2" fill="#fff"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>拨触角</b><span>转 360°</span>
+</div>
+<div class="t">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" rotate(8 37 40)">
+      <path d="M37 29 L40.6 18.1" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="40.6" cy="18.1" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="32.4" cy="38" r="2" fill="#fff"/><circle cx="41.6" cy="38" r="2" fill="#fff"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>敲表盘</b><span>低头敲两下</span>
+</div></div>
+
+    <div class="grp"><b>偶尔</b><span>约 15% · 每次 1–2 秒，有冷却</span><i></i></div>
+    <div class="grid">
+<div class="t rare">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform="translate(37 40) scale(0.86 1.2) translate(-37 -40) ">
+      <path d="M37 29 L40.9 18.2" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="40.9" cy="18.2" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <path d="M30 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M38.8 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>伸懒腰</b><span>拉长再弹回</span>
+</div>
+<div class="t rare">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" rotate(-30 37 40)">
+      <path d="M37 29 L47.0 23.3" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="47.0" cy="23.3" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="32.4" cy="38" r="2" fill="#fff"/><circle cx="41.6" cy="38" r="2" fill="#fff"/>
+    </g>
+    
+    
+    
+  </svg></div>
+  <b>打个滚</b><span>整只转 30°</span>
+</div>
+<div class="t rare">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" ">
+      <path d="M37 29 L39.0 17.7" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="39.0" cy="17.7" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="34.9" cy="38" r="2" fill="#fff"/><circle cx="44.1" cy="38" r="2" fill="#fff"/>
+    </g>
+    
+    
+    
+  </svg><span class="chip">14:00 提测评审</span></div>
+  <b>偷看下一个</b><span>冒 2 秒小标签</span>
+</div>
+<div class="t rare">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="20" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" ">
+      <path d="M37 29 L37.0 17.5" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="37.0" cy="17.5" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="32" cy="38" r="2.6" fill="#fff"/><circle cx="42" cy="38" r="2.6" fill="#fff"/>
+    </g>
+    
+    <text x="35" y="18" font-size="11" fill="#9C640E" font-family="Georgia,serif">!</text>
+    
+  </svg></div>
+  <b>被吓一跳</b><span>眼睛放大 + !</span>
+</div>
+<div class="t rare">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    <circle cx="37" cy="40" r="24" stroke="#15637B" stroke-opacity=".2" stroke-width="1.3"/>
+    <g transform=" ">
+      <path d="M37 29 L48.3 31.0" stroke="#15637B" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="48.3" cy="31.0" r="3" fill="#15637B" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#15637B"/>
+      <circle cx="32.4" cy="38" r="2" fill="#fff"/><circle cx="41.6" cy="38" r="2" fill="#fff"/>
+    </g>
+    
+    
+    <path d="M52 28l1.4 3 3 1.4-3 1.4-1.4 3-1.4-3-3-1.4 3-1.4z" fill="#9C640E" opacity=".8"/>
+  </svg></div>
+  <b>庆祝完成</b><span>转一圈 + 亮片</span>
+</div>
+<div class="t rare">
+  <div class="art"><svg width="74" height="74" viewBox="0 0 74 74" fill="none">
+    
+    <g transform=" ">
+      <path d="M37 29 L42.8 39.0" stroke="#98A69F" stroke-width="2.6" stroke-linecap="round" stroke-opacity=".5"/>
+      <circle cx="42.8" cy="39.0" r="3" fill="#98A69F" fill-opacity=".78"/>
+      <circle cx="37" cy="40" r="13.6" fill="#98A69F"/>
+      <path d="M30 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M38.8 39 q 2.6 -2.8 5.2 0" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+    </g>
+    <text x="50" y="25" font-size="11" fill="#98A69F" font-family="Georgia,serif">z</text>
+    
+    
+  </svg></div>
+  <b>睡着了</b><span>22 点后常见</span>
+</div></div>
+
+    <div class="tl">
+      <div style="font-size:10px;color:#8B95A1">一次动作的节拍</div>
+      <div class="tl__bar">
+        <i style="width:8%;background:#1E242C"></i>
+        <i style="width:22%;background:#5B8DF6"></i>
+        <i style="width:34%;background:#3E5A6B"></i>
+        <i style="width:36%;background:#1E242C"></i>
+      </div>
+      <div class="tl__lbl"><span>0s 触发</span><span>120ms 起势</span><span>1.0s 动作</span><span>1.2s 回位</span></div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="box">
+      <h4>什么时候动</h4>
+      <div class="r"><b>间隔</b><span>每次结束后随机 <em>3–8 分钟</em> 再来；连续两次不少于 3 分钟</span></div>
+      <div class="r"><b>权重</b><span>眨眼/歪头/追鼠标 高频；打滚、庆祝、被吓 低频且各带 <em>20 分钟冷却</em></span></div>
+      <div class="r"><b>跟着时令</b><span>22:00–08:00 只出「睡着」；刚完成一条时优先「庆祝」</span></div>
+      <div class="r"><b>不重复</b><span>同一个动作不连着来，最近 3 个动作排除</span></div>
+    </div>
+
+    <div class="box">
+      <h4>什么时候别动</h4>
+      <p class="note">
+        <b>到点优先</b>：正在动也立刻收势，切到落盘。<br>
+        <b>你在忙</b>：全屏应用、屏幕锁定、免打扰时段 → 完全停。<br>
+        <b>鼠标在它身上</b>：不随机，只做「看你」这一种。<br>
+        <b>不做声、不弹窗</b>：所有动作都关在 96px 里，不抢焦点。<br>
+        <b>省电</b>：<em style="font-style:normal;color:#C3CCD6">prefers-reduced-motion</em> 下只做透明度变化，不位移不缩放。
+      </p>
+    </div>
+
+    <div class="box">
+      <h4>为什么是这些动作</h4>
+      <p class="note">
+        都和「时间」有关：拨触角像拨指针、敲表盘像看表、偷看下一个是真的有用（不用点开就知道下一件事是什么）。<br>
+        庆祝完成是把它接回产品闭环——你勾掉一条，它转一圈，你会有被看见的感觉。
+      </p>
+    </div>
+  </div>
+</div>
+</body></html>

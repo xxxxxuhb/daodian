@@ -108,6 +108,18 @@ impl Library {
         let raw = serde_json::to_string_pretty(&self.doc).map_err(|err| err.to_string())?;
         fs::write(&self.path, raw).map_err(|err| err.to_string())
     }
+
+    pub(crate) fn data_dir(&self) -> Result<&Path, String> {
+        self.path
+            .parent()
+            .ok_or_else(|| "数据目录不存在".to_string())
+    }
+
+    pub(crate) fn reload_from_disk(&mut self) -> Result<(), String> {
+        let dir = self.data_dir()?.to_path_buf();
+        *self = Self::open(&dir).map_err(|err| err.to_string())?;
+        Ok(())
+    }
 }
 
 pub(crate) fn lock(store: &SharedStore) -> Result<MutexGuard<'_, Library>, String> {

@@ -11,7 +11,7 @@ import Mark from "../../ui/Mark.vue";
 import PlanPage from "../plans/PlanPage.vue";
 import { PLAN_FILTERS, planCounts, type PlanFilter } from "../plans/logic";
 import TodoPage from "../todos/TodoPage.vue";
-import { TODO_FILTERS, todoCounts, type TodoFilter } from "../todos/logic";
+import { TODO_FILTERS, todoBucket, todoCounts, type TodoFilter } from "../todos/logic";
 import ReminderToast from "./ReminderToast.vue";
 import SettingsDrawer from "../settings/SettingsDrawer.vue";
 import { createTickKey } from "./create";
@@ -132,6 +132,30 @@ async function onKey(event: KeyboardEvent) {
 
 let unlisten: UnlistenFn | null = null;
 let unlistenQuickCapture: UnlistenFn | null = null;
+let unlistenPetTarget: UnlistenFn | null = null;
+
+interface PetOpenTarget {
+  kind: "todo" | "stage";
+  title: string;
+  todoId?: string;
+  planId?: string;
+  stageId?: string;
+}
+
+function openPetTarget(target: PetOpenTarget) {
+  query.value = target.title;
+  searching.value = false;
+  settingsOpen.value = false;
+  if (target.kind === "todo") {
+    section.value = "todo";
+    const todo = todos.value.find((item) => item.id === target.todoId);
+    todoFilter.value = todo ? todoBucket(todo, now.value) : "today";
+  } else {
+    section.value = "plan";
+    planFilter.value = "active";
+    planView.value = "cards";
+  }
+}
 
 async function enterQuickCaptureUi() {
   if (quickCaptureActive.value) {
@@ -168,6 +192,9 @@ onMounted(async () => {
       reload();
     });
     unlistenQuickCapture = await listen("quick-capture", enterQuickCaptureUi);
+    unlistenPetTarget = await listen<PetOpenTarget>("pet-open-target", ({ payload }) => {
+      openPetTarget(payload);
+    });
     if (await invoke<boolean>("is_quick_capture_active")) {
       await enterQuickCaptureUi();
     }
@@ -201,6 +228,7 @@ onMounted(async () => {
 onUnmounted(() => {
   unlisten?.();
   unlistenQuickCapture?.();
+  unlistenPetTarget?.();
   window.removeEventListener("keydown", onKey);
   window.removeEventListener("resize", onResize);
 });

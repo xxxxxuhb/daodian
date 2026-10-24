@@ -6,7 +6,12 @@ import { computed, ref, watch } from "vue";
 import { utils as xlsxUtils, write as writeWorkbook } from "xlsx";
 import { testDeepSeek } from "../../api/ai";
 import { loadLibrary } from "../../api/library";
-import { testWebhook } from "../../api/settings";
+import {
+  listBackups,
+  restoreBackup,
+  testWebhook,
+  type BackupInfo,
+} from "../../api/settings";
 import { useCalendar } from "../../data/useCalendar";
 import { useSettings } from "../../data/useSettings";
 import type { Settings } from "../../domain/settings";
@@ -25,6 +30,11 @@ const testingWebhook = ref<"feishu" | "wecom" | "">("");
 const testingDeepSeek = ref(false);
 const exportingRecords = ref(false);
 const exportStatus = ref("");
+const backups = ref<BackupInfo[]>([]);
+const selectedBackup = ref("");
+const backupLoading = ref(false);
+const backupRestoring = ref(false);
+const backupStatus = ref("");
 const externalEnabled = computed(
   () =>
     draft.value.calendar.enabled ||
@@ -44,7 +54,10 @@ watch(
     newHoliday.value = "";
     newWorkday.value = "";
     saved.value = false;
+    backupStatus.value = "";
+    void loadBackupHistory();
   },
+  { immediate: true },
 );
 
 watch(
@@ -232,6 +245,39 @@ async function exportAllRecords() {
   }
 }
 
+async function loadBackupHistory() {
+  backupLoading.value = true;
+  try {
+    backups.value = await listBackups();
+    if (!backups.value.some((item) => item.id === selectedBackup.value)) {
+      selectedBackup.value = backups.value[0]?.id ?? "";
+    }
+  } catch (cause) {
+    backupStatus.value = `读取备份失败：${cause instanceof Error ? cause.message : String(cause)}`;
+  } finally {
+    backupLoading.value = false;
+  }
+}
+
+async function restoreSelectedBackup() {
+  const backup = backups.value.find((item) => item.id === selectedBackup.value);
+  if (!backup) return;
+  const confirmed = window.confirm(
+    `确定恢复“${backup.label}”吗？\n\n当前数据会先自动备份，恢复后应用将刷新。`,
+  );
+  if (!confirmed) return;
+
+  backupRestoring.value = true;
+  backupStatus.value = "";
+  try {
+    backupStatus.value = await restoreBackup(backup.id);
+    window.location.reload();
+  } catch (cause) {
+    backupStatus.value = `恢复失败：${cause instanceof Error ? cause.message : String(cause)}`;
+    backupRestoring.value = false;
+  }
+}
+
 function displayTime(value: number | null) {
   return value == null ? "" : new Date(value).toLocaleString("zh-CN", { hour12: false });
 }
@@ -276,8 +322,20 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
               <option value="night">夜航</option>
             </select>
           </label>
+          <label class="settings-field">
+            <span>默认窗口大小</span>
+            <select v-model="draft.window.defaultTier">
+              <option value="mini">小窗口</option>
+              <option value="standard">中窗口</option>
+              <option value="wide">大窗口</option>
+            </select>
+          </label>
+          <label class="settings-check">
+            <input v-model="draft.launchAtStartup" type="checkbox" />
+            <span>开机自动启动（启动后隐藏到托盘）</span>
+          </label>
           <p class="settings-note">
-            窗口会按迷你、标准、宽屏三档分别记住大小与位置；上次档位：{{ draft.window.lastTier || "尚未记录" }}。
+            保存后，下次启动应用会以所选大小打开；每档窗口会分别记住位置。
           </p>
         </section>
 
@@ -342,6 +400,9 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
             <span>模板</span>
             <textarea v-model="draft.weekReport.template" rows="7" />
           </label>
+          <p class="settings-note" v-pre>
+            可用变量：{{overview}}、{{todos}}、{{plans}}、{{completed}}、{{activePlans}}、{{nextWeek}}
+          </p>
         </section>
 
         <section class="settings-section">
@@ -409,6 +470,17 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
         </section>
 
         <section class="settings-section">
+          <h3>桌面珠子</h3>
+          <label class="settings-check">
+            <input v-model="draft.pet.enabled" type="checkbox" />
+            <span>在桌面显示陪伴珠子</span>
+          </label>
+          <p class="settings-note">
+            常驻桌面右下角；支持悬停查看下一个到点、单击展开、双击打开主窗口、拖动吸边和滚轮推后。
+          </p>
+        </section>
+
+        <section class="settings-section">
           <h3>快速记录</h3>
           <label class="settings-check">
             <input v-model="draft.quickCapture.enabled" type="checkbox" />
@@ -473,6 +545,35 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
             {{ draft.deepSeek.hasApiKey ? "已显示为掩码；输入新值即可替换。" : "请输入 API Key 后保存。" }}
             API Key 由 Windows DPAPI 加密保存，不会随设置读取返回明文。
           </p>
+        </section>
+
+        <section class="settings-section">
+          <h3>数据备份与恢复</h3>
+          <p class="settings-note">
+            应用会在每天进入所设工作时间后，自动备份一次前一天的数据。备份包含待办、计划、模板和设置。
+          </p>
+          <label class="settings-field settings-stack">
+            <span>选择备份</span>
+            <select v-model="selectedBackup" :disabled="backupLoading || backupRestoring">
+              <option v-if="!backups.length" value="">
+                {{ backupLoading ? "正在读取备份…" : "暂无可恢复的备份" }}
+              </option>
+              <option v-for="backup in backups" :key="backup.id" :value="backup.id">
+                {{ backup.label }} · {{ backup.files.length }} 个文件
+              </option>
+            </select>
+          </label>
+          <div class="settings-service__actions">
+            <button
+              type="button"
+              class="btn btn--sm"
+              :disabled="!selectedBackup || backupLoading || backupRestoring"
+              @click="restoreSelectedBackup"
+            >
+              {{ backupRestoring ? "恢复中…" : "恢复所选备份" }}
+            </button>
+          </div>
+          <p v-if="backupStatus" class="settings-note">{{ backupStatus }}</p>
         </section>
 
         <section class="settings-section">

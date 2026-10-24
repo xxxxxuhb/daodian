@@ -293,22 +293,23 @@
 }
 .mini-app .plan__head {
   display: grid;
-  grid-template-columns: 5px minmax(0, 1fr) 22px;
+  grid-template-columns: 19px minmax(0, 1fr) 22px;
   align-items: center;
   gap: 6px;
 }
 .mini-app .plan__head .check {
-  width: 5px;
-  height: 5px;
-  min-width: 5px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
   margin: 0;
-  border: 0;
-  background: var(--accent);
+  border: 1.5px solid var(--fill-2);
+  background: var(--card);
 }
 .mini-app .plan__head .check.is-done {
+  border-color: var(--done);
   background: var(--done);
+  color: var(--accent-ink);
 }
-.mini-app .plan__head .check .ico,
 .mini-app .plan__title .dotpin,
 .mini-app .plan__head > .pill,
 .mini-app .plan__prog,

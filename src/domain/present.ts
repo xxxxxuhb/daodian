@@ -247,12 +247,16 @@ export interface WeekSummary {
 
 export function renderWeekReport(
   template: string,
-  values: Pick<WeekSummary, "overview" | "todoText" | "planText">,
+  values: Pick<WeekSummary, "overview" | "todoText" | "planText">
+    & { completed: string; activePlans: string; nextWeek: string },
 ): string {
   return template
     .split("{{overview}}").join(values.overview)
     .split("{{todos}}").join(values.todoText)
     .split("{{plans}}").join(values.planText)
+    .split("{{completed}}").join(values.completed)
+    .split("{{activePlans}}").join(values.activePlans)
+    .split("{{nextWeek}}").join(values.nextWeek)
     .trim();
 }
 
@@ -311,7 +315,37 @@ export function weekSummary(
   const todoText = `### 已完成\n${completedText}\n\n### 未完成\n${openText}`;
   const planText = planRows.length ? planRows.map((row) => row.text).join("\n") : "- 本周暂无计划推进";
   const planMarkdown = `## 计划推进\n${planText}`;
-  const values = { overview, todoText, planText };
+  const completedStages = plans.flatMap((plan) =>
+    plan.stages
+      .filter((stage) =>
+        stage.done
+        && (stage.completedAt ?? stage.at) != null
+        && (stage.completedAt ?? stage.at)! >= monday
+        && (stage.completedAt ?? stage.at)! < next)
+      .map((stage) => `- [x] ${plan.title} · ${stage.title}`),
+  );
+  const completed = [
+    ...completedTodos.map((todo) => `- [x] ${todo.title}`),
+    ...completedStages,
+  ].join("\n") || "- 本周暂无已完成事项";
+  const nextWeekItems = [
+    ...todos
+      .filter((todo) => !todo.done && todo.dueAt != null && todo.dueAt >= next && todo.dueAt < next + 7 * DAY)
+      .map((todo) => `- [ ] ${todo.title}`),
+    ...plans.flatMap((plan) =>
+      plan.stages
+        .filter((stage) => !stage.done && stage.at != null && stage.at >= next && stage.at < next + 7 * DAY)
+        .map((stage) => `- [ ] ${plan.title} · ${stage.title}`),
+    ),
+  ].join("\n") || "- 下周暂无已安排事项";
+  const values = {
+    overview,
+    todoText,
+    planText,
+    completed,
+    activePlans: planText,
+    nextWeek: nextWeekItems,
+  };
   return {
     done,
     overdue,

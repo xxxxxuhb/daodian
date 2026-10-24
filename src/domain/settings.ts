@@ -10,9 +10,18 @@ export interface WindowFrame {
 
 export interface Settings {
   theme: ThemeName;
+  launchAtStartup: boolean;
   window: {
     frames: Partial<Record<WindowTier, WindowFrame>>;
     lastTier: WindowTier | "";
+    defaultTier: WindowTier;
+  };
+  pet: {
+    enabled: boolean;
+    x?: number;
+    y?: number;
+    pinches: number;
+    hiddenUntil: number;
   };
   repeat: {
     defaultSkipWeekends: boolean;
