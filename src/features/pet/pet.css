@@ -71,9 +71,7 @@ html.pet-host #app {
 
 .pet-antenna,
 .pet-tip {
-  transform: rotate(var(--antenna-angle));
   transform-origin: 48px 52px;
-  transition: transform .16s ease;
 }
 
 .pet-antenna {
@@ -98,8 +96,6 @@ html.pet-host #app {
   stroke: #fff;
   stroke-width: 1.8;
   stroke-linecap: round;
-  transform: translate(var(--look-x), var(--look-y));
-  transition: transform .14s ease;
 }
 
 .pet-mark {
@@ -264,6 +260,10 @@ html.pet-host #app {
 
 .is-action-celebrate .pet-creature {
   animation: pet-celebrate 1.6s cubic-bezier(.2, .8, .3, 1) both;
+}
+
+.pet-window:not(.is-pressed):not(.is-pinched).is-hop .pet-creature {
+  animation: pet-hop .72s cubic-bezier(.2, .8, .3, 1) both;
 }
 
 .pet-card {
@@ -441,8 +441,16 @@ html.pet-host #app {
 }
 
 @keyframes pet-antenna-spin {
-  0%, 100% { transform: rotate(var(--antenna-angle)); }
-  70% { transform: rotate(calc(var(--antenna-angle) + 360deg)); }
+  0%, 100% { transform: rotate(0); }
+  70% { transform: rotate(360deg); }
+}
+
+@keyframes pet-hop {
+  0%, 40%, 100% { transform: translateY(0) scale(1); }
+  16% { transform: translateY(-12px) scale(1.04, .94); }
+  32% { transform: translateY(0) scale(.98, 1.05); }
+  58% { transform: translateY(-8px) scale(1.03, .96); }
+  76% { transform: translateY(0) scale(.99, 1.03); }
 }
 
 @keyframes pet-tap {

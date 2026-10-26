@@ -84,6 +84,7 @@ pub fn save_todo(
     };
 
     remind::check(&app);
+    super::notify_changed(&app);
     Ok(saved)
 }
 
@@ -119,6 +120,7 @@ pub fn set_todo_done(
         saved
     };
     remind::check(&app);
+    super::notify_changed(&app);
     Ok(saved)
 }
 
@@ -148,11 +150,12 @@ pub fn skip_todo_occurrence(
         saved
     };
     remind::check(&app);
+    super::notify_changed(&app);
     Ok(saved)
 }
 
 #[tauri::command]
-pub fn delete_todo(store: State<SharedStore>, id: String) -> Result<(), String> {
+pub fn delete_todo(app: AppHandle, store: State<SharedStore>, id: String) -> Result<(), String> {
     let mut guard = lock(&store)?;
     let before = guard.doc.todos.len();
     guard.doc.todos.retain(|item| item.id != id);
@@ -160,6 +163,8 @@ pub fn delete_todo(store: State<SharedStore>, id: String) -> Result<(), String> 
         return Err("这条待办已经不在了".into());
     }
     guard.persist()?;
+    drop(guard);
+    super::notify_changed(&app);
     Ok(())
 }
 

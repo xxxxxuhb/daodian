@@ -61,9 +61,8 @@ const pinches = ref(0);
 const activeReminder = ref<PetItem | null>(null);
 const wheelBase = ref<number | null>(null);
 const wheelOffset = ref(0);
-const lookX = ref(0);
-const lookY = ref(-1);
 const moving = ref(false);
+const hopping = ref(false);
 const blinking = ref(false);
 const action = ref<PetAction | "">("");
 let unlistenData: UnlistenFn | null = null;
@@ -78,6 +77,7 @@ let moveChain: Promise<unknown> = Promise.resolve();
 let randomTimer = 0;
 let blinkTimer = 0;
 let actionTimer = 0;
+let hopTimer = 0;
 let rareAvailableAt = 0;
 let recentActions: PetAction[] = [];
 let completionBaseline: number | null = null;
@@ -119,9 +119,9 @@ const state = computed(() =>
   sleeping.value ? "sleep" : isDue.value ? "due" : isSoon.value ? "soon" : "idle",
 );
 const bubble = computed(() => {
-  if (!item.value) return "今天没有安排，歇一会儿";
-  const when = relative(item.value.at, now.value).text;
-  return `下一个 ${clockTime(item.value.at)} ${item.value.title} · ${when}`;
+  if (!next.value) return "今天没有安排，歇一会儿";
+  const when = relative(next.value.at, now.value).text;
+  return `下一个 ${clockTime(next.value.at)} ${next.value.title} · ${when}`;
 });
 const ringProgress = computed(() => {
   if (!item.value || !isSoon.value) return 0;
@@ -133,9 +133,6 @@ const completedCount = computed(
     plans.value.flatMap((plan) => plan.stages).filter((stage) => stage.done).length,
 );
 const petStyle = computed(() => ({
-  "--look-x": `${lookX.value * 2.2}px`,
-  "--look-y": `${lookY.value * 1.4}px`,
-  "--antenna-angle": `${Math.atan2(lookY.value, lookX.value) * (180 / Math.PI) + 90}deg`,
   "--ring-offset": `${157 * (1 - ringProgress.value)}`,
 }));
 
@@ -232,25 +229,21 @@ function interruptAction() {
   scheduleRandomAction();
 }
 
-function pointerLook(event: MouseEvent) {
-  const target = event.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const x = event.clientX - (rect.left + rect.width / 2);
-  const y = event.clientY - (rect.top + rect.height / 2);
-  const length = Math.max(1, Math.hypot(x, y));
-  lookX.value = x / length;
-  lookY.value = y / length;
-}
-
 function leavePet() {
   hovered.value = false;
-  lookX.value = 0;
-  lookY.value = -1;
 }
 
 function enterPet() {
   hovered.value = true;
   interruptAction();
+  window.clearTimeout(hopTimer);
+  hopping.value = false;
+  requestAnimationFrame(() => {
+    hopping.value = true;
+    hopTimer = window.setTimeout(() => {
+      hopping.value = false;
+    }, 720);
+  });
 }
 
 function openTarget() {
@@ -315,7 +308,6 @@ function flushMove() {
 }
 
 function onPointerMove(event: PointerEvent) {
-  pointerLook(event);
   if (!down || !pressed.value) return;
   if (Math.hypot(event.screenX - down.screenX, event.screenY - down.screenY) < 4) return;
   moving.value = true;
@@ -474,6 +466,7 @@ onBeforeUnmount(() => {
   window.clearTimeout(randomTimer);
   window.clearTimeout(blinkTimer);
   window.clearTimeout(actionTimer);
+  window.clearTimeout(hopTimer);
   if (frame) cancelAnimationFrame(frame);
 });
 </script>
@@ -485,7 +478,7 @@ onBeforeUnmount(() => {
       `is-${mode}`,
       `is-${state}`,
       action && `is-action-${action}`,
-      { 'is-pressed': pressed, 'is-pinched': pinched, 'is-blinking': blinking },
+      { 'is-pressed': pressed, 'is-pinched': pinched, 'is-blinking': blinking, 'is-hop': hopping },
     ]"
     :style="petStyle"
     @mouseleave="leavePet"
@@ -522,7 +515,6 @@ onBeforeUnmount(() => {
     <div
       class="pet-anchor"
       @mouseenter="enterPet"
-      @mousemove="pointerLook"
       @click="onClick"
       @dblclick="onDoubleClick"
       @contextmenu.prevent="contextMenu"
@@ -550,7 +542,7 @@ onBeforeUnmount(() => {
         </g>
       </svg>
       <span class="pet-shadow"></span>
-      <span v-if="action === 'peek' && item" class="pet-peek">{{ clockTime(item.at) }} {{ item.title }}</span>
+      <span v-if="action === 'peek' && next" class="pet-peek">{{ clockTime(next.at) }} {{ next.title }}</span>
       <span v-if="wheelOffset" class="pet-wheel-tip">推后 {{ wheelOffset }} 分钟</span>
     </div>
   </main>

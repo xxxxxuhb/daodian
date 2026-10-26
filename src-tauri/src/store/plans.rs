@@ -69,6 +69,7 @@ pub fn save_plan(
     };
 
     remind::check(&app);
+    super::notify_changed(&app);
     Ok(saved)
 }
 
@@ -94,6 +95,7 @@ pub fn set_plan_done(
         saved
     };
     remind::check(&app);
+    super::notify_changed(&app);
     Ok(saved)
 }
 
@@ -121,11 +123,12 @@ pub fn set_stage_done(
         saved
     };
     remind::check(&app);
+    super::notify_changed(&app);
     Ok(saved)
 }
 
 #[tauri::command]
-pub fn delete_plan(store: State<SharedStore>, id: String) -> Result<(), String> {
+pub fn delete_plan(app: AppHandle, store: State<SharedStore>, id: String) -> Result<(), String> {
     let mut guard = lock(&store)?;
     let before = guard.doc.plans.len();
     guard.doc.plans.retain(|item| item.id != id);
@@ -133,6 +136,8 @@ pub fn delete_plan(store: State<SharedStore>, id: String) -> Result<(), String> 
         return Err("这份计划已经不在了".into());
     }
     guard.persist()?;
+    drop(guard);
+    super::notify_changed(&app);
     Ok(())
 }
 

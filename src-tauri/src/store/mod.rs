@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::domain::{
     Document, RemindAction, RemindTarget, SCHEMA_VERSION, migrate_legacy_json, next_due_at,
@@ -124,6 +124,10 @@ impl Library {
 
 pub(crate) fn lock(store: &SharedStore) -> Result<MutexGuard<'_, Library>, String> {
     store.lock().map_err(|err| err.to_string())
+}
+
+pub(crate) fn notify_changed(app: &AppHandle) {
+    let _ = app.emit("data-changed", ());
 }
 
 pub fn plan_from_store(store: &SharedStore, now: i64) -> Result<Vec<RemindAction>, String> {
