@@ -14,6 +14,7 @@ import {
 } from "../../api/settings";
 import { useCalendar } from "../../data/useCalendar";
 import { useSettings } from "../../data/useSettings";
+import { repeatLabel } from "../../domain/repeat";
 import type { Settings } from "../../domain/settings";
 
 const props = defineProps<{ open: boolean }>();
@@ -190,7 +191,7 @@ async function exportAllRecords() {
       到点时间: displayTime(todo.dueAt),
       优先级: priorityLabel(todo.priority),
       状态: todo.done ? "已完成" : todo.skipped ? "已跳过" : "未完成",
-      重复规则: todo.repeat ? JSON.stringify(todo.repeat) : "",
+      重复规则: repeatLabel(todo.repeat, todo.dueAt),
       "提前提醒（分钟）": Math.round(todo.leadMs / 60_000),
       创建时间: displayTime(todo.createdAt),
       更新时间: displayTime(todo.updatedAt),
@@ -286,17 +287,22 @@ function priorityLabel(value: "low" | "normal" | "high") {
   return value === "high" ? "重要" : value === "low" ? "可缓" : "普通";
 }
 
+function displayWidth(value: string) {
+  return [...value].reduce(
+    (width, char) => width + (char.charCodeAt(0) > 255 ? 2 : 1),
+    0,
+  );
+}
+
 function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
   const sheet = xlsxUtils.json_to_sheet(rows, { header: headers });
-  sheet["!cols"] = headers.map((header) => ({
-    wch: Math.min(
-      40,
-      Math.max(
-        header.length + 2,
-        ...rows.map((row) => String(row[header] ?? "").length + 2),
-      ),
-    ),
-  }));
+  sheet["!cols"] = headers.map((header) => {
+    const width = Math.max(
+      displayWidth(header) + 4,
+      ...rows.map((row) => displayWidth(String(row[header] ?? "")) + 4),
+    );
+    return { wch: Math.min(48, Math.max(14, width)) };
+  });
   return sheet;
 }
 </script>
@@ -475,8 +481,22 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
             <input v-model="draft.pet.enabled" type="checkbox" />
             <span>在桌面显示陪伴珠子</span>
           </label>
+          <label class="settings-field">
+            <span>最短间隔（秒）</span>
+            <input v-model.number="draft.pet.idleMinSeconds" type="number" min="5" max="1800" step="1" />
+          </label>
+          <label class="settings-field">
+            <span>最长间隔（秒）</span>
+            <input
+              v-model.number="draft.pet.idleMaxSeconds"
+              type="number"
+              :min="Math.max(5, draft.pet.idleMinSeconds || 5)"
+              max="1800"
+              step="1"
+            />
+          </label>
           <p class="settings-note">
-            常驻桌面右下角；支持悬停查看下一个到点、单击展开、双击打开主窗口、拖动吸边和滚轮推后。
+            空闲时会在最短和最长间隔之间随机做一个小动作。最短不能小于 5 秒。
           </p>
         </section>
 

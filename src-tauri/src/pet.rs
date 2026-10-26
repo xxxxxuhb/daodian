@@ -302,11 +302,17 @@ pub fn pet_can_idle() -> bool {
     #[cfg(windows)]
     {
         use windows_sys::Win32::UI::Shell::{
-            QUNS_ACCEPTS_NOTIFICATIONS, SHQueryUserNotificationState,
+            QUNS_BUSY, QUNS_NOT_PRESENT, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
+            SHQueryUserNotificationState,
         };
         let mut state = 0;
         let result = unsafe { SHQueryUserNotificationState(&mut state) };
-        result >= 0 && state == QUNS_ACCEPTS_NOTIFICATIONS
+        // 免打扰和普通前台应用不阻止珠子自己动；锁屏、全屏和演示模式才停。
+        result < 0
+            || !matches!(
+                state,
+                QUNS_NOT_PRESENT | QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE
+            )
     }
     #[cfg(not(windows))]
     {

@@ -48,9 +48,7 @@ type PetAction =
 
 const COMMON_ACTIONS: PetAction[] = ["tilt", "yawn", "antenna", "tap"];
 const RARE_ACTIONS: PetAction[] = ["stretch", "roll", "peek", "startled"];
-const MIN_RANDOM_DELAY = 3 * 60_000;
-const MAX_RANDOM_DELAY = 8 * 60_000;
-const RARE_COOLDOWN = 20 * 60_000;
+const RARE_COOLDOWN = 3 * 60_000;
 
 const { todos, plans, reload } = useLibrary();
 const { settings, load: loadSettings } = useSettings();
@@ -179,9 +177,15 @@ function randomBetween(min: number, max: number) {
   return min + Math.random() * (max - min);
 }
 
-function scheduleRandomAction() {
+function idleDelay() {
+  const minSeconds = Math.max(5, Number(settings.value.pet.idleMinSeconds) || 12);
+  const maxSeconds = Math.max(minSeconds, Number(settings.value.pet.idleMaxSeconds) || minSeconds);
+  return randomBetween(minSeconds * 1000, maxSeconds * 1000);
+}
+
+function scheduleRandomAction(delay = idleDelay()) {
   window.clearTimeout(randomTimer);
-  randomTimer = window.setTimeout(runRandomAction, randomBetween(MIN_RANDOM_DELAY, MAX_RANDOM_DELAY));
+  randomTimer = window.setTimeout(runRandomAction, delay);
 }
 
 function scheduleBlink() {
@@ -198,7 +202,7 @@ function scheduleBlink() {
 async function runRandomAction() {
   const systemAllows = await invoke<boolean>("pet_can_idle").catch(() => true);
   if (!systemAllows || !canIdleAnimate()) {
-    scheduleRandomAction();
+    scheduleRandomAction(idleDelay());
     return;
   }
   const useRare = Date.now() >= rareAvailableAt && Math.random() < 0.15;
@@ -438,7 +442,9 @@ onMounted(async () => {
   scheduleRandomAction();
   unlistenData = await listen("data-changed", () => reload()).catch(() => null);
   unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
+    settings.value = payload;
     document.documentElement.dataset.theme = payload.theme;
+    if (!action.value) scheduleRandomAction();
   }).catch(() => null);
   unlistenReminder = await listen<ReminderEvent[]>("reminder-fired", ({ payload }) => {
     const first = payload[0];

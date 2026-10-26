@@ -22,6 +22,8 @@ export interface Settings {
     y?: number;
     pinches: number;
     hiddenUntil: number;
+    idleMinSeconds: number;
+    idleMaxSeconds: number;
   };
   repeat: {
     defaultSkipWeekends: boolean;

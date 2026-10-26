@@ -56,6 +56,18 @@ pub struct PetSettings {
     pub y: Option<i32>,
     pub pinches: u32,
     pub hidden_until: i64,
+    #[serde(default = "default_idle_min_seconds")]
+    pub idle_min_seconds: u32,
+    #[serde(default = "default_idle_max_seconds")]
+    pub idle_max_seconds: u32,
+}
+
+fn default_idle_min_seconds() -> u32 {
+    12
+}
+
+fn default_idle_max_seconds() -> u32 {
+    28
 }
 
 impl Default for PetSettings {
@@ -66,6 +78,8 @@ impl Default for PetSettings {
             y: None,
             pinches: 0,
             hidden_until: 0,
+            idle_min_seconds: default_idle_min_seconds(),
+            idle_max_seconds: default_idle_max_seconds(),
         }
     }
 }
@@ -139,6 +153,19 @@ impl WindowFrame {
             y: None,
         }
     }
+}
+
+fn validate_pet_idle(settings: &PetSettings) -> Result<(), String> {
+    if settings.idle_min_seconds < 5 {
+        return Err("随机动画最短间隔不能小于 5 秒".into());
+    }
+    if settings.idle_max_seconds < settings.idle_min_seconds {
+        return Err("随机动画最长间隔不能小于最短间隔".into());
+    }
+    if settings.idle_max_seconds > 30 * 60 {
+        return Err("随机动画最长间隔不能超过 30 分钟".into());
+    }
+    Ok(())
 }
 
 fn validate_work_hours(settings: &WorkHoursSettings) -> Result<(), String> {
@@ -348,6 +375,7 @@ impl SettingsStore {
         crate::webhook::validate_settings(&settings.wecom, crate::webhook::Provider::Wecom)?;
         crate::deepseek::validate_settings(&settings.deep_seek)?;
         validate_work_hours(&settings.work_hours)?;
+        validate_pet_idle(&settings.pet)?;
         if !matches!(
             settings.window.default_tier.as_str(),
             "mini" | "standard" | "wide"
@@ -679,6 +707,22 @@ mod tests {
         assert!(!settings.deep_seek.has_api_key);
         assert!(settings.repeat.default_skip_weekends);
         assert_eq!(settings.window.default_tier, "standard");
+        assert_eq!(settings.pet.idle_min_seconds, 12);
+        assert_eq!(settings.pet.idle_max_seconds, 28);
+    }
+
+    #[test]
+    fn pet_idle_keeps_a_five_second_minimum() {
+        let legacy: PetSettings = serde_json::from_str(r#"{"enabled":true}"#).unwrap();
+        assert_eq!(legacy.idle_min_seconds, 12);
+        assert!(validate_pet_idle(&legacy).is_ok());
+
+        let mut too_short = PetSettings::default();
+        too_short.idle_min_seconds = 4;
+        assert!(validate_pet_idle(&too_short).is_err());
+        too_short.idle_min_seconds = 20;
+        too_short.idle_max_seconds = 10;
+        assert!(validate_pet_idle(&too_short).is_err());
     }
 
     #[test]

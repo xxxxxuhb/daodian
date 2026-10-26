@@ -22,7 +22,7 @@ function fallbackSettings(): Settings {
     theme: readLocal("daodian-theme") === "night" ? "night" : "celadon",
     launchAtStartup: false,
     window: { frames: readFrames(), lastTier: "", defaultTier: "standard" },
-    pet: { enabled: true, pinches: 0, hiddenUntil: 0 },
+    pet: { enabled: true, pinches: 0, hiddenUntil: 0, idleMinSeconds: 12, idleMaxSeconds: 28 },
     repeat: { defaultSkipWeekends: true, holidays: [], workdays: [] },
     workHours: {
       morningStart: "09:00",
