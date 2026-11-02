@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { savePlan, saveTodo, setStageDone, setTodoDone } from "../../api/library";
+import { setNoteMeta } from "../../api/notes";
 import { useLibrary } from "../../data/useLibrary";
+import { noteReminderHits } from "../notes/logic";
+import { openNoteKey } from "../notes/open";
+import { useNotes } from "../notes/useNotes";
 import { useNow } from "../../domain/clock";
 import { clockTime, remindedHits, type RemindedHit } from "../../domain/present";
 import { useRun } from "../../domain/useRun";
 import Icon from "../../ui/Icon.vue";
 
 const { todos, plans, loading, loadError, reload } = useLibrary();
+const { notes, reload: reloadNotes } = useNotes();
+const openNote = inject(openNoteKey, null);
 const now = useNow();
 const { saving, error, run } = useRun();
 const queue = ref<RemindedHit[]>([]);
@@ -25,6 +31,7 @@ interface ReminderEvent {
   todoId?: string;
   planId?: string;
   stageId?: string;
+  noteId?: string;
 }
 
 function enqueue(hit: RemindedHit) {
@@ -45,6 +52,7 @@ onMounted(async () => {
           todoId: item.todoId,
           planId: item.planId,
           stageId: item.stageId,
+          noteId: item.noteId,
         });
       }
     });
@@ -119,6 +127,21 @@ function onUp() {
   snooze(minutes);
 }
 
+let notesReady = false;
+watch(
+  () => notes.value,
+  () => {
+    const hits = noteReminderHits(notes.value, now.value);
+    if (!notesReady) {
+      for (const hit of hits) seen.add(hit.key);
+      notesReady = true;
+      return;
+    }
+    for (const hit of hits) enqueue(hit);
+  },
+  { deep: true },
+);
+
 watch(
   () => [loading.value, loadError.value, todos.value, plans.value] as const,
   () => {
@@ -145,6 +168,11 @@ function dismiss() {
 async function complete() {
   const hit = current.value;
   if (!hit) return;
+  if (hit.noteId) {
+    openNote?.(hit.noteId);
+    dismiss();
+    return;
+  }
   const ok = await run(async () => {
     if (hit.todoId) await setTodoDone(hit.todoId, true);
     else if (hit.planId && hit.stageId) await setStageDone(hit.planId, hit.stageId, true);
@@ -158,6 +186,11 @@ async function snooze(minutes: number) {
   if (!hit) return;
   const at = Date.now() + minutes * 60_000;
   const ok = await run(async () => {
+    if (hit.noteId) {
+      await setNoteMeta(hit.noteId, { dueAt: at });
+      await reloadNotes();
+      return;
+    }
     if (hit.todoId) {
       const todo = todos.value.find((item) => item.id === hit.todoId);
       if (!todo) return;
@@ -219,7 +252,7 @@ async function snooze(minutes: number) {
         <p class="remind__detail">{{ current.detail }}</p>
         <p v-if="error" class="banner">{{ error }}</p>
         <div class="remind__acts">
-          <button class="btn btn--sm btn--primary" type="button" :disabled="saving" @click="complete">完成</button>
+          <button class="btn btn--sm btn--primary" type="button" :disabled="saving" @click="complete">{{ current.noteId ? "打开" : "完成" }}</button>
           <button class="btn btn--sm" type="button" :disabled="saving" @click="snooze(10)">稍后 10 分钟</button>
         </div>
         <div

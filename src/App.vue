@@ -23,6 +23,13 @@ const isPetWindow = new URLSearchParams(location.search).get("window") === "pet"
     <symbol id="i-grip" viewBox="0 0 24 24"><path d="M9.5 7h.01M9.5 12h.01M9.5 17h.01M14.5 7h.01M14.5 12h.01M14.5 17h.01" /></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.8 7h14.4M9.4 7V4.8h5.2V7M6.8 7l.9 12.2h8.6L17.2 7" /></symbol>
     <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 8h9a3 3 0 0 1 0 6h-1" /><path d="m9.5 5.5L7 8l2.5 2.5" /><path d="M17 16H8a3 3 0 0 1 0-6h1" /><path d="m14.5 18.5L17 16l-2.5-2.5" /></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M7 4.8h7.2L19 9.4V19a1.6 1.6 0 0 1-1.6 1.6H7.6A1.6 1.6 0 0 1 6 19V6.4A1.6 1.6 0 0 1 7.6 4.8H7Z" /><path d="M14 4.8V9.2h4.6M8.5 13h7M8.5 16.2h4.8" /></symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24"><path d="M8 16.6c.5-2.6 2-4.4 4.2-5.2" /><path d="M7.2 11.6h2.8V14.4" /><path d="M14.2 16.6c.5-2.6 2-4.4 4.2-5.2" /><path d="M13.4 11.6H16.2V14.4" /></symbol>
+    <symbol id="i-task" viewBox="0 0 24 24"><rect x="4.6" y="5" width="5" height="5" rx="1.1" /><path d="m5.8 7.5 1.1 1.1 2-2.1" /><path d="M12.2 7.5h7" /><rect x="4.6" y="14" width="5" height="5" rx="1.1" /><path d="M12.2 16.5h7" /></symbol>
+    <symbol id="i-table" viewBox="0 0 24 24"><rect x="4.4" y="5" width="15.2" height="14" rx="1.6" /><path d="M4.4 9.6h15.2M4.4 14.2h15.2M9.5 5v14M14.6 5v14" /></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="10" r="1.3" /><path d="m4.6 15.6 3.8-3.2 2.8 2.2 2.3-1.8 5.4 4" /></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14.2 8.2 16a2.7 2.7 0 0 1-3.8-3.8L6.6 10a2.7 2.7 0 0 1 3.8 0" /><path d="M14 9.8 15.8 8a2.7 2.7 0 0 1 3.8 3.8L17.4 14a2.7 2.7 0 0 1-3.8 0" /></symbol>
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="m14.4 5.2 4.4 4.4-8.2 8.2H6.2v-4.4l8.2-8.2Z" /><path d="m12.6 7 4.4 4.4M6.2 18.2h12" /></symbol>
   </svg>
   <app-shell />
   </template>

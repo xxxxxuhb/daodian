@@ -208,6 +208,7 @@ pub fn mark_reminded(
                     }
                 }
             }
+            RemindTarget::Note { .. } => {}
         }
     }
     if changed {

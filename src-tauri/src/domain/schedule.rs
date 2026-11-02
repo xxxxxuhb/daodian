@@ -8,6 +8,7 @@ pub const FRESH_MS: i64 = 90_000;
 pub enum RemindTarget {
     Todo { id: String },
     Stage { plan_id: String, stage_id: String },
+    Note { id: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

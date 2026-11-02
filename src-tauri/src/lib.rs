@@ -4,6 +4,7 @@ mod calendar;
 mod deepseek;
 mod domain;
 mod logging;
+mod notes;
 mod pet;
 mod quick_capture;
 mod remind;
@@ -96,6 +97,19 @@ pub fn run() {
                 .map_err(|err| logged_step(format!("打开 {}", dir.display()), err.into()))?;
             app.manage(Mutex::new(library));
             logging::info(format_args!("library opened"));
+            let notes = notes::NotesStore::open(&dir)
+                .map_err(|err| logged_step(format!("打开 {}", dir.join("notes").display()), err.into()))?;
+            app.manage(Mutex::new(notes));
+            let attachments = dir.join("attachments");
+            if let Err(err) = app.asset_protocol_scope().allow_directory(&attachments, true) {
+                logging::warn(format_args!("附件图片授权失败: {err:#}"));
+            } else {
+                logging::info(format_args!(
+                    "attachment asset scope: {}",
+                    attachments.display()
+                ));
+            }
+            notes::spawn_gc(app.handle().clone());
             let settings = settings::SettingsStore::open(&dir).map_err(|err| {
                 logged_step(
                     format!("打开 {}", dir.join("settings.json").display()),
@@ -167,6 +181,19 @@ pub fn run() {
             pet::pet_can_idle,
             pet::pet_hide_until,
             pet::pet_open_main,
+            notes::notes_index,
+            notes::note_load,
+            notes::note_create,
+            notes::note_save,
+            notes::note_delete,
+            notes::note_set_meta,
+            notes::note_attachment_prepare,
+            notes::note_attachment_commit,
+            notes::note_attachment_import,
+            notes::note_attachment_begin,
+            notes::note_attachment_chunk,
+            notes::note_attachment_finish,
+            notes::note_export,
             frontend_log,
         ]);
 
@@ -201,7 +228,18 @@ fn data_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
             "user data directory is not writable: {}",
             roaming.display()
         ));
-        writable_elsewhere(&roaming)
+        let fallback = writable_elsewhere(&roaming)?;
+        if fallback != roaming {
+            match migrate_user_data(&roaming, &fallback) {
+                Ok(()) => logging::info(format_args!(
+                    "user data migration checked: {} -> {}",
+                    roaming.display(),
+                    fallback.display()
+                )),
+                Err(err) => logging::warn(format_args!("用户目录数据迁移失败: {err:#}")),
+            }
+        }
+        fallback
     };
 
     if !cfg!(debug_assertions) {
@@ -303,13 +341,21 @@ fn usable(dir: &Path) -> bool {
     true
 }
 
-/// Roaming 不可写时也只能退到用户目录，绝不退回会被卸载器删除的安装目录。
-fn writable_elsewhere(preferred: &Path) -> PathBuf {
+/// Roaming 不可写时先试用户目录。开发态最后才用 exe 旁边的目录：这台机器的安全策略只放行那里。
+/// 正式包不能写安装目录，卸载会清掉。找不到可写目录就直接失败，不再拿着不可写路径继续启动。
+fn writable_elsewhere(preferred: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let mut candidates = Vec::new();
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         candidates.push(PathBuf::from(local).join("daodian-data"));
     }
     candidates.push(std::env::temp_dir().join("daodian-data"));
+    if cfg!(debug_assertions) {
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(parent) = exe.parent() {
+                candidates.push(parent.to_path_buf());
+            }
+        }
+    }
     for dir in &candidates {
         if usable(dir) {
             logging::warn(format_args!(
@@ -317,10 +363,36 @@ fn writable_elsewhere(preferred: &Path) -> PathBuf {
                 preferred.display(),
                 dir.display()
             ));
-            return dir.clone();
+            return Ok(dir.clone());
         }
+        logging::warn(format_args!(
+            "data directory candidate is not writable: {}",
+            dir.display()
+        ));
     }
-    preferred.to_path_buf()
+    let tried = candidates
+        .iter()
+        .map(|dir| dir.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(std::io::Error::other(format!("找不到可写的数据目录（已尝试 {tried}）")).into())
+}
+
+fn migrate_user_data(from: &Path, to: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    for name in [
+        "store.json",
+        "store.v1.bak.json",
+        "todos.json",
+        "templates.json",
+        "settings.json",
+        "deepseek-key.dpapi",
+    ] {
+        copy_newer_if_present(from, to, name)?;
+    }
+    copy_directory_newer(&from.join("backups"), &to.join("backups"))?;
+    copy_directory_newer(&from.join("notes"), &to.join("notes"))?;
+    copy_directory_newer(&from.join("attachments"), &to.join("attachments"))?;
+    Ok(())
 }
 
 fn copy_newer_if_present(

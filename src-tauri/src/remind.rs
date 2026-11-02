@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::domain::{RemindAction, RemindTarget, now_ms};
+use crate::notes::SharedNotes;
 use crate::store::{SharedStore, due_open_count, mark_reminded, next_due, plan_from_store};
 
 /// 每小时最多几条系统通知，超出的先攒着。
@@ -47,6 +48,7 @@ struct ReminderEvent {
     todo_id: Option<String>,
     plan_id: Option<String>,
     stage_id: Option<String>,
+    note_id: Option<String>,
 }
 
 pub fn spawn(app: AppHandle) {
@@ -75,7 +77,16 @@ fn next_wait(app: &AppHandle) -> Duration {
     let now = now_ms();
     let soonest = {
         let store = app.state::<SharedStore>();
-        next_due(store.inner(), now)
+        let notes = app.state::<SharedNotes>();
+        match (
+            next_due(store.inner(), now),
+            crate::notes::next_note_due(notes.inner(), now),
+        ) {
+            (Some(left), Some(right)) => Some(left.min(right)),
+            (Some(left), None) => Some(left),
+            (None, Some(right)) => Some(right),
+            (None, None) => None,
+        }
     };
     let delta = match soonest {
         Some(at) => (at - now).clamp(MIN_WAIT_MS, FALLBACK_MS),
@@ -96,10 +107,14 @@ pub fn check(app: &AppHandle) {
 
 fn run_check(app: &AppHandle) -> Result<(), String> {
     let now = now_ms();
-    let actions = {
+    let mut actions = {
         let store = app.state::<SharedStore>();
         plan_from_store(store.inner(), now)?
     };
+    {
+        let notes = app.state::<SharedNotes>();
+        actions.extend(crate::notes::due_actions(notes.inner(), now)?);
+    }
     let open = {
         let store = app.state::<SharedStore>();
         due_open_count(store.inner(), now)?
@@ -181,10 +196,11 @@ fn run_check(app: &AppHandle) -> Result<(), String> {
 }
 
 fn reminder_event(action: &RemindAction) -> ReminderEvent {
-    let (key, todo_id, plan_id, stage_id) = match &action.target {
+    let (key, todo_id, plan_id, stage_id, note_id) = match &action.target {
         RemindTarget::Todo { id } => (
             format!("todo:{id}:{}", action.at),
             Some(id.clone()),
+            None,
             None,
             None,
         ),
@@ -193,6 +209,14 @@ fn reminder_event(action: &RemindAction) -> ReminderEvent {
             None,
             Some(plan_id.clone()),
             Some(stage_id.clone()),
+            None,
+        ),
+        RemindTarget::Note { id } => (
+            format!("note:{id}:{}", action.at),
+            None,
+            None,
+            None,
+            Some(id.clone()),
         ),
     };
     ReminderEvent {
@@ -203,6 +227,7 @@ fn reminder_event(action: &RemindAction) -> ReminderEvent {
         todo_id,
         plan_id,
         stage_id,
+        note_id,
     }
 }
 
@@ -295,7 +320,12 @@ fn ack_only(app: &AppHandle, ack: &[(RemindTarget, i64, bool)], now: i64) -> Res
         let store = app.state::<SharedStore>();
         mark_reminded(store.inner(), ack, now)?;
     }
+    {
+        let notes = app.state::<SharedNotes>();
+        crate::notes::mark_notes_reminded(notes.inner(), ack)?;
+    }
     let _ = app.emit("data-changed", ());
+    let _ = app.emit("notes-changed", ());
     Ok(())
 }
 
@@ -358,6 +388,7 @@ fn key_of(target: &RemindTarget) -> String {
     match target {
         RemindTarget::Todo { id } => format!("todo:{id}"),
         RemindTarget::Stage { plan_id, stage_id } => format!("stage:{plan_id}:{stage_id}"),
+        RemindTarget::Note { id } => format!("note:{id}"),
     }
 }
 

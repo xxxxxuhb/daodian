@@ -454,6 +454,7 @@ export interface RemindedHit {
   todoId?: string;
   planId?: string;
   stageId?: string;
+  noteId?: string;
 }
 
 export function remindedHits(todos: Todo[], plans: Plan[], now: number): RemindedHit[] {

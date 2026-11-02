@@ -4,6 +4,7 @@ import App from "./App.vue";
 import "./features/shell/theme";
 import "./features/pet/pet.css";
 import "./styles.css";
+import "./features/notes/notes.css";
 import "../design/v2/v2.css";
 import "./v2-live.css";
 

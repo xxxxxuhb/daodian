@@ -98,6 +98,25 @@ fn is_workday(date: NaiveDate, calendar: &RepeatSettings) -> bool {
     !matches!(date.weekday(), Weekday::Sat | Weekday::Sun)
 }
 
+fn latest_snapshot(root: &Path) -> Option<PathBuf> {
+    let mut best: Option<(std::time::SystemTime, PathBuf)> = None;
+    let entries = fs::read_dir(root).ok()?;
+    for entry in entries {
+        let Ok(entry) = entry else { continue };
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') || !entry.path().join("store.json").is_file() {
+            continue;
+        }
+        let Ok(modified) = entry.metadata().and_then(|meta| meta.modified()) else {
+            continue;
+        };
+        if best.as_ref().map(|(time, _)| modified > *time).unwrap_or(true) {
+            best = Some((modified, entry.path()));
+        }
+    }
+    best.map(|(_, path)| path)
+}
+
 fn create_snapshot(app: &AppHandle, id: &str) -> Result<bool, String> {
     let state = app.state::<BackupState>();
     let target = state.root.join(id);
@@ -125,6 +144,8 @@ fn create_snapshot(app: &AppHandle, id: &str) -> Result<bool, String> {
         if !temporary.join("store.json").is_file() {
             return Err("没有可备份的 store.json".to_string());
         }
+        let previous = latest_snapshot(&state.root);
+        crate::notes::copy_backup(&data_dir, &temporary, previous.as_deref())?;
         fs::rename(&temporary, &target).map_err(|err| err.to_string())
     })();
     if result.is_err() {
@@ -209,6 +230,12 @@ pub fn restore_backup(app: AppHandle, id: String) -> Result<String, String> {
     }
     library.reload_from_disk()?;
     settings.reload_from_disk()?;
+    crate::notes::restore_backup(&data_dir, &source)?;
+    {
+        let notes_state = app.state::<crate::notes::SharedNotes>();
+        let mut notes = notes_state.lock().map_err(|err| err.to_string())?;
+        notes.reload_from_disk()?;
+    }
     let restored_settings = settings.public_settings();
     drop(settings);
     drop(library);
