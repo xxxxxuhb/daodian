@@ -1,0 +1,431 @@
+<!doctype html><html lang="zh-CN" data-theme="celadon"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root[data-theme=celadon]{
+ --bg:#EBF0ED;--card:#FAFCFB;--ink:#0E1613;--ink2:#47564F;--ink3:#74847C;--ink4:#98A69F;
+ --line:#D3DFD9;--line2:#E3EBE6;--acc:#15637B;--acc-soft:#DCE9EF;--fill:#E1E8E4;--fill2:#CCD8D2;
+ --warn:#9C640E;--warn-soft:#F3E7D1;--done:#2C7A58;--quote:#F3F7F5;--code:#F0F4F2;
+ --shadow:0 10px 26px -18px rgba(14,22,19,.45);--imgbg:linear-gradient(135deg,#DDE8E3,#CBD9D2)}
+:root[data-theme=night]{
+ --bg:#0E1116;--card:#161A21;--ink:#E7ECF2;--ink2:#A7B2BF;--ink3:#77828E;--ink4:#59636E;
+ --line:#252C36;--line2:#1D232B;--acc:#5B8DF6;--acc-soft:rgba(91,141,246,.16);--fill:#1E242C;--fill2:#2B333D;
+ --warn:#E0A24C;--warn-soft:rgba(224,162,76,.15);--done:#45B98F;--quote:#171C24;--code:#12171E;
+ --shadow:0 10px 26px -18px rgba(0,0,0,.8);--imgbg:linear-gradient(135deg,#1B232C,#141A21)}
+html,body{margin:0;overflow:hidden;background:transparent}
+body{font-family:"Segoe UI","Microsoft YaHei UI",sans-serif;color:var(--ink)}
+.win{width:900px;height:600px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+body[data-screen=mini] .win{width:380px;height:552px}
+
+.hd{display:flex;align-items:center;gap:7px;padding:11px 16px 5px}
+.hd svg{width:17px;height:17px;color:var(--ink2)}
+.hd b{font-family:Georgia,"Songti SC",serif;font-size:12.5px;font-weight:500;letter-spacing:.14em}
+.hd time{margin-left:auto;font-size:9.5px;color:var(--ink4)}
+.tb{display:flex;align-items:baseline;gap:7px;padding:0 16px 10px}
+.tb h1{font-size:23px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.tb span{font-size:9.5px;color:var(--ink4);font-family:Georgia,serif}
+.tb time{margin-left:auto;font-size:9.5px;color:var(--ink4);font-family:Georgia,serif}
+.tools-row{display:flex;align-items:center;gap:6px;padding:0 16px 10px}
+.chip{height:22px;padding:0 9px;border-radius:999px;background:var(--fill);font-size:10px;color:var(--ink2);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.chip.on{background:var(--acc-soft);color:var(--acc);font-weight:600;box-shadow:inset 0 0 0 1px rgba(21,99,123,.18)}
+.grow{flex:1}
+.search{height:26px;border:1px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;gap:6px;padding:0 8px;font-size:10px;color:var(--ink4);flex:1;max-width:320px}
+
+/* 列表网格 */
+.grid{flex:1;padding:0 16px;display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:108px;gap:9px;align-content:start;overflow:hidden}
+.gcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 11px;display:flex;flex-direction:column;gap:5px;min-height:104px}
+.gcard__top{display:flex;gap:9px}
+.gcard__cover{width:52px;height:52px;border-radius:7px;background:var(--imgbg);flex:none;display:grid;place-items:center;color:var(--ink4);font-size:8px}
+.gcard h3{font-size:12.5px;font-weight:600;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gcard p{font-size:9.8px;color:var(--ink3);line-height:1.55;height:30px;overflow:hidden}
+.gcard .meta{display:flex;align-items:center;gap:6px;margin-top:auto;font-size:8.8px;color:var(--ink4)}
+.gcard .meta em{font-style:normal;color:var(--warn);font-weight:600}
+.gcard .dot{width:3px;height:3px;border-radius:50%;background:var(--fill2)}
+
+/* 分栏 */
+.body{flex:1;display:flex;min-height:0;border-top:1px solid var(--line)}
+.side{width:300px;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.side .search{margin:9px 11px 7px;max-width:none;flex:0 0 auto;height:28px}
+.side .chips{display:flex;gap:4px;padding:0 11px 7px}
+.side .chips .chip{height:20px;font-size:9.2px;padding:0 7px}
+.list{flex:1;overflow:hidden;padding:0 8px}
+.ncard{border-radius:9px;padding:8px 9px;margin-bottom:4px;display:flex;gap:8px}
+.ncard.on{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.ncard__body{min-width:0;flex:1}
+.ncard b{display:block;font-size:11.2px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ncard p{margin-top:2px;font-size:9.2px;color:var(--ink3);line-height:1.5;height:27px;overflow:hidden}
+.ncard .meta{display:flex;gap:5px;margin-top:4px;font-size:8.4px;color:var(--ink4);align-items:center}
+.ncard .meta em{font-style:normal;color:var(--warn);font-weight:600}
+.cover{width:38px;height:38px;border-radius:6px;background:var(--imgbg);flex:none;display:grid;place-items:center;color:var(--ink4);font-size:7px}
+.tag{font-size:8.2px;color:var(--acc);background:var(--acc-soft);border-radius:4px;padding:1px 5px}
+
+/* 编辑器 */
+.editor{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--card)}
+.etools{display:flex;align-items:center;gap:1px;padding:6px 10px;border-bottom:1px solid var(--line2);color:var(--ink3)}
+.etools span{height:20px;min-width:22px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;font-size:10px}
+.etools span.on{background:var(--fill);color:var(--ink)}
+.etools .sep{width:1px;min-width:1px;height:11px;background:var(--line);margin:0 5px;flex:none;padding:0}
+.etools .right{margin-left:auto;font-size:9px;color:var(--ink4)}
+.doc{flex:1;overflow:hidden;padding:14px 26px}
+.doc.wide{padding:14px 0}
+.doc.wide .inner{max-width:640px;margin:0 auto}
+.doc h2{font-size:16.5px;font-weight:600;line-height:1.3}
+.doc .sub{display:flex;align-items:center;gap:6px;margin:5px 0 11px;font-size:8.8px;color:var(--ink4)}
+.doc .sub em{font-style:normal}
+.doc .sub .due{color:var(--warn);font-weight:600}
+.doc p{font-size:10.4px;line-height:1.8;color:var(--ink2);margin-bottom:8px}
+.doc h3{font-size:11.5px;font-weight:600;margin:11px 0 6px;display:flex;align-items:center;gap:5px}
+.doc h3::before{content:"";width:3px;height:11px;border-radius:2px;background:var(--acc);flex:none}
+table{width:100%;border-collapse:collapse;font-size:9.4px;margin-bottom:10px}
+th,td{border:1px solid var(--line);padding:4px 7px;text-align:left}
+th{background:var(--fill);font-size:8.8px;font-weight:600;color:var(--ink2)}
+tbody tr:nth-child(even){background:rgba(14,22,19,.02)}
+td em{font-style:normal;color:var(--done);font-weight:600}
+
+.shot{border:1px solid var(--line);border-radius:7px;overflow:hidden;margin-bottom:10px;background:var(--imgbg)}
+.shot__bar{height:14px;background:rgba(255,255,255,.35);display:flex;align-items:center;gap:3px;padding:0 6px}
+.shot__bar i{width:3px;height:3px;border-radius:50%;background:rgba(14,22,19,.18)}
+.shot__body{height:78px;display:grid;place-items:center}
+.login{width:150px;background:#fff;border-radius:5px;box-shadow:0 4px 12px -6px rgba(14,22,19,.3);padding:8px 9px;display:flex;flex-direction:column;gap:5px}
+.login b{font-size:6.5px;font-weight:600;color:#0E1613}
+.login i{height:7px;border-radius:2px;background:#E7EEEA;display:block}
+.login u{height:8px;border-radius:2px;background:#15637B;display:block;text-decoration:none}
+.caption{font-size:8.2px;color:var(--ink4);text-align:center;margin:-6px 0 10px}
+
+.check{display:flex;align-items:center;gap:6px;font-size:9.8px;color:var(--ink2);margin-bottom:4px}
+.check i{width:11px;height:11px;border-radius:3px;border:1.4px solid var(--fill2);flex:none;display:grid;place-items:center}
+.check.done i{background:var(--done);border-color:var(--done)}
+.check.done i::after{content:"";width:5px;height:2.5px;border-left:1.4px solid #fff;border-bottom:1.4px solid #fff;transform:rotate(-45deg) translate(0,-1px)}
+.check.done span{color:var(--ink4);text-decoration:line-through}
+blockquote{border-left:2px solid var(--acc);background:var(--quote);border-radius:0 6px 6px 0;padding:6px 9px;font-size:9.6px;color:var(--ink2);margin:9px 0;line-height:1.7}
+code{font-family:Consolas,monospace;font-size:9.2px}
+pre{background:var(--code);border-radius:6px;padding:7px 9px;font-family:Consolas,monospace;font-size:9px;color:var(--ink2);line-height:1.7;margin-bottom:9px;overflow:hidden}
+
+.foot{display:flex;align-items:center;padding:6px 10px;border-top:1px solid var(--line);background:var(--bg)}
+.foot .tab{flex:1;height:24px;font-size:10px;color:var(--ink3);display:flex;align-items:center;justify-content:center;gap:4px;border-radius:6px}
+.foot .tab.on{background:var(--card);color:var(--ink);font-weight:600}
+
+/* 原型控制条 */
+.dock{position:fixed;right:10px;bottom:38px;display:flex;gap:4px;padding:5px;border-radius:10px;
+ background:rgba(12,18,15,.88);backdrop-filter:blur(6px);box-shadow:0 8px 22px -12px rgba(0,0,0,.6);z-index:99;
+ font-family:"Segoe UI","Microsoft YaHei UI",sans-serif}
+.dock button{height:22px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:rgba(233,241,236,.6);
+ font-size:10px;cursor:pointer;font-family:inherit}
+.dock button:hover{background:rgba(255,255,255,.08);color:#fff}
+.dock button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600}
+.dock .sep{width:1px;background:rgba(255,255,255,.14);margin:3px 3px}
+.clean .dock{display:none}
+
+/* 屏幕切换 */
+[data-screen=list] .split-only,[data-screen=list] .edit-only,[data-screen=list] .mini-only{display:none!important}
+[data-screen=split] .list-only,[data-screen=split] .edit-only,[data-screen=split] .mini-only{display:none!important}
+[data-screen=edit] .list-only,[data-screen=edit] .split-only,[data-screen=edit] .mini-only{display:none!important}
+[data-screen=mini] .list-only,[data-screen=mini] .split-only,[data-screen=mini] .edit-only{display:none!important}
+body[data-screen=mini] .hd{padding:9px 12px 4px}
+body[data-screen=mini] .tb{padding:0 12px 8px}
+body[data-screen=mini] .tb h1{font-size:20px}
+body[data-screen=mini] .tools-row{padding:0 12px 8px}
+body[data-screen=mini] .grid{grid-template-columns:1fr;padding:0 12px;gap:7px}
+body[data-screen=mini] .gcard{min-height:88px}
+body[data-screen=mini] .foot .tab{font-size:9.5px}
+</style></head><body data-screen="split">
+<div class="win">
+  <div class="hd">
+    <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="18.4" stroke="currentColor" stroke-width="4.8"/><path d="M32 32 40.5 23.5" stroke="currentColor" stroke-width="4.6" stroke-linecap="round"/><circle cx="43.7" cy="20.3" r="6.8" fill="var(--acc)"/></svg>
+    <b>到点</b><time>11月2日 周日</time>
+  </div>
+  <div class="tb"><h1>备忘录</h1><span>6</span><time>08:45</time></div>
+
+  <div class="tools-row list-only">
+    <div class="search">🔍 搜标题和正文…</div>
+    <span class="grow"></span>
+    <span class="chip" style="background:var(--acc);color:#fff;font-weight:600">+ 新建</span>
+  </div>
+  <div class="chips list-only" style="padding:0 16px 9px"><span class="chip on">全部</span><span class="chip">最近编辑</span><span class="chip">有到点</span><span class="chip">归档</span></div>
+  <div class="grid list-only">
+<div class="gcard">
+  <div class="gcard__top">
+    <div class="gcard__cover">截图</div>
+    <div style="min-width:0;flex:1">
+      <h3>1.2 版本提测清单</h3>
+      <p style="margin-top:4px">回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+    </div>
+  </div>
+  <div class="meta"><span class="tag">#版本</span><span>今天 08:12</span><span class="dot"></span><em>10/28 17:30</em></div>
+</div>
+<div class="gcard">
+  <div class="gcard__top">
+    
+    <div style="min-width:0;flex:1">
+      <h3>11 月排期会记录</h3>
+      <p style="margin-top:4px">结论：先做搜索，再做协作；周报模板改成三段式，评审挪到周三。</p>
+    </div>
+  </div>
+  <div class="meta"><span class="tag">#会议</span><span>昨天 19:40</span></div>
+</div>
+<div class="gcard">
+  <div class="gcard__top">
+    
+    <div style="min-width:0;flex:1">
+      <h3>支付超时排障过程</h3>
+      <p style="margin-top:4px">现象：10% 订单回调延迟 30s 以上。定位到连接池被慢查询占满。</p>
+    </div>
+  </div>
+  <div class="meta"><span class="tag">#排障</span><span>10/30</span></div>
+</div>
+<div class="gcard">
+  <div class="gcard__top">
+    
+    <div style="min-width:0;flex:1">
+      <h3>周报素材</h3>
+      <p style="margin-top:4px">这周做了：备忘录方案、时间轴窄屏重排、珠子随机动作。</p>
+    </div>
+  </div>
+  <div class="meta"><span>10/28</span></div>
+</div>
+<div class="gcard">
+  <div class="gcard__top">
+    
+    <div style="min-width:0;flex:1">
+      <h3>读书笔记 · 深度工作</h3>
+      <p style="margin-top:4px">把注意力当成稀缺资源来排班，而不是排任务。</p>
+    </div>
+  </div>
+  <div class="meta"><span>10/25</span></div>
+</div>
+<div class="gcard">
+  <div class="gcard__top">
+    
+    <div style="min-width:0;flex:1">
+      <h3>需求：批量导入</h3>
+      <p style="margin-top:4px">支持 CSV 和 Excel；重复项按标题 + 时间判重。</p>
+    </div>
+  </div>
+  <div class="meta"><span class="tag">#需求</span><span>10/24</span></div>
+</div></div>
+
+  <div class="body split-only">
+    <div class="side">
+      <div class="search">🔍 搜标题和正文…</div>
+      <div class="chips"><span class="chip on">全部</span><span class="chip">最近</span><span class="chip">有到点</span></div>
+      <div class="list">
+<div class="ncard on">
+  <div class="ncard__body">
+    <b>1.2 版本提测清单</b>
+    <p>回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+    <div class="meta"><span class="tag">#版本</span><span>今天 08:12</span><span>·</span><em>10/28 17:30</em></div>
+  </div>
+  <div class="cover">截图</div>
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>11 月排期会记录</b>
+    <p>结论：先做搜索，再做协作；周报模板改成三段式，评审挪到周三。</p>
+    <div class="meta"><span class="tag">#会议</span><span>昨天 19:40</span></div>
+  </div>
+  
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>支付超时排障过程</b>
+    <p>现象：10% 订单回调延迟 30s 以上。定位到连接池被慢查询占满。</p>
+    <div class="meta"><span class="tag">#排障</span><span>10/30</span></div>
+  </div>
+  
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>周报素材</b>
+    <p>这周做了：备忘录方案、时间轴窄屏重排、珠子随机动作。</p>
+    <div class="meta"><span>10/28</span></div>
+  </div>
+  
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>读书笔记 · 深度工作</b>
+    <p>把注意力当成稀缺资源来排班，而不是排任务。</p>
+    <div class="meta"><span>10/25</span></div>
+  </div>
+  
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>需求：批量导入</b>
+    <p>支持 CSV 和 Excel；重复项按标题 + 时间判重。</p>
+    <div class="meta"><span class="tag">#需求</span><span>10/24</span></div>
+  </div>
+  
+</div></div>
+    </div>
+    
+<div class="editor ">
+  <div class="etools">
+    <span class="on">H1</span><span>H2</span><span class="sep"></span>
+    <span class="on"><b>B</b></span><span><i>I</i></span><span>U</span><span class="sep"></span>
+    <span>☰</span><span>“</span><span>☑</span><span>▦</span><span>▣</span><span>🔗</span>
+    <span class="right">已保存 08:12</span>
+  </div>
+  <div class="doc ">
+    <div class="">
+      <h2>1.2 版本提测清单</h2>
+      <div class="sub"><span class="tag">#版本</span><span>今天 08:12 编辑</span><span>·</span><span class="due">到点 10/28 17:30</span></div>
+      <p>回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+      <h3>一、环境</h3>
+      <table>
+        <tr><th>环境</th><th>负责人</th><th>状态</th><th>完成时间</th></tr>
+        <tr><td>预发</td><td>张三</td><td><em>已回归</em></td><td>10/27 15:20</td></tr>
+        <tr><td>生产灰度</td><td>李四</td><td>待回归</td><td>—</td></tr>
+      </table>
+      <h3>二、截图</h3>
+      <div class="shot">
+        <div class="shot__bar"><i></i><i></i><i></i></div>
+        <div class="shot__body">
+          <div class="login"><b>登录</b><i></i><i></i><u></u></div>
+        </div>
+      </div>
+      <div class="caption">登录页 · 失败 5 次锁定</div>
+      <h3>三、检查项</h3>
+      <div class="check done"><i></i><span>登录失败 5 次锁定</span></div>
+      <div class="check"><i></i><span>支付回调重试 3 次后告警</span></div>
+      <div class="check"><i></i><span>订单导出 1 万条不超时</span></div>
+      <blockquote>回归不通过就别发。灰度先放 5%，观察 30 分钟再放全量。</blockquote>
+    </div>
+  </div>
+</div>
+  </div>
+
+  <div class="body edit-only">
+<div class="editor wide">
+  <div class="etools">
+    <span class="on">H1</span><span>H2</span><span class="sep"></span>
+    <span class="on"><b>B</b></span><span><i>I</i></span><span>U</span><span class="sep"></span>
+    <span>☰</span><span>“</span><span>☑</span><span>▦</span><span>▣</span><span>🔗</span>
+    <span class="right">已保存 08:12</span>
+  </div>
+  <div class="doc wide">
+    <div class="inner">
+      <h2>1.2 版本提测清单</h2>
+      <div class="sub"><span class="tag">#版本</span><span>今天 08:12 编辑</span><span>·</span><span class="due">到点 10/28 17:30</span></div>
+      <p>回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+      <h3>一、环境</h3>
+      <table>
+        <tr><th>环境</th><th>负责人</th><th>状态</th><th>完成时间</th></tr>
+        <tr><td>预发</td><td>张三</td><td><em>已回归</em></td><td>10/27 15:20</td></tr>
+        <tr><td>生产灰度</td><td>李四</td><td>待回归</td><td>—</td></tr>
+      </table>
+      <h3>二、截图</h3>
+      <div class="shot">
+        <div class="shot__bar"><i></i><i></i><i></i></div>
+        <div class="shot__body">
+          <div class="login"><b>登录</b><i></i><i></i><u></u></div>
+        </div>
+      </div>
+      <div class="caption">登录页 · 失败 5 次锁定</div>
+      <h3>三、检查项</h3>
+      <div class="check done"><i></i><span>登录失败 5 次锁定</span></div>
+      <div class="check"><i></i><span>支付回调重试 3 次后告警</span></div>
+      <div class="check"><i></i><span>订单导出 1 万条不超时</span></div>
+      <blockquote>回归不通过就别发。灰度先放 5%，观察 30 分钟再放全量。</blockquote>
+    </div>
+  </div>
+</div></div>
+
+  <div class="body mini-only" style="border-top:0">
+    <div class="side" style="width:100%;border-right:0">
+      <div class="search" style="margin:0 12px 8px">🔍 搜标题和正文…</div>
+      <div class="chips" style="padding:0 12px 8px"><span class="chip on">全部</span><span class="chip">最近</span><span class="chip">有到点</span></div>
+      <div class="list" style="padding:0 10px">
+<div class="ncard on">
+  <div class="ncard__body">
+    <b>1.2 版本提测清单</b>
+    <p>回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+    <div class="meta"><span class="tag">#版本</span><span>今天 08:12</span><span>·</span><em>10/28 17:30</em></div>
+  </div>
+  <div class="cover">截图</div>
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>11 月排期会记录</b>
+    <p>结论：先做搜索，再做协作；周报模板改成三段式，评审挪到周三。</p>
+    <div class="meta"><span class="tag">#会议</span><span>昨天 19:40</span></div>
+  </div>
+  
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>支付超时排障过程</b>
+    <p>现象：10% 订单回调延迟 30s 以上。定位到连接池被慢查询占满。</p>
+    <div class="meta"><span class="tag">#排障</span><span>10/30</span></div>
+  </div>
+  
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>周报素材</b>
+    <p>这周做了：备忘录方案、时间轴窄屏重排、珠子随机动作。</p>
+    <div class="meta"><span>10/28</span></div>
+  </div>
+  
+</div>
+<div class="ncard ">
+  <div class="ncard__body">
+    <b>读书笔记 · 深度工作</b>
+    <p>把注意力当成稀缺资源来排班，而不是排任务。</p>
+    <div class="meta"><span>10/25</span></div>
+  </div>
+  
+</div></div>
+    </div>
+  </div>
+
+  <div class="dock">
+  <button data-s="split">分栏</button><button data-s="list">列表</button><button data-s="edit">编辑器</button><button data-s="mini">迷你</button>
+  <span class="sep"></span>
+  <button data-t="celadon">青瓷</button><button data-t="night">夜航</button>
+</div>
+
+<div class="foot"><span class="tab">待办</span><span class="tab">计划</span><span class="tab on">备忘录</span><span class="tab">已完成</span></div>
+</div>
+<script>
+const params = new URLSearchParams(location.hash.slice(1));
+let theme = params.get("theme") || "celadon";
+let screen = params.get("screen") || "split";
+const clean = params.get("clean") === "1";
+if (clean) document.body.classList.add("clean");
+
+function apply() {
+  document.documentElement.dataset.theme = theme;
+  document.body.dataset.screen = screen;
+  document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === screen));
+  document.querySelectorAll("[data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === theme));
+  const hash = "theme=" + theme + "&screen=" + screen + (clean ? "&clean=1" : "");
+  if (location.hash.slice(1) !== hash) history.replaceState(null, "", "#" + hash);
+}
+document.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { screen = b.dataset.s; apply(); }));
+document.querySelectorAll("[data-t]").forEach(b => b.addEventListener("click", () => { theme = b.dataset.t; apply(); }));
+
+// 点列表卡片：高亮 + 编辑器跟着换标题/摘要
+document.querySelectorAll(".ncard").forEach(card => {
+  card.addEventListener("click", () => {
+    document.querySelectorAll(".ncard").forEach(c => c.classList.remove("on"));
+    card.classList.add("on");
+    const title = card.querySelector("b").textContent;
+    const summary = card.querySelector("p").textContent;
+    document.querySelectorAll(".doc h2").forEach(el => el.textContent = title);
+    document.querySelectorAll(".doc > .inner > p, .doc > p").forEach(el => el.textContent = summary);
+    document.querySelectorAll(".doc .sub").forEach(el => {
+      const tag = el.querySelector(".tag");
+      const cardTag = card.querySelector(".meta .tag");
+      if (tag && cardTag) tag.textContent = cardTag.textContent;
+    });
+  });
+});
+
+// Esc 回分栏；1-4 切屏
+addEventListener("keydown", e => {
+  if (e.key === "Escape") { screen = "split"; apply(); }
+  const map = { "1": "split", "2": "list", "3": "edit", "4": "mini" };
+  if (map[e.key]) { screen = map[e.key]; apply(); }
+});
+apply();
+</script>
+</body></html>

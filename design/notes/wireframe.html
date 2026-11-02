@@ -1,0 +1,173 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBF0ED;--card:#FAFCFB;--ink:#0E1613;--ink2:#47564F;--ink3:#74847C;--ink4:#98A69F;
+--line:#D3DFD9;--line2:#E3EBE6;--acc:#15637B;--acc-soft:#DCE9EF;--fill:#E1E8E4;--fill2:#CCD8D2;
+--warn:#9C640E;--done:#2C7A58;--sans:"Segoe UI","Microsoft YaHei UI",sans-serif;--serif:Georgia,"Songti SC",serif}
+html,body{margin:0;background:#0B0D10;overflow:hidden}
+body{font-family:var(--sans);color:#E7ECF2;padding:26px 30px}
+.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:16px}
+.kicker{font-size:9px;letter-spacing:.24em;color:#59636E}
+h1{margin:5px 0 0;font-size:20px;font-weight:600}
+.head p{margin-left:auto;font-size:10px;color:#8B95A1;text-align:right;line-height:1.8}
+.cols{display:flex;gap:20px;align-items:flex-start}
+
+.win{width:900px;height:560px;background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;color:var(--ink)}
+.hd{display:flex;align-items:center;gap:7px;padding:10px 14px 6px;font-size:12px}
+.hd svg{width:16px;height:16px;color:var(--ink2)}
+.hd b{font-family:var(--serif);font-size:12px;letter-spacing:.12em;font-weight:500}
+.hd time{margin-left:auto;font-size:9px;color:var(--ink4)}
+.titlebar{display:flex;align-items:baseline;gap:6px;padding:0 14px 8px}
+.titlebar h2{font-size:19px;font-weight:600}
+.titlebar span{font-size:9px;color:var(--ink4);font-family:var(--serif)}
+.titlebar time{margin-left:auto;font-size:9px;color:var(--ink4);font-family:var(--serif)}
+
+.body{flex:1;display:flex;min-height:0;border-top:1px solid var(--line)}
+.side{width:280px;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.search{margin:10px 12px 8px;height:28px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+  display:flex;align-items:center;gap:6px;padding:0 9px;font-size:10.5px;color:var(--ink4)}
+.chips{display:flex;gap:5px;padding:0 12px 8px}
+.chip{height:20px;padding:0 8px;border-radius:999px;background:var(--fill);font-size:9.5px;color:var(--ink2);display:inline-flex;align-items:center}
+.chip.on{background:var(--acc-soft);color:var(--acc);font-weight:600}
+.list{flex:1;overflow:hidden;padding:0 10px}
+.ncard{border-radius:9px;padding:8px 9px;margin-bottom:6px;background:transparent}
+.ncard.on{background:var(--card);border:1px solid var(--line)}
+.ncard b{display:block;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ncard p{margin-top:3px;font-size:9.5px;color:var(--ink3);line-height:1.5;height:29px;overflow:hidden}
+.ncard .meta{display:flex;gap:6px;margin-top:5px;font-size:8.5px;color:var(--ink4);align-items:center}
+.ncard .meta em{font-style:normal;color:var(--warn)}
+.ncard .meta i{width:14px;height:11px;border-radius:2px;background:var(--fill2);display:inline-block}
+
+.editor{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--card)}
+.tools{display:flex;align-items:center;gap:2px;padding:7px 12px;border-bottom:1px solid var(--line2);font-size:10px;color:var(--ink3)}
+.tools span{height:20px;padding:0 6px;display:inline-flex;align-items:center;border-radius:5px;font-size:10px}
+.tools span.on{background:var(--fill);color:var(--ink)}
+.tools i{width:1px;height:12px;background:var(--line);margin:0 4px}
+.doc{flex:1;padding:14px 26px;overflow:hidden}
+.doc h3{font-size:17px;font-weight:600;margin-bottom:4px}
+.doc .sub{font-size:9px;color:var(--ink4);margin-bottom:12px;display:flex;gap:8px;align-items:center}
+.doc .sub em{font-style:normal;background:var(--fill);color:var(--ink2);border-radius:999px;padding:1px 6px;font-size:8.5px}
+.doc p{font-size:10.5px;line-height:1.75;color:var(--ink2);margin-bottom:8px}
+.doc h4{font-size:12px;font-weight:600;margin:10px 0 6px}
+table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:9.5px}
+th,td{border:1px solid var(--line);padding:4px 7px;text-align:left}
+th{background:var(--fill);font-weight:600;font-size:9px;color:var(--ink2)}
+tbody tr:nth-child(even){background:rgba(14,22,19,.015)}
+td em{font-style:normal;color:var(--done)}
+.imgblock{border:1px solid var(--line);border-radius:7px;height:74px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#E7EEEA,#D7E2DC);color:var(--ink4);font-size:9px;margin-bottom:9px;position:relative}
+.imgblock::after{content:"点击放大";position:absolute;right:6px;bottom:4px;font-size:8px;color:var(--ink4)}
+.check{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink2);margin-bottom:4px}
+.check i{width:11px;height:11px;border-radius:3px;border:1.4px solid var(--fill2);display:inline-block}
+.check.done i{background:var(--done);border-color:var(--done)}
+.check.done{color:var(--ink4);text-decoration:line-through}
+
+.foot{display:flex;align-items:center;padding:6px 10px;border-top:1px solid var(--line);background:var(--bg)}
+.foot .tab{flex:1;height:24px;font-size:10px;color:var(--ink3);display:flex;align-items:center;justify-content:center;gap:4px;border-radius:6px}
+.foot .tab.on{background:var(--card);color:var(--ink);font-weight:600}
+
+.sidepanel{flex:1;display:flex;flex-direction:column;gap:12px}
+.box{border:1px solid #1C222A;border-radius:11px;background:#101419;padding:12px 14px}
+.box h4{margin:0 0 8px;font-size:9px;letter-spacing:.18em;color:#59636E;font-weight:600}
+.r{display:flex;gap:8px;font-size:10px;color:#A9B4C2;line-height:1.6;padding:4px 0;border-bottom:1px dashed #1A1F26}
+.r:last-child{border-bottom:0}
+.r b{width:52px;flex:none;color:#E7ECF2;font-weight:600}
+.note{font-size:9.5px;color:#78828E;line-height:1.8}
+.note b{color:#C3CCD6}
+</style></head><body>
+<div class="head">
+  <div><div class="kicker">到点 · 备忘录</div><h1>列表 + 编辑器</h1></div>
+  <p>标准窗 900 × 560 · 列表 280 固定，编辑器自适应<br>表格与图片都走现有 token</p>
+</div>
+<div class="cols">
+  <div class="win">
+    <div class="hd"><svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="18.4" stroke="currentColor" stroke-width="4.8"/><path d="M32 32 40.5 23.5" stroke="currentColor" stroke-width="4.6" stroke-linecap="round"/><circle cx="43.7" cy="20.3" r="6.8" fill="#15637B"/></svg><b>到点</b><time>11月2日 周日</time></div>
+    <div class="titlebar"><h2>备忘录</h2><span>12</span><time>08:45</time></div>
+    <div class="body">
+      <div class="side">
+        <div class="search">🔍 搜标题和正文…</div>
+        <div class="chips"><span class="chip on">全部</span><span class="chip">最近</span><span class="chip">有到点</span></div>
+        <div class="list">
+          
+<div class="ncard on">
+  <b>1.2 版本提测清单</b>
+  <p>回归范围：登录、订单、支付。重点看重试和幂等……</p>
+  <div class="meta"><span>#版本</span><span>今天 08:12</span><em>10/28 17:30</em><i></i></div>
+</div>
+          
+<div class="ncard ">
+  <b>11 月排期会记录</b>
+  <p>结论：先做搜索，再做协作；周报模板改成三段式……</p>
+  <div class="meta"><span>#会议</span><span>昨天 19:40</span></div>
+</div>
+          
+<div class="ncard ">
+  <b>支付超时排障过程</b>
+  <p>现象：10% 订单回调延迟 30s 以上。查到是连接池……</p>
+  <div class="meta"><span>#排障</span><span>10/30</span></div>
+</div>
+          
+<div class="ncard ">
+  <b>周报素材</b>
+  <p>这周做了：备忘录方案、时间轴窄屏重排、珠子动效……</p>
+  <div class="meta"><span>10/28</span></div>
+</div>
+          
+<div class="ncard ">
+  <b>读书笔记 · 深度工作</b>
+  <p>把注意力当成稀缺资源来排班，而不是排任务……</p>
+  <div class="meta"><span>10/25</span></div>
+</div>
+        </div>
+      </div>
+      <div class="editor">
+        <div class="tools">
+          <span class="on">H1</span><span>H2</span><i></i><span class="on">B</span><span>I</span><span>U</span><i></i>
+          <span>≡</span><span>“</span><span>☑</span><i></i><span>▦</span><span>▣</span><span>🔗</span>
+        </div>
+        <div class="doc">
+          <h3>1.2 版本提测清单</h3>
+          <div class="sub"><em>#版本</em><span>今天 08:12 编辑</span><span>·</span><span>到点 10/28 17:30</span></div>
+          <p>回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+          <h4>一、环境</h4>
+          <table>
+            <tr><th>环境</th><th>负责人</th><th>状态</th></tr>
+            <tr><td>预发</td><td>张三</td><td><em>已回归</em></td></tr>
+            <tr><td>生产灰度</td><td>李四</td><td>待回归</td></tr>
+          </table>
+          <h4>二、截图</h4>
+          <div class="imgblock">登录页 · 1280 × 720</div>
+          <div class="check done"><i></i>登录失败 5 次锁定</div>
+          <div class="check"><i></i>支付回调重试 3 次后告警</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="tab">待办</span><span class="tab">计划</span><span class="tab on">备忘录</span><span class="tab">已完成</span>
+    </div>
+  </div>
+
+  <div class="sidepanel">
+    <div class="box">
+      <h4>布局</h4>
+      <div class="r"><b>列表</b><span>280 固定；mini 窗折叠成抽屉，用左上角返回</span></div>
+      <div class="r"><b>编辑器</b><span>自适应；正文最大 720 居中，行高 1.7</span></div>
+      <div class="r"><b>卡片</b><span>高 64，摘要两行，右上角 ⋯ 出菜单</span></div>
+      <div class="r"><b>选中态</b><span>只有选中的卡片有底板，其余靠留白分隔</span></div>
+    </div>
+    <div class="box">
+      <h4>块的样子</h4>
+      <div class="r"><b>表格</b><span>表头浅底、偶数行 2% 描底、列宽可拖；窄屏横向滚动</span></div>
+      <div class="r"><b>图片</b><span>圆角 6，默认显示 480 缩略图，点击进遮罩看原图</span></div>
+      <div class="r"><b>清单</b><span>勾选后划线变灰，和待办同一套绿</span></div>
+      <div class="r"><b>代码</b><span>等宽 12.5，浅底圆角 8，不搞语法着色也可用</span></div>
+    </div>
+    <div class="box">
+      <h4>要守住的两条</h4>
+      <p class="note">
+        <b>不给编辑区加新颜色</b>：表格、引用、代码块全部用 --fill / --line / --ink 系列，暗色主题自动对。<br>
+        <b>工具栏只放高频</b>：加粗、标题、列表、表格、图片、链接；其余进 ⋯，避免 900 宽被塞满。
+      </p>
+    </div>
+  </div>
+</div>
+</body></html>
