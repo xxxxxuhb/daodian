@@ -82,6 +82,57 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 }
 .rail>*{position:relative;z-index:1}
 .brand{display:flex;gap:12px;align-items:flex-start;padding:2px 8px 0;margin-bottom:28px}
+.brand .cloud-btn{margin-left:auto}
+.cloud-btn{width:28px;height:28px;border:0;border-radius:8px;display:grid;place-items:center;background:transparent;color:inherit;cursor:pointer;position:relative}
+.cloud-btn:hover{background:var(--rail-hover);color:var(--rail-ink)}
+.cloud-btn.ok{color:var(--rail-ink)}
+.cloud-btn.bad{color:var(--danger)}
+.cloud-btn.syncing svg{animation:cloud-spin 1s linear infinite}
+.cloud-btn .dot{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--danger)}
+@keyframes cloud-spin{to{transform:rotate(360deg)}}
+.cloud-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cloud-lead{color:var(--ink-3);font-size:12.5px;line-height:1.7}
+.cloud-lead b{color:var(--ink-2);font-weight:600}
+.cloud-go{width:100%;height:36px;margin-top:14px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:600 12.5px/1 var(--sans);cursor:pointer}
+.cloud-go:disabled{opacity:.55;cursor:default}
+.cloud-links{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:8px;color:var(--ink-4);font-size:11.5px;line-height:1.7}
+.cloud-link{border:0;padding:0;background:transparent;color:var(--accent);font:inherit;cursor:pointer}
+.cloud-field{display:flex;flex-direction:column;gap:5px;margin-top:12px;color:var(--ink-3);font-size:11px}
+.cloud-field input{height:32px}
+.cloud-steps{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.cloud-step{display:flex;gap:8px;align-items:center;color:var(--ink-3);font-size:12px;line-height:1.6}
+.cloud-step i{width:16px;height:16px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-style:normal;font-size:10px;display:grid;place-items:center;flex:none}
+.cloud-head{display:flex;align-items:center;gap:8px}
+.cloud-head>.btn{margin-left:auto}
+.cloud-sw{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;padding:0;color:var(--ink-2);font:12.5px/1 var(--sans);cursor:pointer}
+.cloud-sw:disabled{opacity:.5;cursor:default}
+.cloud-sw i{width:30px;height:17px;border-radius:999px;background:var(--fill-2);position:relative;flex:none}
+.cloud-sw i::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:left .2s}
+.cloud-sw.on i{background:var(--accent)}
+.cloud-sw.on i::after{left:15px}
+.cloud-repo{margin-top:10px;color:var(--ink-3);font-size:12.5px}
+.cloud-repo b{color:var(--ink-2);font-family:Consolas,monospace;font-weight:600}
+.cloud-repo span{margin-left:6px}
+.cloud-state{display:flex;align-items:center;gap:6px;margin-top:8px;color:var(--ink-3);font-size:12px}
+.cloud-state i{width:6px;height:6px;border-radius:50%;background:var(--fill-2);flex:none}
+.cloud-state.ok{color:var(--done)}
+.cloud-state.ok i{background:var(--done)}
+.cloud-state.bad{color:var(--danger)}
+.cloud-state.bad i{background:var(--danger)}
+.cloud-state.syncing i{background:var(--accent)}
+.cloud-adv{margin-top:16px;padding-top:12px;border-top:1px solid var(--line-2)}
+.cloud-adv__t{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:0;color:var(--ink-2);font:12.5px/1 var(--sans);cursor:pointer}
+.cloud-adv__t span{color:var(--ink-4);font-size:10px}
+.cloud-adv__body{margin-top:12px}
+.cloud-interval{display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:var(--ink-4);font-size:12px}
+.cloud-kv{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--ink-3);font-size:12px}
+.cloud-kv b{color:var(--ink-2);font-family:Consolas,monospace;font-weight:600}
+.cloud-actions{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)}
+.cloud-stop{margin-left:auto;color:var(--danger)}
+.cloud-token-row{display:flex;gap:8px}
+.cloud-token-row input{flex:1;min-width:0}
+.cloud-toast{display:flex;align-items:center;gap:8px;margin-top:16px;padding:9px 12px;border-radius:8px;background:var(--ink);color:var(--card);font-size:12px}
+.cloud-toast button{margin-left:auto;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;font:inherit}
 .mark{display:block;flex:none;color:var(--rail-ink)}
 .mark .bead{fill:var(--mark-hand)}
 .brand b{display:block;font-family:var(--serif);font-size:23px;font-weight:500;letter-spacing:.14em;line-height:1}
@@ -237,6 +288,9 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 }
 .settings-drawer textarea{resize:vertical}
 .settings-drawer input:focus,.settings-drawer select:focus,.settings-drawer textarea:focus{border-color:var(--accent)}
+.settings-drawer .cloud-name[type="text"]{width:118px;height:24px;margin:0 4px;padding:0 6px;font-family:Consolas,monospace;font-weight:600}
+.settings-drawer .cloud-interval input[type="number"]{box-sizing:border-box;width:72px;height:28px;padding:0 8px;line-height:26px;text-align:center;-moz-appearance:textfield;appearance:textfield}
+.settings-drawer .cloud-interval input[type="number"]::-webkit-outer-spin-button,.settings-drawer .cloud-interval input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .settings-body,.settings-drawer textarea{scrollbar-width:none;-ms-overflow-style:none}
 .settings-body::-webkit-scrollbar,.settings-drawer textarea::-webkit-scrollbar{display:none;width:0;height:0}
 .settings-check{display:flex;align-items:center;gap:9px;color:var(--ink-2);font-size:12.5px}

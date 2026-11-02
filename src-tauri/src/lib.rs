@@ -1,6 +1,7 @@
 mod autostart;
 mod backup;
 mod calendar;
+mod cloud;
 mod deepseek;
 mod domain;
 mod logging;
@@ -140,6 +141,7 @@ pub fn run() {
             }
             remind::spawn(app.handle().clone());
             backup::spawn(app.handle().clone());
+            cloud::spawn(app.handle().clone());
             logging::info(format_args!("reminder worker spawned; setup complete"));
             Ok(())
         })
@@ -194,6 +196,15 @@ pub fn run() {
             notes::note_attachment_chunk,
             notes::note_attachment_finish,
             notes::note_export,
+            cloud::cloud_status,
+            cloud::cloud_save_config,
+            cloud::cloud_set_token,
+            cloud::cloud_clear_token,
+            cloud::cloud_create_repo,
+            cloud::cloud_test,
+            cloud::cloud_sync_now,
+            cloud::cloud_disconnect,
+            cloud::cloud_open_token_page,
             frontend_log,
         ]);
 

@@ -135,6 +135,9 @@ pub fn delete_plan(app: AppHandle, store: State<SharedStore>, id: String) -> Res
     if guard.doc.plans.len() == before {
         return Err("这份计划已经不在了".into());
     }
+    if let Ok(dir) = guard.data_dir() {
+        crate::cloud::state::add_tombstone(dir, "plans", &id, now_ms());
+    }
     guard.persist()?;
     drop(guard);
     super::notify_changed(&app);

@@ -39,6 +39,8 @@
 
 **模板**　「提测 → 发布 → 观察」这类固定节奏存成模板，下次一键铺开；常用的模板会出现在输入框下面。
 
+**备忘录**　一篇能挂时间点的笔记：富文本、表格、图片、任务清单都能放，截图直接粘贴。列表按「全部 / 最近 / 有到点 / 归档」筛，可置顶、可导出 Markdown 或 HTML；设了时间的笔记到点也会提醒。
+
 **提醒**　到点弹系统通知，同时窗口里出现一张「珠子落盘」卡片——标志上那颗珠从盘沿落到盘心。稍后不用点按钮：把珠子往右拖，落在 10 分钟 / 30 分钟 / 1 小时哪个刻度，就延后到哪。
 
 <img src="design/notify/out/card.png" width="420" alt="提醒卡片">
@@ -85,12 +87,17 @@
 
 设置是一个抽屉，分十一组：外观与窗口、重复与工作日、工作时间、周报、日历、飞书与企业微信、桌面珠子、快速记录、DeepSeek、数据备份与恢复、数据导出。
 
+## 帮助
+
+给使用者看的手册在 [docs/帮助.md](docs/帮助.md)：从建第一条待办，到托盘、珠子、备份和换机器，都写在里面。
+
 ## 技术栈
 
 | | |
 | --- | --- |
 | 桌面壳 | Tauri 2（Rust） |
 | 界面 | Vue 3 + TypeScript + Vite，没有组件库，组件和样式都是自己的 |
+| 编辑器 | Tiptap（ProseMirror），表格与图片都走官方扩展 |
 | 存储 | 本机 JSON，不上传 |
 | 通知 | Windows：WinRT toast + 自注册 AUMID；其他平台：`tauri-plugin-notification` |
 | 导出 | SheetJS 生成 `.xlsx` |
@@ -121,6 +128,7 @@ remind.rs  线程：算下一个到点 → 睡到那时 → 检查 → 发通知
 │  ├─ features/todos/        待办页、行、编辑器、周报
 │  ├─ features/plans/        计划页、卡片、时间轴、编辑器
 │  ├─ features/pet/          桌面珠子
+│  ├─ features/notes/        备忘录：列表、编辑器、表格与图片节点
 │  ├─ features/settings/     设置抽屉
 │  ├─ domain/                类型、时间、排序、展示格式、重复规则
 │  ├─ data/ · api/           读写封装（invoke 到 Rust）
@@ -133,6 +141,7 @@ remind.rs  线程：算下一个到点 → 睡到那时 → 检查 → 发通知
 │  ├─ src/pet.rs             桌面珠子窗口（位置、吸附、点击区域）
 │  ├─ src/quick_capture.rs   全局快捷键与快速记录小窗
 │  ├─ src/calendar.rs        .ics 解析
+│  ├─ src/notes.rs           备忘录存储、附件、导出
 │  ├─ src/webhook.rs         飞书 / 企业微信推送
 │  ├─ src/deepseek.rs        自然语言解析、生成计划
 │  ├─ src/backup.rs          每日快照与恢复
@@ -167,6 +176,8 @@ cargo check --tests
 | --- | --- |
 | `store.json` | 待办与计划 |
 | `templates.json` | 计划模板 |
+| `notes/` | 备忘录：index.json + 每篇一个文件 |
+| `attachments/` | 笔记里的图片，按 sha256 命名 |
 | `settings.json` | 全部设置 |
 | `deepseek-key.dpapi` | DeepSeek Key（DPAPI 加密，只在本机解不开） |
 | `backups/` | 每日快照，按日期命名，可在设置里列出并一键恢复 |
@@ -192,6 +203,9 @@ cargo check --tests
 - [design/logo/README.md](design/logo/README.md) —— 标志的概念、构造、尺寸与用法
 - [design/notify/方案.md](design/notify/方案.md) —— 提醒方案：系统通知、珠子落盘、打扰预算
 - [design/pet/sheet.html](design/pet/sheet.html) —— 桌面珠子的状态与交互
+- [design/history/方案.md](design/history/方案.md) —— 版本历史与回滚
+- [design/notes/方案.md](design/notes/方案.md) —— 备忘录
+- [design/notes/云同步方案.md](design/notes/云同步方案.md) —— Gitee 私有库同步
 
 原型是可点的静态 HTML，图在各自的 `out/` 下。
 

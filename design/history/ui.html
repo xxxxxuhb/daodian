@@ -1,0 +1,278 @@
+<!doctype html><html lang="zh-CN" data-theme="celadon"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root[data-theme=celadon]{
+--bg:#EBF0ED;--card:#FAFCFB;--ink:#0E1613;--ink2:#47564F;--ink3:#74847C;--ink4:#98A69F;
+--line:#D3DFD9;--line2:#E3EBE6;--acc:#15637B;--acc-soft:#DCE9EF;--fill:#E1E8E4;--fill2:#CCD8D2;
+--warn:#9C640E;--warn-soft:#F3E7D1;--done:#2C7A58;--del:#A33C3C;--del-soft:#F3E0DE;
+--dim:rgba(14,22,19,.42);--shadow:0 18px 40px -22px rgba(14,22,19,.5)}
+:root[data-theme=night]{
+--bg:#0E1116;--card:#161A21;--ink:#E7ECF2;--ink2:#A7B2BF;--ink3:#77828E;--ink4:#59636E;
+--line:#252C36;--line2:#1D232B;--acc:#5B8DF6;--acc-soft:rgba(91,141,246,.16);--fill:#1E242C;--fill2:#2B333D;
+--warn:#E0A24C;--warn-soft:rgba(224,162,76,.15);--done:#45B98F;--del:#E07A7A;--del-soft:rgba(224,122,122,.14);
+--dim:rgba(0,0,0,.55);--shadow:0 18px 40px -22px rgba(0,0,0,.8)}
+html,body{margin:0;overflow:hidden;background:transparent}
+body{font-family:"Segoe UI","Microsoft YaHei UI",sans-serif;color:var(--ink)}
+.win{width:900px;height:600px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;position:relative}
+
+.hd{display:flex;align-items:center;gap:7px;padding:11px 16px 5px}
+.hd svg{width:17px;height:17px;color:var(--ink2)}
+.hd b{font-family:Georgia,"Songti SC",serif;font-size:12.5px;font-weight:500;letter-spacing:.14em}
+.hd time{margin-left:auto;font-size:9.5px;color:var(--ink4)}
+.tb{display:flex;align-items:baseline;gap:7px;padding:0 16px 9px}
+.tb h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.tb span{font-size:9.5px;color:var(--ink4);font-family:Georgia,serif}
+.tb time{margin-left:auto;font-size:9.5px;color:var(--ink4);font-family:Georgia,serif}
+
+.body{flex:1;display:flex;min-height:0;border-top:1px solid var(--line);position:relative}
+.pane{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--card)}
+.pane.is-dim{filter:saturate(.6);opacity:.55}
+.ptools{display:flex;align-items:center;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line2);font-size:10px;color:var(--ink3)}
+.ptools .sp{flex:1}
+.btn{height:22px;padding:0 9px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink2);font-size:10px;display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.danger{color:var(--del);border-color:var(--del-soft)}
+.doc{flex:1;padding:14px 24px;overflow:hidden}
+.doc h2{font-size:17px;font-weight:600}
+.doc .sub{margin:4px 0 10px;font-size:9px;color:var(--ink4);display:flex;gap:6px;align-items:center}
+.doc p{font-size:10.4px;line-height:1.8;color:var(--ink2);margin-bottom:8px}
+.doc h3{font-size:11.5px;font-weight:600;margin:10px 0 6px;color:var(--ink)}
+.stages{display:flex;flex-direction:column;gap:5px}
+.stage{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center;font-size:10px;padding:4px 6px;border-radius:6px;background:var(--fill)}
+.stage .t{font-family:Georgia,serif;font-size:9.5px;color:var(--ink3)}
+.stage .n{color:var(--ink2)}
+.stage.done .n{text-decoration:line-through;color:var(--ink4)}
+.stage .s{font-size:8.5px;color:var(--ink4)}
+.stage.next{background:var(--acc-soft)}
+.stage.next .n{color:var(--acc);font-weight:600}
+.stage.next .t{color:var(--acc)}
+
+/* 历史面板 */
+.hist{width:328px;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:var(--bg)}
+.hist__hd{display:flex;align-items:center;gap:6px;padding:10px 12px 8px}
+.hist__hd b{font-size:11.5px;font-weight:600}
+.hist__hd span{font-size:9px;color:var(--ink4);font-family:Georgia,serif}
+.hist__hd .x{margin-left:auto;width:18px;height:18px;border:0;background:transparent;color:var(--ink3);font-size:13px;cursor:pointer}
+.hist__list{flex:1;overflow:hidden;padding:0 8px}
+.ver{display:flex;gap:8px;padding:7px 8px;border-radius:8px;position:relative}
+.ver:hover{background:var(--fill)}
+.ver.on{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
+.ver__dot{width:7px;height:7px;border-radius:50%;background:var(--fill2);margin-top:5px;flex:none;position:relative}
+.ver.on .ver__dot{background:var(--acc)}
+.ver:not(:last-child) .ver__dot::after{content:"";position:absolute;left:2.5px;top:9px;width:1px;height:calc(100% + 14px);background:var(--line)}
+.ver__body{min-width:0;flex:1}
+.ver__top{display:flex;align-items:baseline;gap:6px}
+.ver__top time{font-family:Georgia,serif;font-size:9.5px;color:var(--ink3)}
+.ver__top .tag{font-size:8px;padding:0 4px;border-radius:3px;background:var(--fill);color:var(--ink3)}
+.ver__top .tag.now{background:var(--acc-soft);color:var(--acc);font-weight:600}
+.ver__sum{margin-top:2px;font-size:9.6px;color:var(--ink2);line-height:1.5}
+.ver__sum s{color:var(--del);text-decoration:line-through;opacity:.8}
+.ver__sum b{color:var(--done);font-weight:600}
+.ver__act{position:absolute;right:8px;bottom:6px;font-size:8.5px;color:var(--acc);opacity:0}
+.ver:hover .ver__act{opacity:1}
+.hist__ft{padding:8px 12px;border-top:1px solid var(--line)}
+
+/* 预览 */
+.banner{display:flex;align-items:center;gap:7px;padding:8px 14px;background:var(--warn-soft);color:var(--warn);font-size:10px}
+.banner b{font-weight:600}
+.banner .sp{flex:1}
+
+.diffbox{margin:0 24px 10px;padding:9px 11px;border:1px dashed var(--line);border-radius:8px;font-size:9.6px;color:var(--ink3)}
+.diffbox>b{display:block;font-size:9px;color:var(--ink4);letter-spacing:.08em;margin-bottom:6px}
+.diffbox .d{display:flex;gap:6px;align-items:baseline;line-height:1.8}
+.diffbox .d>span{width:38px;color:var(--ink4);flex:none}
+.diffbox .d s{color:var(--del);text-decoration:line-through;opacity:.75}
+.diffbox .d b{color:var(--done);font-weight:600}
+.pactions{display:flex;align-items:center;gap:7px;padding:10px 16px;border-top:1px solid var(--line);font-size:9px;color:var(--ink4)}
+.pactions .sp{flex:1}
+
+.diffbox{margin:0 24px 10px;padding:9px 11px;border:1px dashed var(--line);border-radius:8px;font-size:9.6px;color:var(--ink3)}
+.diffbox>b{display:block;font-size:9px;color:var(--ink4);letter-spacing:.08em;margin-bottom:6px}
+.diffbox .d{display:flex;gap:6px;align-items:baseline;line-height:1.8}
+.diffbox .d>span{width:38px;color:var(--ink4);flex:none}
+.diffbox .d s{color:var(--del);text-decoration:line-through;opacity:.75}
+.diffbox .d b{color:var(--done);font-weight:600}
+.pactions{display:flex;align-items:center;gap:7px;padding:10px 16px;border-top:1px solid var(--line);font-size:9px;color:var(--ink4)}
+.pactions .sp{flex:1}
+
+[data-screen=preview] .doc{flex:none}
+
+/* 弹层 */
+.modal{display:none;position:absolute;inset:0;background:var(--dim);place-items:center;z-index:20}
+[data-screen=confirm] .modal{display:grid}
+.dialog{width:392px;background:var(--card);border-radius:12px;box-shadow:0 24px 60px -20px rgba(0,0,0,.5);padding:16px 18px;color:var(--ink)}
+.dialog h3{font-size:13px;font-weight:600;margin-bottom:6px}
+.dialog p{font-size:10px;color:var(--ink3);line-height:1.7}
+.dialog ul{margin:9px 0 13px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.dialog li{display:flex;gap:6px;font-size:10px;color:var(--ink2);line-height:1.6}
+.dialog li::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--acc);margin-top:5px;flex:none}
+.dialog .acts{display:flex;gap:7px;justify-content:flex-end}
+.dialog .acts .btn{height:25px;padding:0 12px;font-size:10.5px}
+
+/* 列表页（最近 / 回收站） */
+.listpage{flex:1;display:flex;flex-direction:column;min-height:0}
+.lp{flex:1;overflow:hidden;padding:10px 16px}
+.daylabel{font-size:9px;color:var(--ink4);letter-spacing:.1em;margin:8px 0 6px}
+.row{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;background:var(--card);border:1px solid var(--line);margin-bottom:5px;font-size:10px}
+.row .kind{width:16px;height:16px;border-radius:4px;display:grid;place-items:center;font-size:8px;background:var(--fill);color:var(--ink3);flex:none}
+.row .kind.todo{background:var(--acc-soft);color:var(--acc)}
+.row .kind.note{background:var(--warn-soft);color:var(--warn)}
+.row .name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+.row time{font-family:Georgia,serif;font-size:9px;color:var(--ink4);flex:none}
+.row .act{font-size:9px;color:var(--acc);flex:none}
+.row .act.del{color:var(--del)}
+
+/* 控制条 */
+.dock{position:fixed;right:10px;bottom:38px;display:flex;gap:3px;padding:5px;border-radius:10px;background:rgba(12,18,15,.9);z-index:99}
+.dock button{height:21px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:rgba(233,241,236,.6);font-size:9.5px;cursor:pointer;font-family:inherit}
+.dock button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600}
+.dock .sep{width:1px;background:rgba(255,255,255,.14);margin:3px 2px}
+.clean .dock{display:none}
+
+.foot{display:flex;align-items:center;padding:6px 10px;border-top:1px solid var(--line);background:var(--bg)}
+.foot .tab{flex:1;height:24px;font-size:10px;color:var(--ink3);display:flex;align-items:center;justify-content:center;border-radius:6px}
+.foot .tab.on{background:var(--card);color:var(--ink);font-weight:600}
+
+[data-screen=history] .s-preview,[data-screen=history] .s-recent,[data-screen=history] .s-trash{display:none}
+[data-screen=preview] .s-history,[data-screen=preview] .s-recent,[data-screen=preview] .s-trash{display:none}
+[data-screen=confirm] .s-preview,[data-screen=confirm] .s-recent,[data-screen=confirm] .s-trash{display:none}
+[data-screen=recent] .s-history,[data-screen=recent] .s-preview,[data-screen=recent] .s-trash{display:none}
+[data-screen=recent] .hist,[data-screen=trash] .hist,[data-screen=preview] .hist{display:none}
+[data-screen=trash] .s-history,[data-screen=trash] .s-preview,[data-screen=trash] .s-recent{display:none}
+</style></head><body data-screen="history">
+<div class="win">
+  <div class="hd">
+    <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="18.4" stroke="currentColor" stroke-width="4.8"/><path d="M32 32 40.5 23.5" stroke="currentColor" stroke-width="4.6" stroke-linecap="round"/><circle cx="43.7" cy="20.3" r="6.8" fill="var(--acc)"/></svg>
+    <b>到点</b><time>10月28日 周二</time>
+  </div>
+  <div class="tb"><h1>计划</h1><span>3</span><time>10:32</time></div>
+
+  <div class="body">
+    <div class="pane s-history s-confirm">
+      <div class="ptools"><button class="btn">← 返回</button><span class="sp"></span><button class="btn">保存</button></div>
+      
+  <div class="doc">
+    <h2>1.2 版本提测清单</h2>
+    <div class="sub"><span>#版本</span><span>·</span><span>今天 10:32 编辑</span></div>
+    <p>回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+    <h3>阶段</h3>
+    <div class="stages"><div class="stage done"><span class="t">10/21 18:00</span><span class="n">提测</span><span class="s">已完成</span></div><div class="stage next"><span class="t">今天 17:30</span><span class="n">发布</span><span class="s">下一个</span></div><div class="stage "><span class="t">11/02 10:00</span><span class="n">观察</span><span class="s"></span></div></div>
+  </div>
+    </div>
+    <div class="pane s-preview">
+      <div class="banner"><b>正在看</b><span>10/28 14:02 的版本</span><span class="sp"></span><button class="btn">回到当前</button></div>
+      
+  <div class="doc">
+    <h2>1.2 提测</h2>
+    <div class="sub"><span>#版本</span><span>·</span><span>创建于 10/28 14:02</span></div>
+    <p>回归范围：登录、订单、支付。重点看重试和幂等，历史问题是超时后重复扣款。</p>
+    <h3>阶段</h3>
+    <div class="stages"><div class="stage "><span class="t">10/21 18:00</span><span class="n">提测</span><span class="s"></span></div><div class="stage next"><span class="t">10/28 17:30</span><span class="n">发布</span><span class="s"></span></div></div>
+  </div>
+      <div class="diffbox">
+        <b>相对当前版本</b>
+        <div class="d"><span>标题</span><s>1.2 版本提测清单</s><b>1.2 提测</b></div>
+        <div class="d"><span>发布</span><s>今天 17:30</s><b>10/28 17:30</b></div>
+        <div class="d"><span>阶段</span><s>3 个</s><b>2 个</b></div>
+      </div>
+      <div class="pactions"><span>只读预览，不会改到当前内容</span><span class="sp"></span><button class="btn">返回</button><button class="btn pri">恢复到这个版本</button></div>
+    </div>
+    
+<div class="hist">
+  <div class="hist__hd"><b>历史</b><span>4 个版本</span><button class="x">×</button></div>
+  <div class="hist__list">
+    <div class="ver on">
+      <span class="ver__dot"></span>
+      <div class="ver__body">
+        <div class="ver__top"><time>今天 10:32</time><span class="tag now">当前</span></div>
+        <div class="ver__sum">改时间 <s>10/28 17:30</s> → <b>今天 17:30</b></div>
+      </div>
+      <span class="ver__act">查看</span>
+    </div><div class="ver ">
+      <span class="ver__dot"></span>
+      <div class="ver__body">
+        <div class="ver__top"><time>今天 09:15</time><span class="tag ">编辑</span></div>
+        <div class="ver__sum">改标题 <s>1.2 提测</s> → <b>1.2 版本提测清单</b></div>
+      </div>
+      <span class="ver__act">查看</span>
+    </div><div class="ver ">
+      <span class="ver__dot"></span>
+      <div class="ver__body">
+        <div class="ver__top"><time>昨天 18:40</time><span class="tag ">阶段</span></div>
+        <div class="ver__sum">完成阶段「提测」</div>
+      </div>
+      <span class="ver__act">查看</span>
+    </div><div class="ver ">
+      <span class="ver__dot"></span>
+      <div class="ver__body">
+        <div class="ver__top"><time>10/28 14:02</time><span class="tag ">新建</span></div>
+        <div class="ver__sum">创建了这份计划</div>
+      </div>
+      <span class="ver__act">查看</span>
+    </div>
+  </div>
+  <div class="hist__ft"><button class="btn" style="width:100%;justify-content:center">与当前版本对比</button></div>
+</div>
+
+    <div class="pane s-recent" style="flex:1">
+      <div class="ptools"><b style="font-size:11px">最近变更</b><span class="sp"></span><button class="btn">全部</button><button class="btn">待办</button><button class="btn">计划</button><button class="btn">笔记</button></div>
+      <div class="lp">
+        
+  <div class="daylabel">今天</div>
+  <div class="row"><span class="kind todo">待</span><span class="name">交周报</span><time>10:31</time><span class="act">查看</span></div><div class="row"><span class="kind note">记</span><span class="name">1.2 版本提测清单</span><time>10:12</time><span class="act">查看</span></div><div class="row"><span class="kind plan">计</span><span class="name">1.2 版本提测清单 · 改时间</span><time>10:32</time><span class="act">查看</span></div>
+        
+  <div class="daylabel">昨天</div>
+  <div class="row"><span class="kind plan">计</span><span class="name">海外 OMSv2.0.7 · 完成阶段「提测」</span><time>18:40</time><span class="act">查看</span></div><div class="row"><span class="kind todo">待</span><span class="name">买机票</span><time>15:02</time><span class="act">查看</span></div><div class="row"><span class="kind note">记</span><span class="name">支付超时排障过程</span><time>11:20</time><span class="act">查看</span></div>
+      </div>
+    </div>
+
+    <div class="pane s-trash" style="flex:1">
+      <div class="ptools"><b style="font-size:11px">已删除</b><span class="sp"></span><span style="font-size:9px;color:var(--ink4)">保留 90 天</span></div>
+      <div class="lp">
+        
+        <div class="row"><span class="kind note">记</span><span class="name">周报素材</span><time>1 天前删</time><span class="act">恢复</span><span class="act del">永久删除</span></div>
+        <div class="row"><span class="kind note">记</span><span class="name">读书笔记 · 深度工作</span><time>2 天前删</time><span class="act">恢复</span><span class="act del">永久删除</span></div>
+        <div class="row"><span class="kind note">记</span><span class="name">旧版排期</span><time>3 天前删</time><span class="act">恢复</span><span class="act del">永久删除</span></div>
+      </div>
+    </div>
+
+    <div class="modal">
+      <div class="dialog">
+        <h3>恢复到 10/28 14:02 的版本？</h3>
+        <p>恢复会覆盖这条计划当前的内容。</p>
+        <ul>
+          <li>当前内容会先存成一个版本，点错了还能退回来</li>
+          <li>更新时间会记成现在，云同步会推一次</li>
+          <li>阶段完成记录也会一起回到那一刻</li>
+        </ul>
+        <div class="acts"><button class="btn">取消</button><button class="btn pri">恢复</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot"><span class="tab">待办</span><span class="tab on">计划</span><span class="tab">备忘录</span><span class="tab">已完成</span></div>
+
+  <div class="dock">
+    <button data-s="history">历史</button><button data-s="preview">预览</button><button data-s="confirm">恢复确认</button><button data-s="recent">最近变更</button><button data-s="trash">回收站</button>
+    <span class="sep"></span><button data-t="celadon">青瓷</button><button data-t="night">夜航</button>
+  </div>
+</div>
+<script>
+const q = new URLSearchParams(location.hash.slice(1));
+let theme = q.get("theme") || "celadon", screen = q.get("screen") || "history";
+const clean = q.get("clean") === "1";
+if (clean) document.body.classList.add("clean");
+function apply(){
+  document.documentElement.dataset.theme = theme;
+  document.body.dataset.screen = screen;
+  document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === screen));
+  document.querySelectorAll("[data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === theme));
+  history.replaceState(null, "", "#theme=" + theme + "&screen=" + screen + (clean ? "&clean=1" : ""));
+}
+document.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { screen = b.dataset.s; apply(); }));
+document.querySelectorAll("[data-t]").forEach(b => b.addEventListener("click", () => { theme = b.dataset.t; apply(); }));
+document.querySelectorAll(".ver").forEach(v => v.addEventListener("click", () => { screen = "preview"; apply(); }));
+document.querySelectorAll(".row .act").forEach(a => a.addEventListener("click", () => { if (a.textContent.trim() === "恢复") { screen = "confirm"; apply(); } }));
+document.querySelector(".ver.on")?.addEventListener("dblclick", () => { screen = "confirm"; apply(); });
+apply();
+</script>
+</body></html>

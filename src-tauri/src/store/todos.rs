@@ -162,6 +162,9 @@ pub fn delete_todo(app: AppHandle, store: State<SharedStore>, id: String) -> Res
     if guard.doc.todos.len() == before {
         return Err("这条待办已经不在了".into());
     }
+    if let Ok(dir) = guard.data_dir() {
+        crate::cloud::state::add_tombstone(dir, "todos", &id, now_ms());
+    }
     guard.persist()?;
     drop(guard);
     super::notify_changed(&app);

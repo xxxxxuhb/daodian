@@ -2,7 +2,9 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from "vue";
+import { cloudStatusLabel, useCloud } from "../../data/useCloud";
 import { useLibrary } from "../../data/useLibrary";
+import { useTemplates } from "../../data/useTemplates";
 import { useCalendar } from "../../data/useCalendar";
 import { useSettings } from "../../data/useSettings";
 import { useNow } from "../../domain/clock";
@@ -43,7 +45,17 @@ provide(createTickKey, createTick);
 
 const now = useNow();
 const { todos, plans, loadError, reload } = useLibrary();
+const { reloadTemplates } = useTemplates();
 const { notes, reload: reloadNotes } = useNotes();
+const { status: cloudStatus, syncNow } = useCloud();
+const cloudClass = computed(() => {
+  const code = cloudStatus.value.lastStatus;
+  if (code === "syncing") return "syncing";
+  if (code === "ok") return "ok";
+  if (code === "conflict" || code.startsWith("error")) return "bad";
+  return "";
+});
+const cloudTitle = computed(() => cloudStatus.value.message || cloudStatusLabel(cloudStatus.value.lastStatus));
 bindNoteLifecycle();
 const noteCount = computed(() => activeNoteCount(notes.value));
 const noteTag = ref("");
@@ -109,6 +121,10 @@ function pickTimeline() {
   section.value = "plan";
   planFilter.value = "active";
   planView.value = "gantt";
+}
+
+function syncCloud() {
+  void syncNow().catch(() => undefined);
 }
 
 function pickNote(tag = "") {
@@ -237,6 +253,7 @@ onMounted(async () => {
   try {
     unlisten = await listen("data-changed", () => {
       reload();
+      void reloadTemplates();
     });
     unlistenQuickCapture = await listen("quick-capture", enterQuickCaptureUi);
     unlistenPetTarget = await listen<PetOpenTarget>("pet-open-target", ({ payload }) => {
@@ -290,6 +307,10 @@ onUnmounted(() => {
           <b>到点</b>
           <small>临时的事用待办<br />分阶段的用计划</small>
         </div>
+        <button type="button" class="cloud-btn" :class="cloudClass" :title="cloudTitle" aria-label="云同步" @click="syncCloud">
+          <Icon name="cloud" />
+          <i v-if="cloudClass === 'bad'" class="dot"></i>
+        </button>
       </div>
       <nav class="nav">
         <div class="nav-group">
@@ -391,6 +412,9 @@ onUnmounted(() => {
       <span class="spacer"></span>
       <button type="button" class="nav" @click="openSearch"><Icon name="search" /></button>
       <button type="button" class="nav" @click="chooseTheme(themeName === 'night' ? 'celadon' : 'night')"><Icon name="moon" /></button>
+      <button type="button" class="nav cloud-btn" :class="cloudClass" :title="cloudTitle" aria-label="云同步" @click="syncCloud">
+        <Icon name="cloud" />
+      </button>
       <button type="button" class="nav" aria-label="设置" @click="settingsOpen = true">⚙</button>
     </aside>
     <div class="std-fill">
@@ -443,6 +467,9 @@ onUnmounted(() => {
       </button>
       <button type="button" class="icon-btn" @click="chooseTheme(themeName === 'night' ? 'celadon' : 'night')">
         <Icon name="moon" />
+      </button>
+      <button type="button" class="icon-btn cloud-btn" :class="cloudClass" :title="cloudTitle" aria-label="云同步" @click="syncCloud">
+        <Icon name="cloud" />
       </button>
       <button type="button" class="icon-btn" aria-label="设置" @click="settingsOpen = true">⚙</button>
     </nav>

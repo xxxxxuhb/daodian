@@ -30,6 +30,8 @@ const isPetWindow = new URLSearchParams(location.search).get("window") === "pet"
     <symbol id="i-image" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2" /><circle cx="9" cy="10" r="1.3" /><path d="m4.6 15.6 3.8-3.2 2.8 2.2 2.3-1.8 5.4 4" /></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14.2 8.2 16a2.7 2.7 0 0 1-3.8-3.8L6.6 10a2.7 2.7 0 0 1 3.8 0" /><path d="M14 9.8 15.8 8a2.7 2.7 0 0 1 3.8 3.8L17.4 14a2.7 2.7 0 0 1-3.8 0" /></symbol>
     <symbol id="i-mark" viewBox="0 0 24 24"><path d="m14.4 5.2 4.4 4.4-8.2 8.2H6.2v-4.4l8.2-8.2Z" /><path d="m12.6 7 4.4 4.4M6.2 18.2h12" /></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7.2 17.4h9.3a3.5 3.5 0 0 0 .5-7 4.6 4.6 0 0 0-8.8-1.3 3.3 3.3 0 0 0-1 8.3Z" /></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><circle cx="12" cy="6" r="3.4" /><path d="M8.8 8.6c.9.9 2 1.4 3.2 1.4s2.3-.5 3.2-1.4l1.6 2.8c.4.6 0 1.4-.7 1.5h-2.6v7.4c0 .5-1.5.5-1.5 0v-7.4H8c-.7-.1-1.1-.9-.7-1.5l1.5-2.8Z" /></symbol>
   </svg>
   <app-shell />
   </template>

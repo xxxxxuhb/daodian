@@ -45,6 +45,20 @@ function fallbackSettings(): Settings {
       hasApiKey: false,
       lastStatus: "",
     },
+    cloud: {
+      enabled: false,
+      provider: "gitee",
+      owner: "",
+      repo: "",
+      branch: "",
+      dir: "daodian",
+      autoSync: true,
+      intervalMinutes: 10,
+      deviceId: "",
+      lastSyncAt: 0,
+      lastStatus: "idle",
+      hasToken: false,
+    },
   };
 }
 

@@ -5,6 +5,7 @@ import { downloadDir, join } from "@tauri-apps/api/path";
 import { computed, ref, watch } from "vue";
 import { utils as xlsxUtils, write as writeWorkbook } from "xlsx";
 import { testDeepSeek } from "../../api/ai";
+import { createCloudRepo, disconnectCloud, openCloudTokenPage, saveCloudConfig, setCloudToken, testCloud } from "../../api/cloud";
 import { loadLibrary } from "../../api/library";
 import {
   listBackups,
@@ -13,7 +14,9 @@ import {
   type BackupInfo,
 } from "../../api/settings";
 import { useCalendar } from "../../data/useCalendar";
+import { cloudStatusLabel, cloudSyncAgo, useCloud } from "../../data/useCloud";
 import { useSettings } from "../../data/useSettings";
+import { errorText } from "../../domain/feedback";
 import { repeatLabel } from "../../domain/repeat";
 import type { Settings } from "../../domain/settings";
 
@@ -29,6 +32,16 @@ const newHoliday = ref("");
 const newWorkday = ref("");
 const testingWebhook = ref<"feishu" | "wecom" | "">("");
 const testingDeepSeek = ref(false);
+const { status: cloudStatus, syncNow } = useCloud();
+const cloudToken = ref("");
+const cloudRepoName = ref("daodian-sync");
+const cloudBusy = ref("");
+const cloudNote = ref("");
+const cloudPane = ref<"off" | "connect" | "existing" | "on">("off");
+const cloudAdvanced = ref(false);
+const cloudReplaceToken = ref(false);
+const cloudToast = ref("");
+const cloudHadLink = ref(false);
 const exportingRecords = ref(false);
 const exportStatus = ref("");
 const backups = ref<BackupInfo[]>([]);
@@ -42,7 +55,8 @@ const externalEnabled = computed(
     draft.value.feishu.enabled ||
     draft.value.wecom.enabled ||
     draft.value.quickCapture.enabled ||
-    draft.value.deepSeek.enabled,
+    draft.value.deepSeek.enabled ||
+    draft.value.cloud.enabled,
 );
 
 watch(
@@ -56,6 +70,7 @@ watch(
     newWorkday.value = "";
     saved.value = false;
     backupStatus.value = "";
+    resetCloudPane();
     void loadBackupHistory();
   },
   { immediate: true },
@@ -163,6 +178,184 @@ async function testAi() {
     }).catch(() => undefined);
     testingDeepSeek.value = false;
   }
+}
+
+const cloudStateKind = computed(() => {
+  if (cloudBusy.value === "sync" || cloudStatus.value.lastStatus === "syncing") return "syncing";
+  const code = cloudStatus.value.lastStatus || draft.value.cloud.lastStatus;
+  if (code === "ok") return "ok";
+  if (code === "conflict" || code.startsWith("error")) return "bad";
+  return "off";
+});
+const cloudStateText = computed(() => {
+  if (!draft.value.cloud.enabled) return "已关闭，不会上传";
+  if (cloudStateKind.value === "syncing") return "正在同步";
+  const code = cloudStatus.value.lastStatus || draft.value.cloud.lastStatus;
+  const at = cloudStatus.value.lastSyncAt || draft.value.cloud.lastSyncAt;
+  const message = cloudStatus.value.message;
+  const phrase =
+    code === "ok"
+      ? "正常"
+      : code === "conflict"
+        ? "有冲突，已保留本机"
+        : code.startsWith("error")
+          ? message && message !== "云同步还没打开"
+            ? message
+            : cloudStatusLabel(code)
+          : "尚未同步";
+  if (!at) return cloudStateKind.value === "bad" ? phrase : "还没有同步过";
+  return `上次同步 ${cloudSyncAgo(at)} · ${phrase}`;
+});
+
+function resetCloudPane() {
+  cloudPane.value = draft.value.cloud.owner.trim() && draft.value.cloud.repo.trim() ? "on" : "off";
+  cloudAdvanced.value = false;
+  cloudReplaceToken.value = false;
+  cloudToast.value = "";
+  cloudNote.value = "";
+  cloudToken.value = "";
+  cloudHadLink.value = false;
+}
+
+function showExistingRepo() {
+  cloudHadLink.value = Boolean(draft.value.cloud.owner.trim() && draft.value.cloud.repo.trim());
+  cloudPane.value = "existing";
+}
+
+async function rememberCloudConfig() {
+  const saved = await saveCloudConfig(draft.value.cloud);
+  draft.value.cloud.hasToken = saved.hasToken;
+  draft.value.cloud.lastStatus = saved.lastStatus;
+  draft.value.cloud.lastSyncAt = saved.lastSyncAt;
+  draft.value.cloud.deviceId = saved.deviceId;
+}
+
+async function keepTypedToken() {
+  if (!cloudToken.value.trim()) return;
+  await setCloudToken(cloudToken.value.trim());
+  cloudToken.value = "";
+  draft.value.cloud.hasToken = true;
+}
+
+async function createCloud() {
+  cloudBusy.value = "create";
+  cloudNote.value = "";
+  try {
+    await keepTypedToken();
+    const info = await createCloudRepo(cloudRepoName.value);
+    draft.value.cloud.enabled = true;
+    draft.value.cloud.owner = info.owner;
+    draft.value.cloud.repo = info.repo;
+    draft.value.cloud.branch = info.branch;
+    draft.value.cloud.hasToken = true;
+    cloudToast.value = `已连接到 ${info.owner}/${info.repo}`;
+    cloudPane.value = "on";
+    cloudAdvanced.value = false;
+  } catch (cause) {
+    cloudNote.value = errorText(cause);
+  } finally {
+    cloudBusy.value = "";
+  }
+}
+
+async function connectExisting() {
+  cloudBusy.value = "connect";
+  cloudNote.value = "";
+  try {
+    if (!draft.value.cloud.owner.trim() || !draft.value.cloud.repo.trim()) {
+      cloudNote.value = "先填写仓库的所有者和名字";
+      return;
+    }
+    await keepTypedToken();
+    draft.value.cloud.enabled = true;
+    if (!draft.value.cloud.dir.trim()) draft.value.cloud.dir = "daodian";
+    await rememberCloudConfig();
+    await testCloud();
+    cloudToast.value = `已连接到 ${draft.value.cloud.owner}/${draft.value.cloud.repo}`;
+    cloudPane.value = "on";
+    cloudAdvanced.value = false;
+    await syncNow();
+  } catch (cause) {
+    cloudNote.value = errorText(cause);
+  } finally {
+    cloudBusy.value = "";
+  }
+}
+
+async function toggleCloudEnabled() {
+  draft.value.cloud.enabled = !draft.value.cloud.enabled;
+  try {
+    await rememberCloudConfig();
+  } catch (cause) {
+    draft.value.cloud.enabled = !draft.value.cloud.enabled;
+    cloudNote.value = errorText(cause);
+  }
+}
+
+async function toggleCloudAuto() {
+  draft.value.cloud.autoSync = !draft.value.cloud.autoSync;
+  try {
+    await rememberCloudConfig();
+  } catch (cause) {
+    draft.value.cloud.autoSync = !draft.value.cloud.autoSync;
+    cloudNote.value = errorText(cause);
+  }
+}
+
+async function saveReplacementToken() {
+  cloudBusy.value = "token";
+  cloudNote.value = "";
+  try {
+    await keepTypedToken();
+    cloudReplaceToken.value = false;
+    cloudNote.value = "令牌已更换";
+  } catch (cause) {
+    cloudNote.value = errorText(cause);
+  } finally {
+    cloudBusy.value = "";
+  }
+}
+
+async function syncCloud() {
+  cloudBusy.value = "sync";
+  cloudNote.value = "";
+  try {
+    await rememberCloudConfig();
+    await syncNow();
+  } catch (cause) {
+    cloudNote.value = errorText(cause);
+  } finally {
+    cloudBusy.value = "";
+  }
+}
+
+async function disconnectCloudLink() {
+  cloudBusy.value = "disconnect";
+  cloudNote.value = "";
+  try {
+    await disconnectCloud();
+    draft.value.cloud.enabled = false;
+    draft.value.cloud.owner = "";
+    draft.value.cloud.repo = "";
+    draft.value.cloud.branch = "";
+    draft.value.cloud.lastStatus = "idle";
+    draft.value.cloud.lastSyncAt = 0;
+    await rememberCloudConfig();
+    cloudToast.value = "";
+    cloudAdvanced.value = false;
+    cloudReplaceToken.value = false;
+    cloudPane.value = "off";
+  } catch (cause) {
+    cloudNote.value = errorText(cause);
+  } finally {
+    cloudBusy.value = "";
+  }
+}
+
+function openTokenHelp() {
+  void openCloudTokenPage().catch((cause) => {
+    cloudNote.value = errorText(cause);
+  });
 }
 
 async function exportAllRecords() {
@@ -568,6 +761,113 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
         </section>
 
         <section class="settings-section">
+          <h3>云同步</h3>
+
+          <div v-if="cloudPane === 'off'">
+            <p class="cloud-lead">把待办、计划、模板和备忘录同步到你的 Gitee 私有仓库。<b>本地始终是唯一记录</b>，云端只是副本。</p>
+            <button type="button" class="cloud-go" :disabled="cloudBusy !== ''" @click="cloudPane = 'connect'">连接 Gitee</button>
+            <p class="cloud-links">需要一个访问令牌 · <button type="button" class="cloud-link" @click="openTokenHelp">怎么获取</button></p>
+            <p class="cloud-links">令牌只在这台机器上加密保存，不上传、不写进配置文件。</p>
+          </div>
+
+          <div v-else-if="cloudPane === 'connect'">
+            <p class="cloud-lead">粘贴 Gitee 访问令牌，剩下的我来：验证、建私有仓库、连上并推一次。</p>
+            <label class="cloud-field">
+              <span>访问令牌</span>
+              <input v-model="cloudToken" type="password" autocomplete="new-password" :placeholder="draft.cloud.hasToken ? '已保存，留空则继续用它' : '粘贴私人令牌'" />
+            </label>
+            <p class="cloud-links"><button type="button" class="cloud-link" @click="openTokenHelp">去 Gitee 生成令牌 ↗</button></p>
+            <button type="button" class="cloud-go" :disabled="cloudBusy !== '' || (!cloudToken.trim() && !draft.cloud.hasToken)" @click="createCloud">
+              {{ cloudBusy === "create" ? "连接中…" : "连接并创建仓库" }}
+            </button>
+            <div class="cloud-steps">
+              <div class="cloud-step"><i>1</i><span>验证令牌 · 拿到你的登录名</span></div>
+              <div class="cloud-step">
+                <i>2</i>
+                <span>建一个私有仓库 <input v-model.trim="cloudRepoName" class="cloud-name" type="text" aria-label="仓库名" />（名字可以改）</span>
+              </div>
+              <div class="cloud-step"><i>3</i><span>把这台机器的数据推上去</span></div>
+            </div>
+            <p class="cloud-links">
+              <button v-if="cloudHadLink" type="button" class="cloud-link" @click="cloudPane = 'on'">返回</button>
+              <button type="button" class="cloud-link" @click="showExistingRepo">改用已有仓库</button>
+            </p>
+          </div>
+
+          <div v-else-if="cloudPane === 'existing'">
+            <p class="cloud-lead">填一个你已有的私有仓库。公开仓库不会用来同步。</p>
+            <label v-if="!draft.cloud.hasToken" class="cloud-field">
+              <span>访问令牌</span>
+              <input v-model="cloudToken" type="password" autocomplete="new-password" placeholder="粘贴私人令牌" />
+            </label>
+            <label class="cloud-field">
+              <span>仓库所有者 / 仓库名</span>
+              <span class="cloud-pair">
+                <input v-model.trim="draft.cloud.owner" type="text" placeholder="owner" />
+                <input v-model.trim="draft.cloud.repo" type="text" placeholder="repo" />
+              </span>
+            </label>
+            <label class="cloud-field">
+              <span>分支 / 目录</span>
+              <span class="cloud-pair">
+                <input v-model.trim="draft.cloud.branch" type="text" placeholder="留空用默认分支" />
+                <input v-model.trim="draft.cloud.dir" type="text" placeholder="daodian" />
+              </span>
+            </label>
+            <button type="button" class="cloud-go" :disabled="cloudBusy !== '' || (!cloudToken.trim() && !draft.cloud.hasToken)" @click="connectExisting">
+              {{ cloudBusy === "connect" ? "连接中…" : "连接这个仓库" }}
+            </button>
+            <p class="cloud-links">
+              <button v-if="cloudHadLink" type="button" class="cloud-link" @click="cloudPane = 'on'">返回</button>
+              <button type="button" class="cloud-link" @click="cloudPane = 'connect'">改为新建仓库</button>
+            </p>
+          </div>
+
+          <div v-else>
+            <div class="cloud-head">
+              <button type="button" class="cloud-sw" :class="{ on: draft.cloud.enabled }" role="switch" :aria-checked="draft.cloud.enabled" @click="toggleCloudEnabled">
+                <i></i><span>{{ draft.cloud.enabled ? "已开启" : "已关闭" }}</span>
+              </button>
+              <button type="button" class="btn btn--sm" :disabled="!draft.cloud.enabled || cloudBusy !== ''" @click="syncCloud">
+                {{ cloudBusy === "sync" ? "同步中…" : "立即同步" }}
+              </button>
+            </div>
+            <p class="cloud-repo"><b>{{ draft.cloud.owner }}/{{ draft.cloud.repo }}</b><span>· {{ draft.cloud.branch || "默认分支" }}</span></p>
+            <p class="cloud-state" :class="cloudStateKind"><i></i><span>{{ cloudStateText }}</span></p>
+            <div class="cloud-adv">
+              <button type="button" class="cloud-adv__t" @click="cloudAdvanced = !cloudAdvanced">
+                高级 <span>{{ cloudAdvanced ? "▴" : "▾" }}</span>
+              </button>
+              <div v-if="cloudAdvanced" class="cloud-adv__body">
+                <div class="cloud-head">
+                  <button type="button" class="cloud-sw" :class="{ on: draft.cloud.autoSync }" role="switch" :aria-checked="draft.cloud.autoSync" :disabled="!draft.cloud.enabled" @click="toggleCloudAuto">
+                    <i></i><span>自动同步</span>
+                  </button>
+                </div>
+                <p class="cloud-links">上班 {{ draft.workHours.morningStart }} 和下班 {{ draft.workHours.afternoonEnd }} 各同步一次，其他时间请手动同步。</p>
+                <p class="cloud-kv"><span>目录</span><b>{{ draft.cloud.dir || "daodian" }}</b></p>
+                <p class="cloud-kv"><span>分支</span><b>{{ draft.cloud.branch || "默认" }}</b><span>· 跟随仓库默认</span></p>
+                <div class="cloud-actions">
+                  <button type="button" class="btn btn--sm" @click="cloudReplaceToken = !cloudReplaceToken">更换令牌</button>
+                  <button type="button" class="btn btn--sm" @click="showExistingRepo">改用已有仓库</button>
+                  <button type="button" class="btn btn--sm cloud-stop" :disabled="cloudBusy !== ''" @click="disconnectCloudLink">断开连接</button>
+                </div>
+                <label v-if="cloudReplaceToken" class="cloud-field">
+                  <span>新的访问令牌</span>
+                  <span class="cloud-token-row">
+                    <input v-model="cloudToken" type="password" autocomplete="new-password" placeholder="粘贴新令牌" />
+                    <button type="button" class="btn btn--sm" :disabled="cloudBusy !== '' || !cloudToken.trim()" @click="saveReplacementToken">保存</button>
+                  </span>
+                </label>
+                <p class="cloud-links">断开后本地数据不受影响，只是不再上传。</p>
+              </div>
+            </div>
+            <p v-if="cloudToast" class="cloud-toast"><span>{{ cloudToast }}</span><button type="button" @click="disconnectCloudLink">撤销</button></p>
+          </div>
+          <p v-if="cloudNote" class="settings-note">{{ cloudNote }}</p>
+        </section>
+
+        <section class="settings-section">
           <h3>数据备份与恢复</h3>
           <p class="settings-note">
             应用会在每天进入所设工作时间后，自动备份一次前一天的数据。备份包含待办、计划、模板和设置。
@@ -613,7 +913,7 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
         </section>
 
         <p v-if="externalEnabled" class="settings-consent">
-          联网与全局能力首次启用说明：日历路径会访问本机文件；Webhook 与 DeepSeek 会向所填地址发送数据；快速记录会使用全局能力。
+          联网与全局能力首次启用说明：日历路径会访问本机文件；Webhook、DeepSeek 和云同步会向所填地址发送数据；快速记录会使用全局能力。
         </p>
       </div>
 

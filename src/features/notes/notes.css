@@ -94,6 +94,7 @@
   cursor: default;
   min-height: 64px;
 }
+.ncard.is-pinned { padding-right: 48px; }
 .ncard:hover { background: var(--fill); }
 .ncard.on {
   background: var(--card);
@@ -104,6 +105,7 @@
 .ncard__body { min-width: 0; flex: 1; }
 .ncard b {
   display: block;
+  min-width: 0;
   font-size: 13.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -127,7 +129,23 @@
   color: var(--ink-4);
 }
 .ncard .meta em { font-style: normal; color: var(--warn); font-weight: 600; }
-.ncard .pin { color: var(--accent); }
+.ncard__pin {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ncard__pin .ico {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: none;
+  transform: rotate(28deg);
+}
 .ncard .cover {
   width: 38px;
   height: 38px;
@@ -145,6 +163,9 @@
   top: 4px;
   right: 4px;
   z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .ncard .more {
   width: 22px;

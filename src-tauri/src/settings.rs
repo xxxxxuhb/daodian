@@ -27,6 +27,7 @@ pub struct Settings {
     pub wecom: WebhookSettings,
     pub quick_capture: QuickCaptureSettings,
     pub deep_seek: DeepSeekSettings,
+    pub cloud: CloudSettings,
 }
 
 impl Default for Settings {
@@ -44,6 +45,7 @@ impl Default for Settings {
             wecom: WebhookSettings::default(),
             quick_capture: QuickCaptureSettings::default(),
             deep_seek: DeepSeekSettings::default(),
+            cloud: CloudSettings::default(),
         }
     }
 }
@@ -153,6 +155,29 @@ impl WindowFrame {
             y: None,
         }
     }
+}
+
+fn validate_cloud(settings: &CloudSettings) -> Result<(), String> {
+    let dir_ok = settings.dir.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+        && !settings.dir.is_empty();
+    if !dir_ok {
+        return Err("同步目录只能包含字母、数字、- 和 _".into());
+    }
+    let name_ok = |value: &str| {
+        value.is_empty()
+            || value
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    };
+    let branch_ok = settings.branch.is_empty()
+        || settings
+            .branch
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '/' | '.'));
+    if !name_ok(&settings.owner) || !name_ok(&settings.repo) || !branch_ok {
+        return Err("仓库名只能包含字母、数字、- 和 _".into());
+    }
+    Ok(())
 }
 
 fn validate_pet_idle(settings: &PetSettings) -> Result<(), String> {
@@ -285,6 +310,42 @@ pub struct DeepSeekSettings {
     pub last_status: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CloudSettings {
+    pub enabled: bool,
+    pub provider: String,
+    pub owner: String,
+    pub repo: String,
+    pub branch: String,
+    pub dir: String,
+    pub auto_sync: bool,
+    pub interval_minutes: u32,
+    pub device_id: String,
+    pub last_sync_at: i64,
+    pub last_status: String,
+    pub has_token: bool,
+}
+
+impl Default for CloudSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: "gitee".into(),
+            owner: String::new(),
+            repo: String::new(),
+            branch: String::new(),
+            dir: "daodian".into(),
+            auto_sync: true,
+            interval_minutes: 10,
+            device_id: String::new(),
+            last_sync_at: 0,
+            last_status: "idle".into(),
+            has_token: false,
+        }
+    }
+}
+
 impl Default for DeepSeekSettings {
     fn default() -> Self {
         Self {
@@ -318,6 +379,7 @@ impl Default for SettingsDocument {
 pub struct SettingsStore {
     path: PathBuf,
     secret_path: PathBuf,
+    token_path: PathBuf,
     doc: SettingsDocument,
 }
 
@@ -328,6 +390,7 @@ impl SettingsStore {
         }
         let path = dir.join("settings.json");
         let secret_path = dir.join("deepseek-key.dpapi");
+        let token_path = dir.join("gitee-token.dpapi");
         let doc = if path.exists() {
             let raw = fs::read_to_string(&path)?;
             serde_json::from_str(&raw).map_err(|err| {
@@ -342,6 +405,7 @@ impl SettingsStore {
         let store = Self {
             path,
             secret_path,
+            token_path,
             doc,
         };
         store.persist().map_err(std::io::Error::other)?;
@@ -351,6 +415,7 @@ impl SettingsStore {
     pub(crate) fn public_settings(&self) -> Settings {
         let mut settings = self.doc.settings.clone();
         settings.deep_seek.has_api_key = self.secret_path.exists();
+        settings.cloud.has_token = self.token_path.exists();
         settings
     }
 
@@ -393,6 +458,25 @@ impl SettingsStore {
         settings.pet.pinches = self.doc.settings.pet.pinches;
         settings.pet.hidden_until = self.doc.settings.pet.hidden_until;
         settings.deep_seek.has_api_key = false;
+        let previous_cloud = self.doc.settings.cloud.clone();
+        settings.cloud.device_id = previous_cloud.device_id;
+        settings.cloud.last_sync_at = previous_cloud.last_sync_at;
+        settings.cloud.last_status = previous_cloud.last_status.clone();
+        settings.cloud.has_token = false;
+        settings.cloud.provider = "gitee".into();
+        if settings.cloud.dir.trim().is_empty() {
+            settings.cloud.dir = "daodian".into();
+        }
+        if settings.cloud.interval_minutes < 5 {
+            settings.cloud.interval_minutes = 5;
+        }
+        if settings.cloud.interval_minutes > 24 * 60 {
+            settings.cloud.interval_minutes = 24 * 60;
+        }
+        validate_cloud(&settings.cloud)?;
+        if settings.cloud.enabled && settings.cloud.device_id.is_empty() {
+            settings.cloud.device_id = crate::cloud::state::new_device_id();
+        }
         if clear_api_key {
             match fs::remove_file(&self.secret_path) {
                 Ok(()) => {}
@@ -467,7 +551,7 @@ impl SettingsStore {
         if !settings.enabled {
             return Err("DeepSeek 尚未启用".into());
         }
-        let key = unprotect_secret(&self.secret_path)?;
+        let key = unprotect_secret(&self.secret_path, "DeepSeek API Key 未设置")?;
         if key.is_empty() {
             return Err("DeepSeek API Key 未设置".into());
         }
@@ -519,6 +603,65 @@ impl SettingsStore {
             .frames
             .insert(tier.to_string(), frame);
         self.set_active_window_tier(tier)
+    }
+
+    pub(crate) fn cloud_token(&self) -> Result<Vec<u8>, String> {
+        unprotect_secret(&self.token_path, "还没有保存访问令牌")
+    }
+
+    pub(crate) fn set_cloud_token(&mut self, token: &str) -> Result<(), String> {
+        let token = token.trim();
+        if token.is_empty() {
+            return Err("请先填写访问令牌".into());
+        }
+        protect_secret(&self.token_path, token.as_bytes())
+    }
+
+    pub(crate) fn clear_cloud_token(&mut self) -> Result<(), String> {
+        match fs::remove_file(&self.token_path) {
+            Ok(()) => Ok(()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(err) => Err(format!("删除访问令牌失败: {err}")),
+        }
+    }
+
+    pub(crate) fn save_cloud(&mut self, mut cloud: CloudSettings) -> Result<(), String> {
+        cloud.device_id = self.doc.settings.cloud.device_id.clone();
+        cloud.last_sync_at = self.doc.settings.cloud.last_sync_at;
+        cloud.last_status = self.doc.settings.cloud.last_status.clone();
+        cloud.has_token = false;
+        cloud.provider = "gitee".into();
+        if cloud.dir.trim().is_empty() {
+            cloud.dir = "daodian".into();
+        }
+        if cloud.interval_minutes < 5 {
+            cloud.interval_minutes = 5;
+        }
+        validate_cloud(&cloud)?;
+        if cloud.enabled && cloud.device_id.is_empty() {
+            cloud.device_id = crate::cloud::state::new_device_id();
+        }
+        self.doc.settings.cloud = cloud;
+        self.persist()
+    }
+
+    pub(crate) fn set_cloud_branch(&mut self, branch: &str) -> Result<(), String> {
+        self.doc.settings.cloud.branch = branch.to_string();
+        self.persist()
+    }
+
+    pub(crate) fn set_cloud_status(&mut self, status: &str, synced_at: Option<i64>) -> Result<(), String> {
+        self.doc.settings.cloud.last_status = status.to_string();
+        if let Some(at) = synced_at {
+            self.doc.settings.cloud.last_sync_at = at;
+        }
+        self.persist()
+    }
+
+    pub(crate) fn disconnect_cloud(&mut self) -> Result<(), String> {
+        self.doc.settings.cloud.enabled = false;
+        self.doc.settings.cloud.last_status = "idle".into();
+        self.persist()
     }
 
     fn migrate_legacy(
@@ -588,7 +731,7 @@ pub fn migrate_legacy_settings(
 }
 
 #[cfg(windows)]
-fn protect_secret(path: &Path, secret: &[u8]) -> Result<(), String> {
+pub(crate) fn protect_secret(path: &Path, secret: &[u8]) -> Result<(), String> {
     use std::ptr::null;
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Cryptography::{
@@ -626,7 +769,7 @@ fn protect_secret(path: &Path, secret: &[u8]) -> Result<(), String> {
 }
 
 #[cfg(windows)]
-fn unprotect_secret(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn unprotect_secret(path: &Path, missing: &str) -> Result<Vec<u8>, String> {
     use std::ptr::null_mut;
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Cryptography::{
@@ -635,7 +778,7 @@ fn unprotect_secret(path: &Path) -> Result<Vec<u8>, String> {
 
     let encrypted = fs::read(path).map_err(|err| {
         if err.kind() == std::io::ErrorKind::NotFound {
-            "DeepSeek API Key 未设置".to_string()
+            missing.to_string()
         } else {
             "读取 DeepSeek API Key 失败".to_string()
         }
@@ -671,12 +814,12 @@ fn unprotect_secret(path: &Path) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(not(windows))]
-fn protect_secret(_path: &Path, _secret: &[u8]) -> Result<(), String> {
+pub(crate) fn protect_secret(_path: &Path, _secret: &[u8]) -> Result<(), String> {
     Err("当前平台不支持 Windows DPAPI，未保存 API Key".into())
 }
 
 #[cfg(not(windows))]
-fn unprotect_secret(_path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn unprotect_secret(_path: &Path, _missing: &str) -> Result<Vec<u8>, String> {
     Err("当前平台不支持 Windows DPAPI".into())
 }
 

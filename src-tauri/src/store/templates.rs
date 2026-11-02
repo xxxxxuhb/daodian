@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::domain::{new_id, require_title};
+use crate::domain::{new_id, now_ms, require_title};
 
 use super::{Library, SharedStore, lock};
 
@@ -32,6 +32,8 @@ pub struct PlanTemplate {
     pub built_in: bool,
     #[serde(default)]
     pub quick: bool,
+    #[serde(default)]
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +64,11 @@ pub(crate) fn load(path: &Path) -> (Vec<PlanTemplate>, Vec<String>) {
     let Ok(raw) = fs::read_to_string(path) else {
         return (Vec::new(), Vec::new());
     };
-    serde_json::from_str::<TemplateDocument>(&raw)
+    from_json(&raw)
+}
+
+pub(crate) fn from_json(raw: &str) -> (Vec<PlanTemplate>, Vec<String>) {
+    serde_json::from_str::<TemplateDocument>(raw)
         .map(|doc| {
             let templates = doc
                 .templates
@@ -83,14 +89,14 @@ fn persist(
     path: &Path,
     templates: &[PlanTemplate],
     quick_template_ids: &[String],
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let document = TemplateDocument {
         version: template_version(),
         templates: templates.to_vec(),
         quick_template_ids: quick_template_ids.to_vec(),
     };
     let raw = serde_json::to_string_pretty(&document).map_err(|err| err.to_string())?;
-    fs::write(path, raw).map_err(|err| err.to_string())
+    super::atomic_write(path, raw.as_bytes())
 }
 
 #[cfg(test)]
@@ -166,6 +172,7 @@ pub fn save_template(
             .ok_or("这个模板已经不在了")?;
         item.label = label;
         item.stages = stages;
+        item.updated_at = now_ms();
         item.clone()
     } else {
         if guard.custom_templates.len() >= MAX_TEMPLATES {
@@ -177,6 +184,7 @@ pub fn save_template(
             stages,
             built_in: false,
             quick: false,
+            updated_at: now_ms(),
         };
         guard.custom_templates.push(item.clone());
         item
@@ -202,6 +210,7 @@ pub fn rename_template(
         .find(|item| item.id == id)
         .ok_or("这个模板已经不在了")?;
     item.label = label;
+    item.updated_at = now_ms();
     let saved = item.clone();
     guard.persist_templates()?;
     Ok(saved)
@@ -219,6 +228,9 @@ pub fn delete_template(store: State<SharedStore>, id: String) -> Result<(), Stri
         return Err("这个模板已经不在了".into());
     }
     guard.quick_template_ids.retain(|quick_id| quick_id != &id);
+    if let Ok(dir) = guard.data_dir() {
+        crate::cloud::state::add_tombstone(dir, "templates", &id, now_ms());
+    }
     guard.persist_templates()
 }
 
@@ -245,11 +257,25 @@ impl Library {
     }
 
     pub(crate) fn persist_templates(&self) -> Result<(), String> {
-        persist(
+        self.write_templates(true)
+    }
+
+    pub(crate) fn persist_templates_quiet(&self) -> Result<(), String> {
+        self.write_templates(false)
+    }
+
+    fn write_templates(&self, mark_dirty: bool) -> Result<(), String> {
+        let changed = persist(
             &self.templates_path,
             &self.custom_templates,
             &self.quick_template_ids,
-        )
+        )?;
+        if changed && mark_dirty {
+            if let Some(dir) = self.templates_path.parent() {
+                crate::cloud::state::mark_dirty(dir);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -287,6 +313,7 @@ mod tests {
             stages: vec![stage("开始", 0, 9, 30)],
             built_in: false,
             quick: false,
+            updated_at: 0,
         };
         let fake_builtin = PlanTemplate {
             id: "release".into(),
@@ -294,6 +321,7 @@ mod tests {
             stages: Vec::new(),
             built_in: false,
             quick: false,
+            updated_at: 0,
         };
         persist(
             &path,

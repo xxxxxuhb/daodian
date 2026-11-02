@@ -100,13 +100,21 @@ impl Library {
     }
 
     pub(crate) fn persist(&self) -> Result<(), String> {
-        if let Some(parent) = self.path.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        self.write_doc(true)
+    }
+
+    pub(crate) fn persist_quiet(&self) -> Result<(), String> {
+        self.write_doc(false)
+    }
+
+    fn write_doc(&self, mark_dirty: bool) -> Result<(), String> {
+        let raw = serde_json::to_string_pretty(&self.doc).map_err(|err| err.to_string())?;
+        if atomic_write(&self.path, raw.as_bytes())? && mark_dirty {
+            if let Ok(dir) = self.data_dir() {
+                crate::cloud::state::mark_dirty(dir);
             }
         }
-        let raw = serde_json::to_string_pretty(&self.doc).map_err(|err| err.to_string())?;
-        fs::write(&self.path, raw).map_err(|err| err.to_string())
+        Ok(())
     }
 
     pub(crate) fn data_dir(&self) -> Result<&Path, String> {
@@ -120,6 +128,40 @@ impl Library {
         *self = Self::open(&dir).map_err(|err| err.to_string())?;
         Ok(())
     }
+}
+
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<bool, String> {
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+    }
+    if path.exists() {
+        if let Ok(existing) = fs::read(path) {
+            if existing == bytes {
+                return Ok(false);
+            }
+        }
+    }
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("store");
+    let tmp = path.with_file_name(format!(".{name}.tmp"));
+    fs::write(&tmp, bytes).map_err(|err| err.to_string())?;
+    if fs::rename(&tmp, path).is_err() {
+        let backup = path.with_extension("replacing");
+        let _ = fs::remove_file(&backup);
+        if path.exists() {
+            fs::rename(path, &backup).map_err(|err| err.to_string())?;
+        }
+        if let Err(err) = fs::rename(&tmp, path) {
+            let _ = fs::rename(&backup, path);
+            return Err(err.to_string());
+        }
+        let _ = fs::remove_file(&backup);
+    }
+    Ok(true)
 }
 
 pub(crate) fn lock(store: &SharedStore) -> Result<MutexGuard<'_, Library>, String> {

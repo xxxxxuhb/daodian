@@ -56,7 +56,7 @@ pub struct NoteIndex {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Note {
     pub id: String,
@@ -304,6 +304,55 @@ impl NotesStore {
         self.notes_dir.join(format!("{id}.json"))
     }
 
+    pub(crate) fn read_notes(&self) -> Result<Vec<Note>, String> {
+        let mut notes = Vec::new();
+        if !self.notes_dir.is_dir() {
+            return Ok(notes);
+        }
+        for entry in fs::read_dir(&self.notes_dir).map_err(|err| err.to_string())? {
+            let entry = entry.map_err(|err| err.to_string())?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".json") || name == "index.json" || name.starts_with('.') {
+                continue;
+            }
+            notes.push(read_note(&entry.path())?);
+        }
+        Ok(notes)
+    }
+
+    pub(crate) fn write_notes(&mut self, notes: Vec<Note>) -> Result<(), String> {
+        let mut ids = Vec::new();
+        for note in &notes {
+            safe_id(&note.id)?;
+            self.write_note(note)?;
+            ids.push(note.id.clone());
+        }
+        if self.notes_dir.is_dir() {
+            for entry in fs::read_dir(&self.notes_dir).map_err(|err| err.to_string())? {
+                let entry = entry.map_err(|err| err.to_string())?;
+                let name = entry.file_name().to_string_lossy().to_string();
+                if !name.ends_with(".json") || name == "index.json" || name.starts_with('.') {
+                    continue;
+                }
+                let id = name.trim_end_matches(".json");
+                if !ids.iter().any(|item| item == id) {
+                    fs::remove_file(entry.path()).map_err(|err| err.to_string())?;
+                }
+            }
+        }
+        let mut index_notes: Vec<NoteIndex> = notes.iter().map(Note::to_index).collect();
+        index_notes.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+        self.index = NoteIndexFile {
+            version: INDEX_VERSION,
+            notes: index_notes,
+        };
+        self.persist_index()
+    }
+
+    pub(crate) fn attachment_dir(&self) -> &Path {
+        &self.attachments_dir
+    }
+
     fn persist_index(&self) -> Result<(), String> {
         let raw = serde_json::to_string_pretty(&self.index).map_err(|err| err.to_string())?;
         atomic_write(&self.index_path, raw.as_bytes())
@@ -394,6 +443,7 @@ pub fn mark_notes_reminded(
     }
     if changed {
         guard.persist_index()?;
+        crate::cloud::state::mark_dirty(&guard.data_dir);
     }
     Ok(())
 }
@@ -473,6 +523,7 @@ pub fn note_create(
     {
         let mut guard = lock(&store)?;
         guard.upsert(note.clone())?;
+        crate::cloud::state::mark_dirty(&guard.data_dir);
     }
     wake(&app);
     Ok(note)
@@ -486,7 +537,9 @@ pub fn note_save(
 ) -> Result<NoteIndex, String> {
     let index = {
         let mut guard = lock(&store)?;
-        guard.save(input)?
+        let index = guard.save(input)?;
+        crate::cloud::state::mark_dirty(&guard.data_dir);
+        index
     };
     wake(&app);
     Ok(index)
@@ -585,7 +638,9 @@ pub fn note_set_meta(
 ) -> Result<NoteIndex, String> {
     let index = {
         let mut guard = lock(&store)?;
-        guard.patch(&id, patch)?
+        let index = guard.patch(&id, patch)?;
+        crate::cloud::state::mark_dirty(&guard.data_dir);
+        index
     };
     wake(&app);
     Ok(index)
@@ -602,6 +657,7 @@ pub fn note_delete(app: AppHandle, store: State<SharedNotes>, id: String) -> Res
         }
         guard.index.notes.retain(|item| item.id != id);
         guard.persist_index()?;
+        crate::cloud::state::add_tombstone(&guard.data_dir, "notes", &id, now_ms());
     }
     wake(&app);
     Ok(())

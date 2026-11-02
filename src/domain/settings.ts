@@ -59,6 +59,22 @@ export interface Settings {
     hasApiKey: boolean;
     lastStatus: string;
   };
+  cloud: CloudSettings;
+}
+
+export interface CloudSettings {
+  enabled: boolean;
+  provider: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  dir: string;
+  autoSync: boolean;
+  intervalMinutes: number;
+  deviceId: string;
+  lastSyncAt: number;
+  lastStatus: string;
+  hasToken: boolean;
 }
 
 export interface WebhookSettings {

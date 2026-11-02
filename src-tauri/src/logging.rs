@@ -93,7 +93,7 @@ fn write(level: &str, message: std::fmt::Arguments<'_>) {
         .unwrap_or_default();
     let thread = std::thread::current();
     let thread_name = thread.name().unwrap_or("unnamed");
-    let line = format!("[{millis}] [{level}] [{thread_name}] {message}");
+    let line = redact(&format!("[{millis}] [{level}] [{thread_name}] {message}"));
 
     if cfg!(debug_assertions) {
         eprintln!("{line}");
@@ -105,6 +105,21 @@ fn write(level: &str, message: std::fmt::Arguments<'_>) {
         let _ = writeln!(file, "{line}");
         let _ = file.flush();
     }
+}
+
+fn redact(input: &str) -> String {
+    let mut out = input.to_string();
+    for marker in ["access_token=", "access_token%3D", "access_token%3d"] {
+        while let Some(start) = out.find(marker) {
+            let value_at = start + marker.len();
+            let end = out[value_at..]
+                .find(['&', ' ', '"', '\n'])
+                .map(|index| value_at + index)
+                .unwrap_or(out.len());
+            out.replace_range(value_at..end, "***");
+        }
+    }
+    out
 }
 
 fn install_panic_hook() {

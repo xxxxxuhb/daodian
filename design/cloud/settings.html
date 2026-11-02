@@ -1,0 +1,177 @@
+<!doctype html><html lang="zh-CN" data-theme="night"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root[data-theme=celadon]{--bg:#FAFCFB;--panel:#FFFFFF;--ink:#0E1613;--ink2:#47564F;--ink3:#74847C;--ink4:#98A69F;
+--line:#D3DFD9;--line2:#E3EBE6;--acc:#15637B;--acc-soft:#DCE9EF;--fill:#E1E8E4;--fill2:#CCD8D2;--warn:#9C640E;--danger:#A33C3C;--ok:#2C7A58}
+:root[data-theme=night]{--bg:#12161C;--panel:#161A21;--ink:#E7ECF2;--ink2:#A7B2BF;--ink3:#77828E;--ink4:#59636E;
+--line:#252C36;--line2:#1D232B;--acc:#5B8DF6;--acc-soft:rgba(91,141,246,.16);--fill:#1E242C;--fill2:#2B333D;--warn:#E0A24C;--danger:#E07A7A;--ok:#45B98F}
+html,body{margin:0;overflow:hidden;background:transparent}
+body{font-family:"Segoe UI","Microsoft YaHei UI",sans-serif;color:var(--ink)}
+.panel{width:520px;height:760px;background:var(--panel);display:flex;flex-direction:column;overflow:hidden}
+.ph{display:flex;align-items:center;padding:14px 20px 10px;border-bottom:1px solid var(--line2)}
+.ph b{font-size:13px;font-weight:600}
+.ph .x{margin-left:auto;color:var(--ink4);font-size:14px}
+.body{flex:1;overflow:hidden;padding:16px 20px}
+h3{font-size:12.5px;font-weight:600;margin-bottom:8px}
+.note{font-size:10px;color:var(--ink4);line-height:1.75}
+.note b{color:var(--ink2);font-weight:600}
+.hr{height:1px;background:var(--line2);margin:16px 0}
+
+.sw{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink2)}
+.sw i{width:30px;height:17px;border-radius:999px;background:var(--fill2);position:relative;flex:none}
+.sw i::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:.2s}
+.sw.on i{background:var(--acc)}
+.sw.on i::after{left:15px}
+
+.btn{height:30px;padding:0 13px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink2);font-size:11px;cursor:pointer;font-family:inherit}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.sm{height:25px;padding:0 10px;font-size:10.5px}
+.btn.ghost{border:0;background:transparent;color:var(--acc)}
+.btn.danger{color:var(--danger);border-color:var(--line)}
+
+.big{width:100%;height:36px;border-radius:8px;background:var(--acc);color:#fff;border:0;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.big.ghost{background:transparent;border:1px solid var(--line);color:var(--ink2);font-weight:500}
+
+.field{display:flex;flex-direction:column;gap:5px;margin-top:12px}
+.field label{font-size:10px;color:var(--ink3)}
+.field input{height:32px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font-size:11px;padding:0 10px;font-family:inherit}
+.field input:focus{outline:0;border-color:var(--acc)}
+.row{display:flex;gap:7px;align-items:center}
+.row .grow{flex:1}
+.link{font-size:10px;color:var(--acc);text-decoration:none}
+
+.state{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink3);margin-top:10px}
+.state i{width:6px;height:6px;border-radius:50%;background:var(--ok);flex:none}
+.state.off i{background:var(--fill2)}
+.state time{font-family:Georgia,serif}
+
+.adv{margin-top:14px;border-top:1px solid var(--line2);padding-top:10px}
+.adv__t{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2);cursor:pointer}
+.adv__t span{font-size:9px;color:var(--ink4)}
+.kv{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--ink3);margin-top:8px}
+.kv b{color:var(--ink2);font-weight:600;font-family:Consolas,monospace;font-size:10.5px}
+.kv .grow{flex:1}
+
+.steps{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+.step{display:flex;gap:7px;font-size:10px;color:var(--ink3);line-height:1.6}
+.step i{width:15px;height:15px;border-radius:50%;background:var(--acc-soft);color:var(--acc);font-size:8.5px;display:grid;place-items:center;flex:none;font-style:normal;margin-top:1px}
+
+.toast{display:none;position:absolute;left:20px;right:20px;bottom:14px;background:var(--ink);color:var(--panel);border-radius:8px;padding:9px 12px;font-size:10.5px;display:flex;align-items:center;gap:8px}
+.toast .grow{flex:1}
+.toast a{color:var(--panel);text-decoration:underline;font-size:10px}
+
+.dock{position:fixed;right:10px;bottom:12px;display:flex;gap:3px;padding:5px;border-radius:10px;background:rgba(12,18,15,.9);z-index:99}
+.dock button{height:21px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:rgba(233,241,236,.6);font-size:9.5px;cursor:pointer;font-family:inherit}
+.dock button.on{background:rgba(255,255,255,.16);color:#fff;font-weight:600}
+.dock .sep{width:1px;background:rgba(255,255,255,.14);margin:3px 2px}
+.clean .dock{display:none}
+
+.s-adv-h,.s-adv-body{display:none}
+[data-screen=on] .s-adv-h{display:block}
+[data-screen=adv] .s-adv-h,[data-screen=adv] .s-adv-body{display:block}
+[data-screen=off] .s-on,[data-screen=off] .s-connect{display:none}
+[data-screen=connect] .s-off,[data-screen=connect] .s-on{display:none}
+[data-screen=on] .s-off,[data-screen=on] .s-connect{display:none}
+[data-screen=adv] .s-off,[data-screen=adv] .s-connect{display:none}
+[data-screen=adv] .s-on{display:block}
+.toast{display:none !important}
+[data-screen=on] .toast{display:flex !important}
+[data-screen=on] .toast{display:flex}
+[data-screen=adv] .adv__t span{transform:none}
+[data-screen=adv] .adv__t span::before{content:"▴"}
+[data-screen=adv] .adv__t span{font-size:0}
+[data-screen=adv] .adv__t span::before{font-size:9px}
+</style></head><body data-screen="off">
+<div class="panel">
+  <div class="ph"><b>设置</b><span class="x">×</span></div>
+  <div class="body">
+    <h3>云同步</h3>
+
+    <!-- 未连接 -->
+    <div class="s-off">
+      <p class="note">把待办、计划和模板同步到你的 Gitee 私有仓库。<b>本地始终是唯一记录</b>，云端只是副本。</p>
+      <div style="margin-top:14px"><button class="big">连接 Gitee</button></div>
+      <p class="note" style="margin-top:8px">需要一个访问令牌 · <a class="link" href="#">怎么获取</a></p>
+      <p class="note" style="margin-top:10px">令牌只在这台机器上加密保存，不上传、不写进配置文件。</p>
+    </div>
+
+    <!-- 连接中 -->
+    <div class="s-connect">
+      <p class="note">粘贴 Gitee 访问令牌，剩下的我来：验证、建私有仓库、连上并推一次。</p>
+      <div class="field">
+        <label>访问令牌</label>
+        <input type="password" value="••••••••••••••••••" />
+      </div>
+      <p class="note" style="margin-top:6px"><a class="link" href="#">去 Gitee 生成令牌 ↗</a></p>
+      <div style="margin-top:12px"><button class="big">连接并创建仓库</button></div>
+      <div class="steps">
+        <div class="step"><i>1</i><span>验证令牌 · 拿到你的登录名</span></div>
+        <div class="step"><i>2</i><span>建一个私有仓库 <b>daodian-sync</b>（名字可以改）</span></div>
+        <div class="step"><i>3</i><span>把这台机器的数据推上去</span></div>
+      </div>
+      <p class="note" style="margin-top:12px"><a class="link" href="#">改用已有仓库</a></p>
+    </div>
+
+    <!-- 已连接 -->
+    <div class="s-on">
+      <div class="row">
+        <div class="sw on"><i></i><span>已开启</span></div>
+        <span class="grow"></span>
+        <button class="btn sm">立即同步</button>
+      </div>
+      <div class="kv"><b>007064/daodian-sync</b><span>·</span><span>master</span></div>
+      <div class="state"><i></i><span>上次同步 <time>2 分钟前</time> · 正常</span></div>
+    </div>
+
+    <!-- 高级标题 -->
+    <div class="s-adv-h">
+      <div class="adv">
+        <div class="adv__t">高级 <span>▾</span></div>
+      </div>
+    </div>
+
+    <!-- 高级展开 -->
+    <div class="s-adv-body" style="margin-top:12px">
+      <div class="row" style="margin-top:12px">
+        <div class="sw on" style="font-size:11px"><i></i><span>自动同步</span></div>
+        <span class="grow"></span>
+        <span class="note">每</span>
+        <input style="width:46px;height:26px;text-align:center;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:10.5px" value="10" />
+        <span class="note">分钟</span>
+      </div>
+      <div class="kv"><span>目录</span><b>daodian</b></div>
+      <div class="kv"><span>分支</span><b>master</b><span class="note">· 跟随仓库默认</span></div>
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn sm">更换令牌</button>
+        <button class="btn sm">改用已有仓库</button>
+        <span class="grow"></span>
+        <button class="btn sm danger">断开连接</button>
+      </div>
+      <p class="note" style="margin-top:8px">断开后本地数据不受影响，只是不再上传。</p>
+    </div>
+
+    <div class="toast"><span class="grow">已连接到 007064/daodian-sync</span><a href="#">撤销</a></div>
+  </div>
+
+  <div class="dock">
+    <button data-s="off">未连接</button><button data-s="connect">连接中</button><button data-s="on">已连接</button><button data-s="adv">高级</button>
+    <span class="sep"></span><button data-t="celadon">青瓷</button><button data-t="night">夜航</button>
+  </div>
+</div>
+<script>
+const q = new URLSearchParams(location.hash.slice(1));
+let theme = q.get("theme") || "night", screen = q.get("screen") || "off";
+const clean = q.get("clean") === "1";
+if (clean) document.body.classList.add("clean");
+function apply(){
+  document.documentElement.dataset.theme = theme;
+  document.body.dataset.screen = screen;
+  document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === screen));
+  document.querySelectorAll("[data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === theme));
+  history.replaceState(null, "", "#theme=" + theme + "&screen=" + screen + (clean ? "&clean=1" : ""));
+}
+document.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { screen = b.dataset.s; apply(); }));
+document.querySelectorAll("[data-t]").forEach(b => b.addEventListener("click", () => { theme = b.dataset.t; apply(); }));
+apply();
+</script>
+</body></html>

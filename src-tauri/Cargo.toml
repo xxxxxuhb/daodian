@@ -1,6 +1,6 @@
 [package]
 name = "daodian"
-version = "0.2.1"
+version = "0.2.3"
 description = "桌面待办，到点提醒"
 authors = ["you"]
 edition = "2024"
