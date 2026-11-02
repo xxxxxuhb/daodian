@@ -50,16 +50,42 @@ export function sortNotes(notes: NoteIndex[], filter: NoteFilter, query: string)
   });
 }
 
-export function filterNotes(notes: NoteIndex[], filter: NoteFilter, query: string, now: number) {
+export function filterNotes(notes: NoteIndex[], filter: NoteFilter, query: string, now: number, tag = "") {
   return sortNotes(
-    notes.filter((note) => noteVisible(note, filter, now) && matchScore(note, query) > 0),
+    notes.filter((note) => noteVisible(note, filter, now) && matchScore(note, query) > 0 && (!tag || note.tags.includes(tag))),
     filter,
     query,
   );
 }
 
-export function emptyNoteCopy(filter: NoteFilter, query: string) {
+export function noteTagEntries(previous: string[], notes: NoteIndex[]) {
+  const counts = new Map<string, number>();
+  const fresh: string[] = [];
+  const ordered = notes
+    .filter((note) => !note.archived)
+    .slice()
+    .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id));
+  for (const note of ordered) {
+    for (const tag of note.tags) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      if (!fresh.includes(tag)) fresh.push(tag);
+    }
+  }
+  const tags = previous.filter((tag) => counts.has(tag));
+  for (const tag of fresh) {
+    if (!tags.includes(tag)) tags.push(tag);
+  }
+  return tags.map((tag) => ({ tag, count: counts.get(tag) ?? 0 }));
+}
+
+export function emptyNoteCopy(filter: NoteFilter, query: string, tag = "") {
   if (query.trim()) return "没有匹配的备忘录";
+  if (tag) {
+    if (filter === "archived") return `归档里没有「${tag}」`;
+    if (filter === "due") return `「${tag}」还没有设到点`;
+    if (filter === "recent") return `最近 7 天没有改过「${tag}」`;
+    return `没有带「${tag}」的备忘录`;
+  }
   if (filter === "archived") return "没有归档的备忘录";
   if (filter === "due") return "还没有设到点的备忘录";
   if (filter === "recent") return "最近 7 天没有改过备忘录";

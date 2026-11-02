@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { describeDoc, filterNotes, matchScore } from "../src/features/notes/logic.ts";
+import { describeDoc, filterNotes, matchScore, noteTagEntries } from "../src/features/notes/logic.ts";
 
 const now = new Date(2026, 10, 2, 9).getTime();
 
@@ -38,6 +38,18 @@ test("filters hide archived notes unless asked", () => {
   assert.deepEqual(filterNotes([live, archived, due], "all", "", now).map((item) => item.id), ["live", "due"]);
   assert.deepEqual(filterNotes([live, archived, due], "archived", "", now).map((item) => item.id), ["old"]);
   assert.deepEqual(filterNotes([live, archived, due], "due", "", now).map((item) => item.id), ["due"]);
+});
+
+test("sidebar tags follow notes and keep new ones at the end", () => {
+  const first = note({ id: "a", createdAt: now - 2 * 86_400_000, tags: ["版本"] });
+  const second = note({ id: "b", createdAt: now - 86_400_000, tags: ["会议", "版本"] });
+  const archived = note({ id: "c", archived: true, tags: ["旧"] });
+  assert.deepEqual(noteTagEntries([], [second, first, archived]), [
+    { tag: "版本", count: 2 },
+    { tag: "会议", count: 1 },
+  ]);
+  assert.deepEqual(noteTagEntries(["会议", "版本"], [first, second, note({ id: "d", tags: ["发布"] })]).map((item) => item.tag), ["会议", "版本", "发布"]);
+  assert.deepEqual(filterNotes([first, second], "all", "", now, "会议").map((item) => item.id), ["b"]);
 });
 
 test("describeDoc keeps the first image and the plain text", () => {

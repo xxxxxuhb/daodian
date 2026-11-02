@@ -92,6 +92,7 @@ svg.ico.s{width:13px;height:13px;stroke-width:1.8}
 .nav-group>p{display:flex;align-items:center;gap:9px;padding:0 10px 8px;font-size:10px;letter-spacing:.2em;color:var(--rail-faint)}
 .nav-group>p::after{content:"";flex:1;height:1px;background:var(--rail-line)}
 .nav-item{display:flex;align-items:center;height:36px;padding:0 10px;border-radius:9px;font-size:13.5px;color:var(--rail-dim);cursor:default;letter-spacing:.01em}
+.nav-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav-item .n{margin-left:auto;font-family:var(--serif);font-size:12px;color:var(--rail-faint);font-variant-numeric:tabular-nums}
 .nav-item:hover{background:var(--rail-hover);color:var(--rail-ink)}
 .nav-item.is-active{background:var(--rail-active);color:var(--rail-active-ink);font-weight:600;box-shadow:var(--shadow-1)}

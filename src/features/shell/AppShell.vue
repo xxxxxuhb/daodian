@@ -11,7 +11,7 @@ import Mark from "../../ui/Mark.vue";
 import PlanPage from "../plans/PlanPage.vue";
 import { PLAN_FILTERS, planCounts, type PlanFilter } from "../plans/logic";
 import NotesPage from "../notes/NotesPage.vue";
-import { activeNoteCount } from "../notes/logic";
+import { activeNoteCount, noteTagEntries } from "../notes/logic";
 import { openLinkedKey, openNoteKey, type LinkedTarget } from "../notes/open";
 import { bindNoteLifecycle, useNotes } from "../notes/useNotes";
 import TodoPage from "../todos/TodoPage.vue";
@@ -46,6 +46,16 @@ const { todos, plans, loadError, reload } = useLibrary();
 const { notes, reload: reloadNotes } = useNotes();
 bindNoteLifecycle();
 const noteCount = computed(() => activeNoteCount(notes.value));
+const noteTag = ref("");
+const noteTagOrder = ref<string[]>([]);
+const noteTags = computed(() => noteTagEntries(noteTagOrder.value, notes.value));
+watch(noteTags, (items) => {
+  const next = items.map((item) => item.tag);
+  if (next.length !== noteTagOrder.value.length || next.some((tag, index) => tag !== noteTagOrder.value[index])) {
+    noteTagOrder.value = next;
+  }
+  if (noteTag.value && !next.includes(noteTag.value)) noteTag.value = "";
+});
 const { refresh: refreshCalendar, remove: removeCalendar } = useCalendar();
 const { settings, load: loadSettings, update: updateSettings } = useSettings();
 const keyword = computed(() => query.value.trim().toLowerCase());
@@ -101,8 +111,9 @@ function pickTimeline() {
   planView.value = "gantt";
 }
 
-function pickNote() {
+function pickNote(tag = "") {
   section.value = "note";
+  noteTag.value = tag;
 }
 
 function openNote(id: string) {
@@ -311,9 +322,21 @@ onUnmounted(() => {
         </div>
         <div class="nav-group">
           <p>备忘录</p>
-          <button type="button" class="nav-item" :class="{ 'is-active': section === 'note' }" @click="pickNote">
+          <button type="button" class="nav-item" :class="{ 'is-active': section === 'note' && !noteTag }" @click="pickNote()">
             <span>全部</span>
             <i class="n">{{ noteCount }}</i>
+          </button>
+          <button
+            v-for="item in noteTags"
+            :key="item.tag"
+            type="button"
+            class="nav-item"
+            :class="{ 'is-active': section === 'note' && noteTag === item.tag }"
+            :title="item.tag"
+            @click="pickNote(item.tag)"
+          >
+            <span>#{{ item.tag }}</span>
+            <i class="n">{{ item.count }}</i>
           </button>
         </div>
       </nav>
@@ -331,7 +354,7 @@ onUnmounted(() => {
         <button type="button" class="settings-trigger tip" @click="settingsOpen = true">设置</button>
       </div>
     </aside>
-    <NotesPage v-if="section === 'note'" :query="keyword" :focus="noteFocus" />
+    <NotesPage v-if="section === 'note'" :query="keyword" :tag="noteTag" :focus="noteFocus" />
     <TodoPage
       v-else-if="section === 'todo'"
       :filter="todoFilter"
@@ -353,7 +376,7 @@ onUnmounted(() => {
         <Icon name="layers" />
         <i class="n">{{ planTally.active }}</i>
       </button>
-      <button type="button" class="nav" :class="{ on: section === 'note' }" aria-label="备忘录" @click="pickNote">
+      <button type="button" class="nav" :class="{ on: section === 'note' }" aria-label="备忘录" @click="pickNote()">
         <Icon name="note" />
         <i class="n">{{ noteCount }}</i>
       </button>
@@ -375,7 +398,7 @@ onUnmounted(() => {
         <Icon name="search" small />
         <input ref="searchEl" v-model="query" type="search" :placeholder="section === 'note' ? '搜索标题或正文' : '搜索标题、备注或阶段'" @keydown.esc="searching = false" />
       </label>
-      <NotesPage v-if="section === 'note'" :query="keyword" :focus="noteFocus" />
+      <NotesPage v-if="section === 'note'" :query="keyword" :tag="noteTag" :focus="noteFocus" />
       <TodoPage
         v-else-if="section === 'todo'"
         :filter="todoFilter"
@@ -396,7 +419,7 @@ onUnmounted(() => {
     <label v-if="searching" class="std-search mini-search">
       <input ref="searchEl" v-model="query" type="search" :placeholder="section === 'note' ? '搜索备忘录' : '搜索'" @keydown.esc="searching = false" />
     </label>
-    <NotesPage v-if="section === 'note'" :query="keyword" :focus="noteFocus" />
+    <NotesPage v-if="section === 'note'" :query="keyword" :tag="noteTag" :focus="noteFocus" />
     <TodoPage
       v-else-if="section === 'todo'"
       :filter="todoFilter"
@@ -415,7 +438,7 @@ onUnmounted(() => {
       <button type="button" class="tab" :class="{ on: section === 'plan' && planView === 'cards' }" @click="pickPlan('active')">
         <Icon name="layers" /><span>计划</span>
       </button>
-      <button type="button" class="tab" :class="{ on: section === 'note' }" @click="pickNote">
+      <button type="button" class="tab" :class="{ on: section === 'note' }" @click="pickNote()">
         <Icon name="note" /><span>备忘录</span>
       </button>
       <button type="button" class="icon-btn" @click="chooseTheme(themeName === 'night' ? 'celadon' : 'night')">

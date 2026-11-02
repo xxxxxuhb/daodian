@@ -14,7 +14,7 @@ import { emptyNoteCopy, filterNotes, PAGE_AFTER, PAGE_SIZE, activeNoteCount, typ
 import { mediaDirKey } from "./open";
 import { useNotes } from "./useNotes";
 
-const props = defineProps<{ query: string; focus: { id: string; token: number } | null }>();
+const props = defineProps<{ query: string; tag?: string; focus: { id: string; token: number } | null }>();
 
 const now = useNow();
 const tier = inject(tierKey, computed(() => "standard" as const));
@@ -30,14 +30,14 @@ const focusTitle = ref(false);
 const actionError = ref("");
 const face = computed(() => clockFace(now.value));
 const keyword = computed(() => localQuery.value.trim() || props.query.trim());
-const filtered = computed(() => filterNotes(notes.value, filter.value, keyword.value, now.value));
+const filtered = computed(() => filterNotes(notes.value, filter.value, keyword.value, now.value, props.tag ?? ""));
 const pageCount = computed(() => (filtered.value.length > PAGE_AFTER ? Math.ceil(filtered.value.length / PAGE_SIZE) : 1));
 const visible = computed(() => {
   if (filtered.value.length <= PAGE_AFTER) return filtered.value;
   const start = page.value * PAGE_SIZE;
   return filtered.value.slice(start, start + PAGE_SIZE);
 });
-const empty = computed(() => emptyNoteCopy(filter.value, keyword.value));
+const empty = computed(() => emptyNoteCopy(filter.value, keyword.value, props.tag ?? ""));
 const count = computed(() => activeNoteCount(notes.value));
 const showList = computed(() => tier.value !== "mini" || !miniEditing.value);
 const showEditor = computed(() => !!current.value && (tier.value !== "mini" || miniEditing.value));
@@ -48,7 +48,7 @@ watch(
     if (value) localQuery.value = value;
   },
 );
-watch([filter, localQuery], () => {
+watch([filter, localQuery, () => props.tag], () => {
   page.value = 0;
 });
 watch(tick, () => {
