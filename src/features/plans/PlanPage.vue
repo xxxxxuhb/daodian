@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
-import { computed, inject, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { generatePlan } from "../../api/ai";
 import {
   deletePlan,
@@ -40,21 +40,20 @@ import { tierKey } from "../shell/tier";
 import GanttBoard from "./GanttBoard.vue";
 import {
   adoptSavedStages,
-  comparePlans,
   emptyPlanCopy,
   emptyPlanDraft,
   emptyStage,
-  matchesPlan,
   newStageKey,
   stagesFromTemplate,
   templatePreview,
   templateStagesFromPlan,
   PLAN_FILTERS,
-  planMatchesQuery,
   stagesForSave,
   toPlanDraft,
+  visiblePlans,
   type PlanDraft,
   type PlanFilter,
+  type PlanRange,
 } from "./logic";
 import PlanCard from "./PlanCard.vue";
 import PlanEditor from "./PlanEditor.vue";
@@ -73,9 +72,9 @@ const { settings } = useSettings();
 const { saving, error, run } = useRun();
 const face = computed(() => clockFace(now.value));
 const view = ref<"cards" | "gantt">("cards");
-const span = ref<"week" | "month">("week");
-const important = ref(false);
-const showAll = ref(false);
+const range = shallowRef<PlanRange>("week");
+const axisMode = shallowRef<"week" | "month">("week");
+const important = shallowRef(false);
 const name = ref("");
 const templateId = ref("");
 const undo = ref<{ plan: Plan; timer: number } | null>(null);
@@ -92,7 +91,7 @@ const templateNames = ref<Record<string, string>>({});
 const doneStamp = ref("");
 const createTick = inject(createTickKey, null);
 const tier = inject(tierKey, computed(() => "wide" as const));
-const axis = computed(() => axisRange(now.value, span.value));
+const axis = computed(() => axisRange(now.value, axisMode.value));
 const selectedTemplate = computed(
   () => templates.value.find((item) => item.id === templateId.value),
 );
@@ -113,21 +112,36 @@ onUnmounted(() => {
 });
 
 const shown = computed(() =>
-  plans.value
-    .filter((plan) => showAll.value || matchesPlan(plan, props.filter))
-    .filter((plan) => !important.value || plan.priority === "high")
-    .filter((plan) => {
-      const dated = plan.stages.filter((stage) => stage.at != null);
-      return dated.length === 0 || dated.some(
-        (stage) => stage.at! >= axis.value.start && stage.at! < axis.value.end,
-      );
-    })
-    .filter((plan) => planMatchesQuery(plan, props.query))
-    .sort(comparePlans),
+  visiblePlans(plans.value, {
+    filter: props.filter,
+    range: range.value,
+    rangeStart: axis.value.start,
+    rangeEnd: axis.value.end,
+    important: important.value,
+    query: props.query,
+  }),
 );
+const rangeLabel = computed(() => (range.value === "week" ? "本周" : range.value === "month" ? "本月" : "全部计划"));
+const rangeAria = computed(() => {
+  if (range.value === "week") return "当前本周，切换到本月";
+  if (range.value === "month") return "当前本月，切换到全部计划";
+  return "当前全部计划，切换到本周";
+});
+
+function selectRange(next: PlanRange) {
+  range.value = next;
+  if (next !== "all") axisMode.value = next;
+}
+
+function cycleRange() {
+  selectRange(range.value === "week" ? "month" : range.value === "month" ? "all" : "week");
+}
 const heading = computed(() => {
   if (view.value === "gantt") {
     return { label: "时间轴", hint: "七个计划排在同一条线上，谁先到点一眼看得出来" };
+  }
+  if (range.value === "all") {
+    return { label: "全部计划", hint: "进行中和已完成都列在这里" };
   }
   return PLAN_FILTERS.find((item) => item.id === props.filter) ?? PLAN_FILTERS[0]!;
 });
@@ -529,10 +543,10 @@ async function removeDraft() {
       <button
         type="button"
         class="chip on"
-        :aria-label="span === 'week' ? '切换到本月' : '切换到本周'"
-        @click="span = span === 'week' ? 'month' : 'week'"
+        :aria-label="rangeAria"
+        @click="cycleRange"
       >
-        <span>{{ span === "week" ? "本周" : "本月" }}</span>
+        <span>{{ rangeLabel }}</span>
         <i class="range-caret" aria-hidden="true"></i>
       </button>
       <span class="grow"></span>
@@ -593,15 +607,15 @@ async function removeDraft() {
       </div>
 
       <div v-if="tier !== 'mini'" class="toolbar">
-        <button type="button" class="chip" :class="{ on: span === 'week' }" @click="span = 'week'">本周</button>
-        <button type="button" class="chip" :class="{ on: span === 'month' }" @click="span = 'month'">本月</button>
+        <button type="button" class="chip" :class="{ on: range === 'week' }" @click="selectRange('week')">本周</button>
+        <button type="button" class="chip" :class="{ on: range === 'month' }" @click="selectRange('month')">本月</button>
         <span class="grow"></span>
-        <button type="button" class="chip" :class="{ on: showAll }" @click="showAll = !showAll">全部计划</button>
+        <button type="button" class="chip" :class="{ on: range === 'all' }" @click="selectRange('all')">全部计划</button>
         <button type="button" class="chip" :class="{ on: important }" @click="important = !important">只看重要</button>
       </div>
 
       <p v-if="loading && shown.length === 0" class="empty">正在读取…</p>
-      <p v-else-if="view === 'cards' && shown.length === 0" class="empty">{{ emptyPlanCopy(filter, Boolean(query)) }}</p>
+      <p v-else-if="view === 'cards' && shown.length === 0" class="empty">{{ emptyPlanCopy(filter, Boolean(query), range) }}</p>
       <template v-else-if="view === 'cards'">
         <PlanCard
           v-for="plan in shown"
@@ -618,7 +632,7 @@ async function removeDraft() {
         />
       </template>
       <template v-else>
-        <GanttBoard :plans="shown" :now="now" :mode="span" @open="openPlan" @shift="shift" />
+        <GanttBoard :plans="shown" :now="now" :mode="axisMode" @open="openPlan" @shift="shift" />
         <div v-if="tier === 'mini'" class="next-card mini-next-card">
           <div v-if="next">
             <p class="eyebrow">最近一个</p>
@@ -770,7 +784,7 @@ async function removeDraft() {
     </template>
     <template v-else>
       <div class="aside__head">
-        <p class="eyebrow">{{ span === "week" ? "本周节点" : "本月节点" }}</p>
+        <p class="eyebrow">{{ axisMode === "week" ? "本周节点" : "本月节点" }}</p>
         <div class="big"><b>{{ rangeStats.total }}</b><span>个到点</span></div>
         <div class="bar"><i :style="{ width: `${Math.round(rangeStats.ratio * 100)}%`, background: 'var(--accent)' }"></i></div>
       </div>

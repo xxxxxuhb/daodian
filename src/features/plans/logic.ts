@@ -1,7 +1,7 @@
-import { priorityRank } from "../../domain/priority";
-import { atClock } from "../../domain/present";
-import { timeMeta } from "../../domain/time";
-import type { Plan, PlanTemplate, Priority, Stage, StageInput, TemplateStage } from "../../domain/types";
+import { priorityRank } from "../../domain/priority.ts";
+import { atClock } from "../../domain/present.ts";
+import { timeMeta } from "../../domain/time.ts";
+import type { Plan, PlanTemplate, Priority, Stage, StageInput, TemplateStage } from "../../domain/types.ts";
 
 export const BUILTIN_PLAN_TEMPLATES: PlanTemplate[] = [];
 
@@ -155,6 +155,35 @@ export function matchesPlan(plan: Plan, filter: PlanFilter) {
   return filter === "done" ? plan.done : !plan.done;
 }
 
+export type PlanRange = "week" | "month" | "all";
+
+export function planTouchesRange(plan: Plan, start: number, end: number) {
+  const dated = plan.stages.filter((stage) => stage.at != null);
+  return dated.length === 0 || dated.some((stage) => {
+    const at = stage.at;
+    return at != null && at >= start && at < end;
+  });
+}
+
+export function visiblePlans(
+  plans: Plan[],
+  options: {
+    filter: PlanFilter;
+    range: PlanRange;
+    rangeStart: number;
+    rangeEnd: number;
+    important: boolean;
+    query: string;
+  },
+) {
+  return plans
+    .filter((plan) => options.range === "all" || matchesPlan(plan, options.filter))
+    .filter((plan) => !options.important || plan.priority === "high")
+    .filter((plan) => options.range === "all" || planTouchesRange(plan, options.rangeStart, options.rangeEnd))
+    .filter((plan) => planMatchesQuery(plan, options.query))
+    .sort(comparePlans);
+}
+
 export function planCounts(plans: Plan[]) {
   return {
     active: plans.filter((plan) => matchesPlan(plan, "active")).length,
@@ -251,8 +280,9 @@ export function moveStage(stages: StageDraft[], index: number, direction: -1 | 1
   return next;
 }
 
-export function emptyPlanCopy(filter: PlanFilter, hasQuery: boolean) {
+export function emptyPlanCopy(filter: PlanFilter, hasQuery: boolean, range: PlanRange = "week") {
   if (hasQuery) return "没有匹配的计划";
+  if (range === "all") return "还没有计划";
   if (filter === "done") return "还没有完成的计划";
   return "记一个计划，再分成提测、发布这样的阶段";
 }

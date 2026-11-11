@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { savePlan, saveTodo, setStageDone, setTodoDone } from "../../api/library";
 import { setNoteMeta } from "../../api/notes";
@@ -9,11 +9,12 @@ import { openNoteKey } from "../notes/open";
 import { useNotes } from "../notes/useNotes";
 import { useNow } from "../../domain/clock";
 import { clockTime, remindedHits, type RemindedHit } from "../../domain/present";
+import { REMINDER_SETTLED, reminderStillPending, type ReminderSettled } from "../../domain/reminderSync";
 import { useRun } from "../../domain/useRun";
 import Icon from "../../ui/Icon.vue";
 
 const { todos, plans, loading, loadError, reload } = useLibrary();
-const { notes, reload: reloadNotes } = useNotes();
+const { notes, loading: notesLoading, reload: reloadNotes } = useNotes();
 const openNote = inject(openNoteKey, null);
 const now = useNow();
 const { saving, error, run } = useRun();
@@ -22,6 +23,7 @@ const current = computed(() => queue.value[0] ?? null);
 const seen = new Set<string>();
 let ready = false;
 let unlisten: UnlistenFn | null = null;
+let unlistenSettled: UnlistenFn | null = null;
 
 interface ReminderEvent {
   key: string;
@@ -40,6 +42,20 @@ function enqueue(hit: RemindedHit) {
   queue.value = [...queue.value, hit];
 }
 
+function dropSettled(key: string) {
+  if (!queue.value.some((hit) => hit.key === key)) return;
+  const front = queue.value[0]?.key === key;
+  queue.value = queue.value.filter((hit) => hit.key !== key);
+  if (front) {
+    error.value = "";
+    knobX.value = 0;
+  }
+}
+
+function publishSettled(key: string) {
+  void emit(REMINDER_SETTLED, { key } satisfies ReminderSettled).catch(() => undefined);
+}
+
 onMounted(async () => {
   try {
     unlisten = await listen<ReminderEvent[]>("reminder-fired", ({ payload }) => {
@@ -56,12 +72,18 @@ onMounted(async () => {
         });
       }
     });
+    unlistenSettled = await listen<ReminderSettled>(REMINDER_SETTLED, ({ payload }) => {
+      if (payload?.key) dropSettled(payload.key);
+    });
   } catch {
     // 浏览器预览里没有 Tauri 事件。
   }
 });
 
-onBeforeUnmount(() => unlisten?.());
+onBeforeUnmount(() => {
+  unlisten?.();
+  unlistenSettled?.();
+});
 
 /* 珠子落盘：换一条提醒就重放一次 */
 const landed = ref(false);
@@ -143,8 +165,16 @@ watch(
 );
 
 watch(
-  () => [loading.value, loadError.value, todos.value, plans.value] as const,
+  () => [loading.value, loadError.value, todos.value, plans.value, notes.value] as const,
   () => {
+    queue.value = queue.value.filter((hit) => {
+      if (hit.noteId) {
+        if (notesLoading.value) return true;
+        return reminderStillPending(hit, todos.value, plans.value, notes.value);
+      }
+      if (loading.value) return true;
+      return reminderStillPending(hit, todos.value, plans.value, notes.value);
+    });
     if (loading.value || loadError.value) return;
     const hits = remindedHits(todos.value, plans.value, now.value);
     if (!ready) {
@@ -160,9 +190,12 @@ watch(
 );
 
 function dismiss() {
-  queue.value = queue.value.slice(1);
+  const key = current.value?.key;
+  if (!key) return;
+  dropSettled(key);
   error.value = "";
   knobX.value = 0;
+  publishSettled(key);
 }
 
 async function complete() {

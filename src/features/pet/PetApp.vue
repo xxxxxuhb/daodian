@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { savePlan, saveTodo, setStageDone, setTodoDone } from "../../api/library";
@@ -7,6 +7,7 @@ import { useLibrary } from "../../data/useLibrary";
 import { useSettings } from "../../data/useSettings";
 import { useNow } from "../../domain/clock";
 import { clockTime, relative, upcoming } from "../../domain/present";
+import { REMINDER_SETTLED, reminderStillPending, type ReminderSettled } from "../../domain/reminderSync";
 import type { Settings } from "../../domain/settings";
 
 interface PetItem {
@@ -67,6 +68,7 @@ const blinking = ref(false);
 const action = ref<PetAction | "">("");
 let unlistenData: UnlistenFn | null = null;
 let unlistenReminder: UnlistenFn | null = null;
+let unlistenSettled: UnlistenFn | null = null;
 let unlistenSettings: UnlistenFn | null = null;
 let clickTimer = 0;
 let holdTimer = 0;
@@ -148,6 +150,11 @@ watch(
 );
 watch(isDue, (due) => {
   if (due) interruptAction();
+});
+watch([todos, plans], () => {
+  const current = activeReminder.value;
+  if (!current || reminderStillPending(current, todos.value, plans.value)) return;
+  hideReminderCard();
 });
 watch(completedCount, (count) => {
   if (completionBaseline == null) {
@@ -334,21 +341,40 @@ async function onPointerUp() {
   if (pinched.value) window.setTimeout(() => (pinched.value = false), 180);
 }
 
+function hideReminderCard() {
+  activeReminder.value = null;
+  if (panel.value === "card") panel.value = "none";
+}
+
+function publishSettled(key: string) {
+  void emit(REMINDER_SETTLED, { key } satisfies ReminderSettled).catch(() => undefined);
+}
+
+function dismissCard() {
+  const key = activeReminder.value?.key;
+  hideReminderCard();
+  panel.value = "none";
+  if (key) publishSettled(key);
+}
+
 async function complete() {
   const target = item.value;
   if (!target) return;
+  const key = activeReminder.value?.key;
   if (target.todoId) await setTodoDone(target.todoId, true);
   else if (target.planId && target.stageId) {
     await setStageDone(target.planId, target.stageId, true);
   }
-  activeReminder.value = null;
+  hideReminderCard();
   panel.value = "none";
+  if (key) publishSettled(key);
   await reload();
 }
 
 async function snoozeTo(at: number) {
   const target = item.value;
   if (!target) return;
+  const key = activeReminder.value?.key;
   if (target.todoId) {
     const todo = todos.value.find((entry) => entry.id === target.todoId);
     if (!todo) return;
@@ -381,6 +407,7 @@ async function snoozeTo(at: number) {
     });
   }
   activeReminder.value = null;
+  if (key) publishSettled(key);
   await reload();
 }
 
@@ -454,12 +481,16 @@ onMounted(async () => {
     };
     panel.value = "card";
   }).catch(() => null);
+  unlistenSettled = await listen<ReminderSettled>(REMINDER_SETTLED, ({ payload }) => {
+    if (payload?.key && activeReminder.value?.key === payload.key) hideReminderCard();
+  }).catch(() => null);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("blur", closePanelOnBlur);
   unlistenData?.();
   unlistenReminder?.();
+  unlistenSettled?.();
   unlistenSettings?.();
   window.clearTimeout(clickTimer);
   window.clearTimeout(holdTimer);
@@ -493,7 +524,7 @@ onBeforeUnmount(() => {
       <div class="pet-card__actions">
         <button type="button" class="is-primary" :disabled="!item" @click="complete">完成</button>
         <button type="button" @click="openTarget">打开</button>
-        <button type="button" class="pet-card__close" @click="panel = 'none'">×</button>
+        <button type="button" class="pet-card__close" @click="dismissCard">×</button>
       </div>
       <div class="pet-card__zones">
         <button v-for="minutes in [10, 30, 60]" :key="minutes" type="button" :disabled="!item" @click="snooze(minutes)">
