@@ -46,10 +46,11 @@ export function templatePreview(template: PlanTemplate) {
   return template.stages.map((stage) => stage.title).join(" → ");
 }
 
-export type PlanFilter = "active" | "done";
+export type PlanFilter = "active" | "open" | "done";
 
 export const PLAN_FILTERS: { id: PlanFilter; label: string; short: string; hint: string }[] = [
   { id: "active", label: "进行中", short: "进", hint: "一件事分成多个阶段，比如提测和发布，到了分别提醒" },
+  { id: "open", label: "未完成", short: "未", hint: "还没做完的计划都在这里，不限本周本月" },
   { id: "done", label: "已完成", short: "完", hint: "整份计划已经做完" },
 ];
 
@@ -155,7 +156,7 @@ export function matchesPlan(plan: Plan, filter: PlanFilter) {
   return filter === "done" ? plan.done : !plan.done;
 }
 
-export type PlanRange = "week" | "month" | "all";
+export type PlanRange = "week" | "month" | "any" | "all";
 
 export function planTouchesRange(plan: Plan, start: number, end: number) {
   const dated = plan.stages.filter((stage) => stage.at != null);
@@ -176,10 +177,12 @@ export function visiblePlans(
     query: string;
   },
 ) {
+  const everyStatus = options.range === "all";
+  const everyDate = options.range === "all" || options.range === "any";
   return plans
-    .filter((plan) => options.range === "all" || matchesPlan(plan, options.filter))
+    .filter((plan) => everyStatus || matchesPlan(plan, options.filter))
     .filter((plan) => !options.important || plan.priority === "high")
-    .filter((plan) => options.range === "all" || planTouchesRange(plan, options.rangeStart, options.rangeEnd))
+    .filter((plan) => everyDate || planTouchesRange(plan, options.rangeStart, options.rangeEnd))
     .filter((plan) => planMatchesQuery(plan, options.query))
     .sort(comparePlans);
 }
@@ -187,6 +190,7 @@ export function visiblePlans(
 export function planCounts(plans: Plan[]) {
   return {
     active: plans.filter((plan) => matchesPlan(plan, "active")).length,
+    open: plans.filter((plan) => matchesPlan(plan, "open")).length,
     done: plans.filter((plan) => matchesPlan(plan, "done")).length,
   };
 }
@@ -283,6 +287,7 @@ export function moveStage(stages: StageDraft[], index: number, direction: -1 | 1
 export function emptyPlanCopy(filter: PlanFilter, hasQuery: boolean, range: PlanRange = "week") {
   if (hasQuery) return "没有匹配的计划";
   if (range === "all") return "还没有计划";
+  if (filter === "open") return "还没有未完成的计划";
   if (filter === "done") return "还没有完成的计划";
   return "记一个计划，再分成提测、发布这样的阶段";
 }

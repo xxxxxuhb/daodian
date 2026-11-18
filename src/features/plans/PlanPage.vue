@@ -121,17 +121,34 @@ const shown = computed(() =>
     query: props.query,
   }),
 );
-const rangeLabel = computed(() => (range.value === "week" ? "本周" : range.value === "month" ? "本月" : "全部计划"));
+const rangeLabel = computed(() => {
+  if (range.value === "week") return "本周";
+  if (range.value === "month") return "本月";
+  if (range.value === "any") return "未完成";
+  return "全部计划";
+});
 const rangeAria = computed(() => {
   if (range.value === "week") return "当前本周，切换到本月";
   if (range.value === "month") return "当前本月，切换到全部计划";
+  if (range.value === "any") return "当前未完成，切换到本周";
   return "当前全部计划，切换到本周";
 });
 
 function selectRange(next: PlanRange) {
   range.value = next;
-  if (next !== "all") axisMode.value = next;
+  if (next === "week" || next === "month") axisMode.value = next;
 }
+
+watch(
+  () => props.filter,
+  (filter) => {
+    if (filter === "open") {
+      range.value = "any";
+      return;
+    }
+    if (range.value === "any") range.value = "week";
+  },
+);
 
 function cycleRange() {
   selectRange(range.value === "week" ? "month" : range.value === "month" ? "all" : "week");

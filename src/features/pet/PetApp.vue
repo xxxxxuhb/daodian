@@ -70,7 +70,6 @@ let unlistenData: UnlistenFn | null = null;
 let unlistenReminder: UnlistenFn | null = null;
 let unlistenSettled: UnlistenFn | null = null;
 let unlistenSettings: UnlistenFn | null = null;
-let clickTimer = 0;
 let holdTimer = 0;
 let down: { clientX: number; clientY: number; screenX: number; screenY: number } | null = null;
 let frame = 0;
@@ -267,15 +266,10 @@ function openTarget() {
 function onClick() {
   if (moving.value || pinched.value) return;
   interruptAction();
-  window.clearTimeout(clickTimer);
-  clickTimer = window.setTimeout(() => {
-    panel.value = panel.value === "card" ? "none" : "card";
-  }, 220);
 }
 
 function onDoubleClick() {
   interruptAction();
-  window.clearTimeout(clickTimer);
   panel.value = "none";
   openTarget();
 }
@@ -492,7 +486,6 @@ onBeforeUnmount(() => {
   unlistenReminder?.();
   unlistenSettled?.();
   unlistenSettings?.();
-  window.clearTimeout(clickTimer);
   window.clearTimeout(holdTimer);
   window.clearTimeout(randomTimer);
   window.clearTimeout(blinkTimer);

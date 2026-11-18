@@ -45,6 +45,14 @@ test("all plans ignores in-progress and completed", () => {
   assert.deepEqual(ids("active", "all"), everything);
 });
 
+test("unfinished lists every plan that is not done", () => {
+  assert.deepEqual(ids("open", "any"), ["active-in", "active-out", "active-undated", "important-out"]);
+});
+
+test("unfinished this week stays inside the week window", () => {
+  assert.deepEqual(ids("open", "week"), ["active-in", "active-undated"]);
+});
+
 test("this week stays inside the current status and the week window", () => {
   assert.deepEqual(ids("active", "week"), ["active-in", "active-undated"]);
   assert.deepEqual(ids("done", "week"), ["done-in"]);
