@@ -1,0 +1,378 @@
+/* ---------- 计划卡 ---------- */
+.plan {
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--card);
+	box-shadow: var(--shadow-1);
+	padding: 14px 16px 14px;
+	margin-bottom: 10px;
+}
+.plan__head {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+}
+.plan__head .check {
+	margin-top: 3px;
+}
+.plan__title {
+	flex: 1;
+	min-width: 0;
+}
+.plan__title h3 {
+	font-size: 15px;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.plan__title p {
+	margin-top: 4px;
+	font-size: 12.5px;
+	color: var(--ink-3);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.plan__prog {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-top: 2px;
+}
+.plan__prog .frac {
+	font-family: var(--serif);
+	font-size: 12px;
+	color: var(--ink-2);
+	font-variant-numeric: tabular-nums;
+}
+.segs {
+	display: flex;
+	gap: 3px;
+	align-items: center;
+}
+.segs i {
+	width: 15px;
+	height: 4px;
+	border-radius: 2px;
+	background: var(--fill-2);
+}
+.segs i.on {
+	background: var(--done);
+}
+.stepper {
+	list-style: none;
+	margin: 13px 0 0;
+	padding: 0 0 0 6px;
+	position: relative;
+}
+.stepper::before {
+	content: "";
+	position: absolute;
+	left: 11.5px;
+	top: 9px;
+	bottom: 9px;
+	width: 1px;
+	background: var(--line);
+}
+.stepper li {
+	position: relative;
+	display: grid;
+	grid-template-columns: 14px 74px minmax(0, 1fr) auto;
+	gap: 10px;
+	align-items: center;
+	min-height: 30px;
+	font-size: 12.5px;
+}
+.stepper .dot {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: var(--card);
+	border: 1.5px solid var(--fill-2);
+	margin-left: 1px;
+	z-index: 1;
+}
+.stepper .tm {
+	font-family: var(--serif);
+	font-size: 11.5px;
+	color: var(--ink-3);
+	font-variant-numeric: tabular-nums;
+}
+.stepper .nm {
+	color: var(--ink-2);
+}
+.stepper li.done .dot {
+	background: var(--done);
+	border-color: var(--done);
+}
+.stepper li.done .nm {
+	color: var(--ink-4);
+	text-decoration: line-through;
+}
+.stepper li.next .dot {
+	background: var(--accent);
+	border-color: var(--accent);
+	box-shadow: 0 0 0 4px var(--accent-glow);
+}
+.stepper li.next .nm {
+	color: var(--ink);
+	font-weight: 600;
+}
+.stepper li.next .tm {
+	color: var(--warn);
+	font-weight: 600;
+}
+.stepper .side {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+}
+.stage-complete {
+	height: 23px;
+	padding: 0 9px;
+	border: 1px solid var(--accent-line);
+	border-radius: 7px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font: 600 10.5px/1 var(--sans);
+	white-space: nowrap;
+}
+.stage-complete:hover {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: var(--accent-ink);
+}
+.stage-complete.is-done {
+	border-color: var(--line);
+	background: transparent;
+	color: var(--ink-4);
+}
+
+/* ---------- 甘特 ---------- */
+.gantt {
+	margin-top: 4px;
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	background: var(--card);
+	box-shadow: var(--shadow-1);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+.gantt__head {
+	display: grid;
+	grid-template-columns: 150px repeat(7, 1fr);
+	border-bottom: 1px solid var(--line);
+	background: var(--head);
+}
+.gantt__head div {
+	padding: 9px 0;
+	text-align: center;
+	font-size: 11px;
+	color: var(--ink-3);
+	border-left: 1px solid var(--line-2);
+}
+.gantt__head div.today {
+	color: var(--accent);
+	font-weight: 700;
+}
+.gantt__head div:first-child {
+	border-left: 0;
+	text-align: left;
+	padding-left: 16px;
+	letter-spacing: 0.14em;
+	font-size: 10px;
+}
+.gantt__weekday,
+.gantt__date {
+	display: block;
+	line-height: 1.25;
+}
+.gantt__corner small {
+	font: inherit;
+	color: inherit;
+}
+.gantt__body {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+.gantt__row {
+	position: relative;
+	display: grid;
+	grid-template-columns: 150px minmax(0, 1fr);
+	border-top: 1px solid var(--line-2);
+	min-height: 70px;
+	flex: 1;
+}
+.gantt__row:first-of-type {
+	border-top: 0;
+}
+.gantt__label {
+	position: sticky;
+	left: 0;
+	z-index: 20;
+	padding: 14px 16px;
+	font-size: 13px;
+	font-weight: 600;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	justify-content: center;
+	background-color: var(--fill);
+	isolation: isolate;
+}
+.gantt__label span {
+	font-size: 11px;
+	color: var(--ink-4);
+	font-weight: 400;
+}
+.gantt__track {
+	position: relative;
+	background-image: repeating-linear-gradient(
+		90deg,
+		transparent 0 calc(14.2857% - 1px),
+		var(--line-2) calc(14.2857% - 1px) 14.2857%
+	);
+}
+.gantt__empty-stage {
+	position: absolute;
+	left: 14px;
+	top: 50%;
+	transform: translateY(-50%);
+	font-size: 10.5px;
+	color: var(--ink-4);
+	white-space: nowrap;
+}
+.gantt__track::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 14.2857%;
+	background: var(--now-tint);
+	border-right: 1px solid var(--accent-line);
+}
+.gantt__now {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background: var(--accent);
+	left: 5.6%;
+	z-index: 1;
+}
+.gantt__now::before {
+	content: "";
+	position: absolute;
+	top: -3px;
+	left: -2.5px;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--accent);
+}
+.gantt__seg {
+	position: absolute;
+	top: 50%;
+	height: 3px;
+	transform: translateY(-50%);
+	background: var(--fill-2);
+	border-radius: 2px;
+}
+.pin {
+	position: absolute;
+	top: 50%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 5px;
+	z-index: 2;
+}
+.pin i {
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	background: var(--card);
+	border: 2px solid var(--fill-2);
+	box-shadow: 0 0 0 3px var(--card);
+}
+.pin span {
+	position: absolute;
+	top: -19px;
+	font-size: 10.5px;
+	color: var(--ink-3);
+	white-space: nowrap;
+	transform: translateX(-50%);
+	left: 50%;
+}
+.pin.done i {
+	background: var(--done);
+	border-color: var(--done);
+}
+.pin.next i {
+	background: var(--accent);
+	border-color: var(--accent);
+	box-shadow:
+		0 0 0 3px var(--card),
+		0 0 0 7px var(--accent-glow);
+}
+.pin.next span {
+	color: var(--accent);
+	font-weight: 700;
+}
+.pin span b {
+	font-weight: 600;
+}
+.gantt__dep {
+	position: absolute;
+	top: 50%;
+	height: 0;
+	border-top: 2px dashed var(--accent);
+	z-index: 1;
+	opacity: 0.75;
+}
+.gantt__dep::after {
+	content: "";
+	position: absolute;
+	right: -1px;
+	top: -5px;
+	border-left: 6px solid var(--accent);
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+}
+.gantt__dep.reverse::after {
+	left: -1px;
+	right: auto;
+	transform: rotate(180deg);
+}
+.legend {
+	display: flex;
+	gap: 16px;
+	align-items: center;
+	margin-top: 14px;
+	font-size: 11.5px;
+	color: var(--ink-3);
+}
+.legend i {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	margin-right: 6px;
+	vertical-align: 1px;
+}
+.legend__hint {
+	margin-left: auto;
+	color: var(--ink-4);
+}
+.legend__hint--mini {
+	display: none;
+}

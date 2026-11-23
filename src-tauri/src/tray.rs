@@ -90,8 +90,9 @@ fn set_icon(app: &AppHandle, bytes: &'static [u8]) {
 pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "打开到点", true, None::<&str>)?;
     let mini = MenuItem::with_id(app, "mini", "迷你窗", true, None::<&str>)?;
+    let shot = MenuItem::with_id(app, "shot", "截一张图", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &mini, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &mini, &shot, &quit])?;
     let icon = match tauri::image::Image::from_bytes(TRAY_NORMAL) {
         Ok(icon) => icon,
         Err(err) => {
@@ -119,6 +120,7 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                         crate::logging::warn(format_args!("切换迷你窗失败: {err}"));
                     }
                 }
+                "shot" => crate::shot::trigger(app),
                 "quit" => {
                     QUITTING.store(true, Ordering::SeqCst);
                     app.exit(0);

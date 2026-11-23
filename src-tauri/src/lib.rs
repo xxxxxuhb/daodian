@@ -4,6 +4,7 @@ mod calendar;
 mod cloud;
 mod deepseek;
 mod domain;
+mod fsutil;
 mod logging;
 mod notes;
 mod pet;
@@ -11,6 +12,9 @@ mod pet_input;
 mod quick_capture;
 mod remind;
 mod settings;
+mod shot;
+#[cfg(windows)]
+mod shot_native;
 mod store;
 mod tray;
 mod webhook;
@@ -56,21 +60,41 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         // 企业安全策略可能禁止注册托盘图标；关闭时保留任务栏入口，避免程序彻底找不到。
         .on_window_event(|window, event| {
-            if matches!(
-                event,
-                tauri::WindowEvent::Resized(_)
-                    | tauri::WindowEvent::Moved(_)
-                    | tauri::WindowEvent::ScaleFactorChanged { .. }
-            ) {
+            let label = window.label().to_string();
+            if label == "main"
+                && matches!(
+                    event,
+                    tauri::WindowEvent::Resized(_)
+                        | tauri::WindowEvent::Moved(_)
+                        | tauri::WindowEvent::ScaleFactorChanged { .. }
+                )
+            {
                 window_state::schedule_remember(window.app_handle());
             }
-            if let tauri::WindowEvent::Focused(focused) = event {
-                logging::info(format_args!("main window focus changed: {focused}"));
-                if *focused {
-                    tray::mark_read(window.app_handle());
+            if label == "main" {
+                if let tauri::WindowEvent::Focused(focused) = event {
+                    logging::info(format_args!("main window focus changed: {focused}"));
+                    if *focused {
+                        tray::mark_read(window.app_handle());
+                    }
+                }
+            }
+            if let tauri::WindowEvent::Destroyed = event {
+                shot::forget_window(&label);
+                if let Some(id) = label.strip_prefix("pin-").and_then(|raw| raw.parse().ok()) {
+                    shot::release_pin(window.app_handle(), id);
                 }
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if label.starts_with("pin-") {
+                    return;
+                }
+                if label.starts_with("shot-") {
+                    // 关闭回调里拆掉 WebView 会把主线程卡住。只拦截，交给截图线程隐藏。
+                    api.prevent_close();
+                    shot::request_cancel(window.app_handle());
+                    return;
+                }
                 if tray::QUITTING.load(std::sync::atomic::Ordering::SeqCst) {
                     logging::info(format_args!(
                         "main window close allowed because app is quitting"
@@ -92,6 +116,7 @@ pub fn run() {
         .setup(|app| {
             logging::info(format_args!("setup started"));
             app.manage(quick_capture::QuickCaptureRuntime::default());
+            app.manage(shot::ShotRuntime::default());
             let dir = data_dir(app).map_err(|err| logged_step("取数据目录", err))?;
             logging::info(format_args!("data directory selected: {}", dir.display()));
             app.manage(backup::BackupState::new(&dir));
@@ -99,11 +124,15 @@ pub fn run() {
                 .map_err(|err| logged_step(format!("打开 {}", dir.display()), err.into()))?;
             app.manage(Mutex::new(library));
             logging::info(format_args!("library opened"));
-            let notes = notes::NotesStore::open(&dir)
-                .map_err(|err| logged_step(format!("打开 {}", dir.join("notes").display()), err.into()))?;
+            let notes = notes::NotesStore::open(&dir).map_err(|err| {
+                logged_step(format!("打开 {}", dir.join("notes").display()), err.into())
+            })?;
             app.manage(Mutex::new(notes));
             let attachments = dir.join("attachments");
-            if let Err(err) = app.asset_protocol_scope().allow_directory(&attachments, true) {
+            if let Err(err) = app
+                .asset_protocol_scope()
+                .allow_directory(&attachments, true)
+            {
                 logging::warn(format_args!("附件图片授权失败: {err:#}"));
             } else {
                 logging::info(format_args!(
@@ -122,6 +151,11 @@ pub fn run() {
                 logging::warn(format_args!("同步开机启动失败: {err}"));
             }
             app.manage(Mutex::new(settings));
+            shot::cleanup_leftovers(app.handle());
+            let shots = dir.join("shots");
+            if let Err(err) = app.asset_protocol_scope().allow_directory(&shots, true) {
+                logging::warn(format_args!("截图文件授权失败: {err:#}"));
+            }
             app.manage(pet::PetRuntime::default());
             logging::info(format_args!("settings opened"));
             open_main(app).map_err(|err| logged_step("打开主窗口", err))?;
@@ -141,6 +175,11 @@ pub fn run() {
                 Ok(status) => logging::info(format_args!("快速记录快捷键: {status}")),
                 Err(err) => logging::warn(format_args!("保存快速记录状态失败: {err}")),
             }
+            match shot::persist_registration_status(app.handle()) {
+                Ok(status) => logging::info(format_args!("截图快捷键: {status}")),
+                Err(err) => logging::warn(format_args!("保存截图状态失败: {err}")),
+            }
+            shot::prewarm(app.handle());
             remind::spawn(app.handle().clone());
             backup::spawn(app.handle().clone());
             cloud::spawn(app.handle().clone());
@@ -175,6 +214,21 @@ pub fn run() {
             window_state::toggle_window_tier,
             quick_capture::dismiss_quick_capture,
             quick_capture::is_quick_capture_active,
+            shot::shot_start,
+            shot::shot_screen,
+            shot::shot_frame,
+            shot::shot_grab,
+            shot::shot_dismiss,
+            shot::shot_backdrop_hide,
+            shot::shot_escape_ack,
+            shot::shot_focus,
+            shot::shot_ready,
+            shot::shot_copy,
+            shot::shot_save,
+            shot::shot_save_bytes,
+            shot::shot_show_saved,
+            shot::shot_pin,
+            shot::shot_pin_info,
             backup::list_backups,
             backup::restore_backup,
             pet::pet_set_mode,

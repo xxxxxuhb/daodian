@@ -46,6 +46,14 @@ function fallbackSettings(): Settings {
     feishu: { enabled: false, webhook: "", lastStatus: "" },
     wecom: { enabled: false, webhook: "", lastStatus: "" },
     quickCapture: { enabled: false, shortcut: "Alt+Space", lastStatus: "" },
+    screenshot: {
+      enabled: true,
+      shortcut: "Ctrl+1",
+      lastStatus: "",
+      saveDir: "",
+      lastSaveDir: "",
+      captureMode: "freeze",
+    },
     deepSeek: {
       enabled: false,
       baseUrl: "https://api.deepseek.com",

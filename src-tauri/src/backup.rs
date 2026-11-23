@@ -110,7 +110,11 @@ fn latest_snapshot(root: &Path) -> Option<PathBuf> {
         let Ok(modified) = entry.metadata().and_then(|meta| meta.modified()) else {
             continue;
         };
-        if best.as_ref().map(|(time, _)| modified > *time).unwrap_or(true) {
+        if best
+            .as_ref()
+            .map(|(time, _)| modified > *time)
+            .unwrap_or(true)
+        {
             best = Some((modified, entry.path()));
         }
     }

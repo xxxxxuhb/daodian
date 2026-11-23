@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import AppShell from "./features/shell/AppShell.vue";
 import PetApp from "./features/pet/PetApp.vue";
+import PinWindow from "./features/shot/PinWindow.vue";
+import ShotOverlay from "./features/shot/ShotOverlay.vue";
 
 const windowKind = new URLSearchParams(location.search).get("window");
-const isPetWindow = windowKind === "pet";
 </script>
 
 <template>
-  <PetApp v-if="isPetWindow" />
+  <PetApp v-if="windowKind === 'pet'" />
+  <ShotOverlay v-else-if="windowKind === 'shot'" />
+  <PinWindow v-else-if="windowKind === 'pin'" />
   <template v-else>
   <svg class="sprite" aria-hidden="true">
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" /><path d="M12 7.6v4.9l3.3 1.9" /></symbol>

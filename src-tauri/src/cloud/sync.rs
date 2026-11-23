@@ -67,7 +67,9 @@ fn sync(app: &AppHandle) -> Result<CloudReport, String> {
     let token = token(app)?;
     let gitee = Gitee::new(&token).map_err(|err| fail(app, err))?;
     publish(app, "syncing", None, "同步中");
-    let repo = gitee.repo(&cloud.owner, &cloud.repo).map_err(|err| fail(app, err))?;
+    let repo = gitee
+        .repo(&cloud.owner, &cloud.repo)
+        .map_err(|err| fail(app, err))?;
     if !repo.private {
         publish(app, "error:repo", None, "仓库是公开的，已停止同步");
         return Err("仓库是公开的，已停止同步".into());
@@ -174,8 +176,16 @@ fn sync(app: &AppHandle) -> Result<CloudReport, String> {
             state::dirty_generation()
         };
         let store_bytes = fs::read(dir.join("store.json")).map_err(|err| err.to_string())?;
-        let template_bytes = fs::read(dir.join("templates.json")).unwrap_or_else(|_| b"{}\n".to_vec());
-        let push_store = push_file(&gitee, &cloud.owner, &cloud.repo, &store_path, &branch, &store_bytes);
+        let template_bytes =
+            fs::read(dir.join("templates.json")).unwrap_or_else(|_| b"{}\n".to_vec());
+        let push_store = push_file(
+            &gitee,
+            &cloud.owner,
+            &cloud.repo,
+            &store_path,
+            &branch,
+            &store_bytes,
+        );
         if matches!(&push_store, Err(err) if err.kind == "sha") && attempt == 0 {
             continue;
         }
@@ -192,7 +202,17 @@ fn sync(app: &AppHandle) -> Result<CloudReport, String> {
             continue;
         }
         let template_commit = push_templates.map_err(|err| fail(app, err))?;
-        let notes = match sync_notes(app, &gitee, &cloud, &branch, &dir, &device, remote_changed, &mut state, &mut conflict) {
+        let notes = match sync_notes(
+            app,
+            &gitee,
+            &cloud,
+            &branch,
+            &dir,
+            &device,
+            remote_changed,
+            &mut state,
+            &mut conflict,
+        ) {
             Ok(notes) => notes,
             Err(err) if err.kind == "sha" && attempt == 0 => continue,
             Err(err) => return Err(fail(app, err)),
@@ -229,7 +249,12 @@ fn sync(app: &AppHandle) -> Result<CloudReport, String> {
             message: message.into(),
         });
     }
-    publish(app, "error:gitee", None, "远端在同步过程中又变了，请再试一次");
+    publish(
+        app,
+        "error:gitee",
+        None,
+        "远端在同步过程中又变了，请再试一次",
+    );
     Err("远端在同步过程中又变了，请再试一次".into())
 }
 
@@ -264,7 +289,13 @@ fn sync_notes(
             if !note_id_ok(id) {
                 continue;
             }
-            let Some(file) = gitee.read(&cloud.owner, &cloud.repo, &format!("{notes_prefix}/{}", entry.name), branch)? else {
+            let Some(file) = gitee.read(
+                &cloud.owner,
+                &cloud.repo,
+                &format!("{notes_prefix}/{}", entry.name),
+                branch,
+            )?
+            else {
                 continue;
             };
             let note: Note = serde_json::from_slice(&file.bytes).map_err(|_| ApiError {
@@ -276,7 +307,9 @@ fn sync_notes(
             remote_names.push((id.to_string(), entry.sha.clone(), entry.name.clone()));
         }
         let notes_state = app.state::<SharedNotes>();
-        let mut guard = notes_state.lock().map_err(|err| local_error(err.to_string()))?;
+        let mut guard = notes_state
+            .lock()
+            .map_err(|err| local_error(err.to_string()))?;
         let local = guard.read_notes().map_err(local_error)?;
         let tombs = state::load_tombs(dir);
         let (notes, tombs, conflicts) = merge_notes(
@@ -290,7 +323,8 @@ fn sync_notes(
         if !conflicts.is_empty() {
             *conflict = true;
             let path = dir.join(format!("notes.conflict.{device}.json"));
-            let bytes = serde_json::to_vec_pretty(&conflict_document(&conflicts)).unwrap_or_default();
+            let bytes =
+                serde_json::to_vec_pretty(&conflict_document(&conflicts)).unwrap_or_default();
             let _ = fs::write(path, bytes);
         }
         guard.write_notes(notes.clone()).map_err(local_error)?;
@@ -298,7 +332,9 @@ fn sync_notes(
         merged = Some(notes);
     }
     let notes_state = app.state::<SharedNotes>();
-    let guard = notes_state.lock().map_err(|err| local_error(err.to_string()))?;
+    let guard = notes_state
+        .lock()
+        .map_err(|err| local_error(err.to_string()))?;
     let notes = merged.unwrap_or(guard.read_notes().map_err(local_error)?);
     let attachment_dir = guard.attachment_dir().to_path_buf();
     drop(guard);
@@ -323,11 +359,18 @@ fn sync_notes(
             if keep.contains(id.as_str()) || sha.is_empty() {
                 continue;
             }
-            gitee.remove(&cloud.owner, &cloud.repo, &format!("{notes_prefix}/{name}"), branch, sha)?;
+            gitee.remove(
+                &cloud.owner,
+                &cloud.repo,
+                &format!("{notes_prefix}/{name}"),
+                branch,
+                sha,
+            )?;
             pushed = true;
         }
     }
-    let (skipped, attachment_commit) = sync_attachments(gitee, cloud, branch, &attachment_dir, &notes)?;
+    let (skipped, attachment_commit) =
+        sync_attachments(gitee, cloud, branch, &attachment_dir, &notes)?;
     if let Some(sha) = attachment_commit {
         pushed = true;
         if !sha.is_empty() {
@@ -335,7 +378,9 @@ fn sync_notes(
         }
     }
     if skipped > 0 {
-        crate::logging::warn(format_args!("有 {skipped} 张备忘录图片超过 1MB，Gitee 接口放不上去"));
+        crate::logging::warn(format_args!(
+            "有 {skipped} 张备忘录图片超过 1MB，Gitee 接口放不上去"
+        ));
     }
     Ok(NoteSync {
         commit,
@@ -388,7 +433,14 @@ fn sync_attachments(
                 skipped += 1;
                 continue;
             }
-            if let Some(sha) = push_file(gitee, &cloud.owner, &cloud.repo, &remote_path, branch, &bytes)? {
+            if let Some(sha) = push_file(
+                gitee,
+                &cloud.owner,
+                &cloud.repo,
+                &remote_path,
+                branch,
+                &bytes,
+            )? {
                 if !sha.is_empty() {
                     commit = Some(sha);
                 }
@@ -411,7 +463,9 @@ fn attachment_needed(name: &str, hashes: &HashSet<&str>) -> bool {
 fn note_id_ok(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 80
-        && id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+        && id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
 fn local_error(message: String) -> ApiError {
@@ -439,7 +493,9 @@ fn push_file(
             .write(owner, repo, path, branch, Some(&file.sha), bytes)
             .map(Some);
     }
-    gitee.write(owner, repo, path, branch, None, bytes).map(Some)
+    gitee
+        .write(owner, repo, path, branch, None, bytes)
+        .map(Some)
 }
 
 fn parse_doc(bytes: &[u8]) -> Result<Document, String> {
@@ -526,7 +582,9 @@ fn fail(app: &AppHandle, err: ApiError) -> String {
 
 fn auto_enabled(app: &AppHandle) -> bool {
     cloud_config(app)
-        .map(|cloud| cloud.enabled && cloud.auto_sync && !cloud.owner.is_empty() && !cloud.repo.is_empty())
+        .map(|cloud| {
+            cloud.enabled && cloud.auto_sync && !cloud.owner.is_empty() && !cloud.repo.is_empty()
+        })
         .unwrap_or(false)
 }
 
@@ -545,7 +603,13 @@ fn due_slot(app: &AppHandle) -> Option<String> {
         .ok()
         .map(|dir| state::load_state(&dir).last_auto_slot)
         .unwrap_or_default();
-    commute_slot(&clock, &date, &hours.morning_start, &hours.afternoon_end, &already)
+    commute_slot(
+        &clock,
+        &date,
+        &hours.morning_start,
+        &hours.afternoon_end,
+        &already,
+    )
 }
 
 fn remember_slot(app: &AppHandle, slot: &str) {
@@ -558,7 +622,13 @@ fn remember_slot(app: &AppHandle, slot: &str) {
 }
 
 /// 上班、下班那一分钟各同步一次。同一分钟里已经成功过就不再自动跑。
-fn commute_slot(clock: &str, date: &str, morning_start: &str, afternoon_end: &str, already: &str) -> Option<String> {
+fn commute_slot(
+    clock: &str,
+    date: &str,
+    morning_start: &str,
+    afternoon_end: &str,
+    already: &str,
+) -> Option<String> {
     let clock = clock.trim();
     let kind = if !morning_start.trim().is_empty() && clock == morning_start.trim() {
         "in"
@@ -589,7 +659,10 @@ mod tests {
             commute_slot("18:00", "2026-11-02", "09:00", "18:00", ""),
             Some("2026-11-02:out".into())
         );
-        assert_eq!(commute_slot("12:00", "2026-11-02", "09:00", "18:00", ""), None);
+        assert_eq!(
+            commute_slot("12:00", "2026-11-02", "09:00", "18:00", ""),
+            None
+        );
         assert_eq!(
             commute_slot("09:00", "2026-11-02", "09:00", "18:00", "2026-11-02:in"),
             None

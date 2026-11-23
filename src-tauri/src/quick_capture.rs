@@ -60,10 +60,20 @@ impl CaptureState {
 pub(crate) fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_global_shortcut::Builder::<tauri::Wry>::new()
         .with_handler(|app, shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                crate::logging::info(format_args!("global shortcut pressed: {shortcut:?}"));
-                trigger(app);
+            if event.state != ShortcutState::Pressed {
+                return;
             }
+            crate::logging::info(format_args!("global shortcut pressed: {shortcut:?}"));
+            if crate::shot::matches_configured(app, shortcut) {
+                // 只往截图线程投递，不在热键消息里动窗口。
+                crate::shot::trigger(app);
+                return;
+            }
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let app_for_task = app.clone();
+                let _ = app.run_on_main_thread(move || trigger(&app_for_task));
+            });
         })
         .build()
 }
@@ -178,10 +188,12 @@ mod windows_fallback {
 
     use tauri::Manager;
     use windows_sys::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU, VK_SPACE};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_ESCAPE, VK_MENU, VK_SPACE,
+    };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, GetMessageW, KBDLLHOOKSTRUCT, MSG, SetWindowsHookExW, WH_KEYBOARD_LL,
-        WM_KEYDOWN, WM_SYSKEYDOWN,
+        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
     };
 
     use super::trigger;
@@ -210,11 +222,28 @@ mod windows_fallback {
     }
 
     unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if code >= 0 && matches!(wparam as u32, WM_KEYDOWN | WM_SYSKEYDOWN) {
+        if code >= 0
+            && matches!(
+                wparam as u32,
+                WM_KEYDOWN | WM_KEYUP | WM_SYSKEYDOWN | WM_SYSKEYUP
+            )
+        {
             let key = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
+            let key_up = matches!(wparam as u32, WM_KEYUP | WM_SYSKEYUP);
+            if let Some(app) = APP.get() {
+                if crate::shot::hook_shortcut(app, key.vkCode, key_up) {
+                    return 1;
+                }
+            }
+            if !key_up && key.vkCode == u32::from(VK_ESCAPE) {
+                if let Some(app) = APP.get().cloned() {
+                    if crate::shot::handle_escape(&app) {
+                        return 1;
+                    }
+                }
+            }
             let alt_down = unsafe { GetAsyncKeyState(VK_MENU as i32) } < 0;
-            if key.vkCode == u32::from(VK_SPACE) && alt_down && enabled() {
-                crate::logging::info(format_args!("Alt+Space native fallback pressed"));
+            if !key_up && key.vkCode == u32::from(VK_SPACE) && alt_down && enabled() {
                 if let Some(app) = APP.get().cloned() {
                     let app_for_task = app.clone();
                     let _ = app.run_on_main_thread(move || trigger(&app_for_task));

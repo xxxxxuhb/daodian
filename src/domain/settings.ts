@@ -54,6 +54,14 @@ export interface Settings {
     shortcut: string;
     lastStatus: string;
   };
+  screenshot: {
+    enabled: boolean;
+    shortcut: string;
+    lastStatus: string;
+    saveDir: string;
+    lastSaveDir: string;
+    captureMode: string;
+  };
   deepSeek: {
     enabled: boolean;
     baseUrl: string;

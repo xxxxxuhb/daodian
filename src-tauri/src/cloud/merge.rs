@@ -170,7 +170,11 @@ where
     out
 }
 
-fn index<T, Id>(items: Vec<T>, id_of: &Id, order: &mut Vec<String>) -> std::collections::HashMap<String, T>
+fn index<T, Id>(
+    items: Vec<T>,
+    id_of: &Id,
+    order: &mut Vec<String>,
+) -> std::collections::HashMap<String, T>
 where
     Id: Fn(&T) -> String,
 {
@@ -265,7 +269,12 @@ mod tests {
         }
     }
 
-    fn merged(local: Vec<Todo>, remote: Vec<Todo>, tombs: Tombstones, synced_before: bool) -> MergedLibrary {
+    fn merged(
+        local: Vec<Todo>,
+        remote: Vec<Todo>,
+        tombs: Tombstones,
+        synced_before: bool,
+    ) -> MergedLibrary {
         merge_library(
             doc(local),
             doc(remote),
@@ -315,7 +324,12 @@ mod tests {
 
     #[test]
     fn first_sync_keeps_local_only_items() {
-        let result = merged(vec![todo("a", "只有本地", 1)], Vec::new(), Tombstones::default(), false);
+        let result = merged(
+            vec![todo("a", "只有本地", 1)],
+            Vec::new(),
+            Tombstones::default(),
+            false,
+        );
         assert_eq!(result.document.todos.len(), 1);
     }
 

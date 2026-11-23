@@ -158,11 +158,18 @@ impl Gitee {
             })
     }
 
-    pub fn list(&self, owner: &str, repo: &str, path: &str, branch: &str) -> Result<Vec<RemoteEntry>, ApiError> {
-        let response = self.send(self.http.get(self.url(&format!("/repos/{owner}/{repo}/contents/{path}"))).query(&[
-            ("access_token", self.token.as_str()),
-            ("ref", branch),
-        ]))?;
+    pub fn list(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+        branch: &str,
+    ) -> Result<Vec<RemoteEntry>, ApiError> {
+        let response = self.send(
+            self.http
+                .get(self.url(&format!("/repos/{owner}/{repo}/contents/{path}")))
+                .query(&[("access_token", self.token.as_str()), ("ref", branch)]),
+        )?;
         if response.status().as_u16() == 404 {
             return Ok(Vec::new());
         }
@@ -174,18 +181,36 @@ impl Gitee {
             .iter()
             .filter_map(|item| {
                 let name = item.get("name")?.as_str()?.to_string();
-                let sha = item.get("sha").and_then(|value| value.as_str()).unwrap_or("").to_string();
-                let kind = item.get("type").and_then(|value| value.as_str()).unwrap_or("file");
-                if kind == "file" { Some(RemoteEntry { name, sha }) } else { None }
+                let sha = item
+                    .get("sha")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let kind = item
+                    .get("type")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("file");
+                if kind == "file" {
+                    Some(RemoteEntry { name, sha })
+                } else {
+                    None
+                }
             })
             .collect())
     }
 
-    pub fn read(&self, owner: &str, repo: &str, path: &str, branch: &str) -> Result<Option<RemoteFile>, ApiError> {
-        let response = self.send(self.http.get(self.url(&path_of(owner, repo, path))).query(&[
-            ("access_token", self.token.as_str()),
-            ("ref", branch),
-        ]))?;
+    pub fn read(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+        branch: &str,
+    ) -> Result<Option<RemoteFile>, ApiError> {
+        let response = self.send(
+            self.http
+                .get(self.url(&path_of(owner, repo, path)))
+                .query(&[("access_token", self.token.as_str()), ("ref", branch)]),
+        )?;
         if response.status().as_u16() == 404 {
             return Ok(None);
         }
@@ -238,14 +263,25 @@ impl Gitee {
         Ok(commit_sha(&value))
     }
 
-    pub fn remove(&self, owner: &str, repo: &str, path: &str, branch: &str, sha: &str) -> Result<(), ApiError> {
+    pub fn remove(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+        branch: &str,
+        sha: &str,
+    ) -> Result<(), ApiError> {
         let mut body = json!({
             "message": "到点同步",
             "sha": sha,
             "branch": branch,
         });
         body["access_token"] = json!(self.token);
-        let response = self.send(self.http.delete(self.url(&path_of(owner, repo, path))).json(&body))?;
+        let response = self.send(
+            self.http
+                .delete(self.url(&path_of(owner, repo, path)))
+                .json(&body),
+        )?;
         if response.status().as_u16() == 404 {
             return Ok(());
         }
@@ -253,7 +289,10 @@ impl Gitee {
     }
 
     fn get(&self, path: &str, query: &[(&str, &str)]) -> Result<Value, ApiError> {
-        let mut request = self.http.get(self.url(path)).query(&[("access_token", self.token.as_str())]);
+        let mut request = self
+            .http
+            .get(self.url(path))
+            .query(&[("access_token", self.token.as_str())]);
         if !query.is_empty() {
             request = request.query(query);
         }
@@ -270,7 +309,10 @@ impl Gitee {
         decode_ok(self.send(self.http.put(self.url(path)).json(&body))?)
     }
 
-    fn send(&self, request: reqwest::blocking::RequestBuilder) -> Result<reqwest::blocking::Response, ApiError> {
+    fn send(
+        &self,
+        request: reqwest::blocking::RequestBuilder,
+    ) -> Result<reqwest::blocking::Response, ApiError> {
         request.send().map_err(|err| {
             if err.is_timeout() || err.is_connect() || err.is_request() {
                 ApiError::offline()

@@ -26,9 +26,12 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 const windowKind = new URLSearchParams(location.search).get("window");
-const overlayWindow = windowKind === "pet";
-document.documentElement.classList.toggle("pet-host", overlayWindow);
-document.body.classList.toggle("pet-host", overlayWindow);
+document.documentElement.classList.toggle("pet-host", windowKind === "pet");
+document.documentElement.classList.toggle("shot-host", windowKind === "shot");
+document.documentElement.classList.toggle("pin-host", windowKind === "pin");
+document.body.classList.toggle("pet-host", windowKind === "pet");
+document.body.classList.toggle("shot-host", windowKind === "shot");
+document.body.classList.toggle("pin-host", windowKind === "pin");
 
 logFrontend("info", `Vue bootstrap; url=${location.href}`);
 

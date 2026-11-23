@@ -3,8 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl,
-    WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
 };
 
 use crate::settings::SharedSettings;
@@ -103,20 +102,19 @@ fn create(app: &AppHandle, remembered: Option<(i32, i32)>) -> Result<tauri::Webv
     } else {
         "index.html?window=pet"
     };
-    let window =
-        WebviewWindowBuilder::new(app, "pet", WebviewUrl::App(url.into()))
-            .data_directory(webview_data)
-            .title("到点桌面珠子")
-            .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
-            .resizable(false)
-            .decorations(false)
-            .transparent(true)
-            .shadow(false)
-            .always_on_top(true)
-            .skip_taskbar(true)
-            .visible(false)
-            .build()
-            .map_err(|err| err.to_string())?;
+    let window = WebviewWindowBuilder::new(app, "pet", WebviewUrl::App(url.into()))
+        .data_directory(webview_data)
+        .title("到点桌面珠子")
+        .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .build()
+        .map_err(|err| err.to_string())?;
 
     let position = remembered_pos.unwrap_or(default_position(&window)?);
     let opens_right = opens_right_at(&window, position).unwrap_or(hinted_right);
@@ -125,10 +123,7 @@ fn create(app: &AppHandle, remembered: Option<(i32, i32)>) -> Result<tauri::Webv
         .set_position(window_origin(position, opens_right, scale))
         .map_err(|err| err.to_string())?;
     let runtime = app.state::<PetRuntime>();
-    *runtime
-        .opens_right
-        .lock()
-        .map_err(|err| err.to_string())? = opens_right;
+    *runtime.opens_right.lock().map_err(|err| err.to_string())? = opens_right;
     apply_hit_region(&window, "compact", opens_right)?;
     *runtime
         .compact_position
@@ -371,10 +366,7 @@ pub fn pet_snap(app: AppHandle, runtime: State<PetRuntime>) -> Result<PetLayout,
         .compact_position
         .lock()
         .map_err(|err| err.to_string())? = Some(target);
-    *runtime
-        .opens_right
-        .lock()
-        .map_err(|err| err.to_string())? = opens_right;
+    *runtime.opens_right.lock().map_err(|err| err.to_string())? = opens_right;
     let mode = runtime.mode.lock().map_err(|err| err.to_string())?.clone();
     apply_hit_region(&window, &mode, opens_right)?;
     emit_layout(&app, opens_right);
@@ -422,7 +414,10 @@ pub(crate) fn system_allows_motion() -> bool {
         result < 0
             || !matches!(
                 state,
-                QUNS_NOT_PRESENT | QUNS_BUSY | QUNS_RUNNING_D3D_FULL_SCREEN | QUNS_PRESENTATION_MODE
+                QUNS_NOT_PRESENT
+                    | QUNS_BUSY
+                    | QUNS_RUNNING_D3D_FULL_SCREEN
+                    | QUNS_PRESENTATION_MODE
             )
     }
     #[cfg(not(windows))]

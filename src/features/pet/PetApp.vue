@@ -575,6 +575,7 @@ onBeforeUnmount(() => {
         class="pet-glyph"
         :class="{ 'is-wide': glyph.wide, 'is-target': glyph.targeted, 'is-loose': glyph.loose, 'is-frozen': glyph.frozen }"
         :opacity="glyph.opacity"
+        :style="{ '--ink': glyph.ink.ink, '--paper': glyph.ink.paper, '--glow': glyph.ink.glow }"
         :transform="`translate(${glyph.x} ${glyph.y}) rotate(${glyph.rot})`"
       >
         <template v-if="glyph.label">
@@ -583,15 +584,21 @@ onBeforeUnmount(() => {
         </template>
         <circle v-else class="pet-ink" r="3.2" />
       </g>
-      <g v-for="beam in shots.beams.value" :key="beam.id" :opacity="beam.opacity">
-        <line class="pet-beam-glow" :x1="shots.tip.value.x" :y1="shots.tip.value.y" :x2="beam.x" :y2="beam.y" />
-        <line class="pet-beam-core" :x1="shots.tip.value.x" :y1="shots.tip.value.y" :x2="beam.x" :y2="beam.y" />
+      <g
+        v-for="beam in shots.beams.value"
+        :key="beam.id"
+        :opacity="beam.opacity"
+        :style="{ '--glow': beam.ink.glow, '--core': beam.ink.core, '--head': beam.ink.head }"
+      >
+        <line class="pet-beam-glow" :x1="beam.fromX" :y1="beam.fromY" :x2="beam.headX" :y2="beam.headY" />
+        <line class="pet-beam-core" :x1="beam.fromX" :y1="beam.fromY" :x2="beam.headX" :y2="beam.headY" />
+        <circle class="pet-beam-head" :cx="beam.headX" :cy="beam.headY" r="1.7" />
       </g>
       <g v-if="shots.wave.value" class="pet-wave" :class="{ 'is-still': shots.mood.value === 'still' }" :opacity="shots.wave.value.opacity">
         <circle class="pet-wave-fill" :cx="shots.tip.value.x" :cy="shots.tip.value.y" :r="Math.max(0, shots.wave.value.r - 16)" />
         <circle class="pet-wave-ring" :cx="shots.tip.value.x" :cy="shots.tip.value.y" :r="shots.wave.value.r" />
       </g>
-      <g v-for="burst in shots.bursts.value" :key="`burst-${burst.id}`" :opacity="burst.opacity">
+      <g v-for="burst in shots.bursts.value" :key="`burst-${burst.id}`" :opacity="burst.opacity" :style="{ '--ink': burst.ink }">
         <circle
           v-for="(dot, index) in burst.dots"
           :key="index"

@@ -7,6 +7,24 @@ html.pet-host #app {
   background: transparent !important;
 }
 
+html.shot-host,
+html.shot-host body,
+html.shot-host #app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0c1f1a !important;
+}
+
+html.pin-host,
+html.pin-host body,
+html.pin-host #app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #101816 !important;
+}
+
 .pet-window {
   --pet-halo: rgba(21, 99, 123, .38);
   position: relative;
@@ -145,14 +163,20 @@ html.pet-host #app {
   pointer-events: none;
 }
 
+.pet-glyph {
+  --ink: #0e1613;
+  --paper: #fafcfb;
+  --glow: #b97818;
+}
+
 .pet-glyph rect {
-  fill: #fafcfb;
-  stroke: #0e1613;
+  fill: var(--paper);
+  stroke: var(--ink);
   stroke-width: 1.1;
 }
 
 .pet-glyph text {
-  fill: #0e1613;
+  fill: var(--ink);
   font-family: Consolas, "Cascadia Mono", monospace;
   font-size: 11px;
   font-weight: 600;
@@ -163,12 +187,8 @@ html.pet-host #app {
   font-size: 7.2px;
 }
 
-.pet-glyph.is-target rect {
-  stroke: #b97818;
-}
-
 .pet-glyph.is-target {
-  filter: drop-shadow(0 0 4px rgba(185, 120, 24, .55));
+  filter: drop-shadow(0 0 4px var(--glow));
 }
 
 .pet-glyph.is-frozen {
@@ -189,16 +209,20 @@ html.pet-host #app {
 }
 
 .pet-beam-glow {
-  stroke: #b97818;
+  stroke: var(--glow, #b97818);
   stroke-width: 3;
   stroke-linecap: round;
-  opacity: .22;
+  opacity: .28;
 }
 
 .pet-beam-core {
-  stroke: #ffe0b0;
+  stroke: var(--core, #ffe0b0);
   stroke-width: .8;
   stroke-linecap: round;
+}
+
+.pet-beam-head {
+  fill: var(--head, #fff6e8);
 }
 
 .pet-wave-fill {
@@ -211,13 +235,12 @@ html.pet-host #app {
   stroke-width: 3.2;
 }
 
-.pet-burst-dot,
-.pet-ink {
-  fill: #b97818;
+.pet-burst-dot {
+  fill: var(--ink, #b97818);
 }
 
-.pet-ink {
-  fill: #0e1613;
+.pet-glyph .pet-ink {
+  fill: var(--ink);
 }
 
 .is-soon .pet-body,

@@ -101,6 +101,16 @@ function removeDate(kind: "holidays" | "workdays", value: string) {
   draft.value.repeat[kind] = draft.value.repeat[kind].filter((item) => item !== value);
 }
 
+async function chooseShotDir() {
+  const selected = await openDialog({
+    directory: true,
+    multiple: false,
+    title: "选择截图保存目录",
+  });
+  if (typeof selected !== "string" || !selected) return;
+  draft.value.screenshot.saveDir = selected;
+}
+
 async function chooseCalendar() {
   const selected = await openDialog({
     multiple: false,
@@ -137,6 +147,7 @@ async function save() {
   ).catch(() => undefined);
   if (!error.value) {
     draft.value.quickCapture = clone(settings.value).quickCapture;
+    draft.value.screenshot = clone(settings.value).screenshot;
     saved.value = true;
     apiKey.value = "";
     clearApiKey.value = false;
@@ -722,6 +733,48 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
             :class="{ 'settings-error': draft.quickCapture.lastStatus.startsWith('注册失败') || draft.quickCapture.lastStatus.startsWith('注销快捷键失败') }"
           >
             {{ draft.quickCapture.lastStatus || "默认 Alt+Space；若与其他应用冲突，保存后会在这里显示原因。" }}
+          </p>
+        </section>
+
+        <section class="settings-section">
+          <h3>截图</h3>
+          <label class="settings-check">
+            <input v-model="draft.screenshot.enabled" type="checkbox" />
+            <span>启用全局截图</span>
+          </label>
+          <label class="settings-field settings-stack">
+            <span>全局快捷键</span>
+            <input
+              v-model.trim="draft.screenshot.shortcut"
+              type="text"
+              placeholder="Ctrl+1"
+              :disabled="!draft.screenshot.enabled"
+            />
+          </label>
+          <p
+            class="settings-note"
+            :class="{ 'settings-error': draft.screenshot.lastStatus.startsWith('注册失败') || draft.screenshot.lastStatus.startsWith('注销快捷键失败') }"
+          >
+            {{ draft.screenshot.lastStatus || "默认 Ctrl+1。拖一块区域后可以标注，再复制、贴到桌面或保存。再按一次快捷键退出。" }}
+          </p>
+          <label class="settings-field settings-stack">
+            <span>保存到</span>
+            <div class="settings-service__actions">
+              <input v-model.trim="draft.screenshot.saveDir" type="text" placeholder="图片\到点截图" />
+              <button type="button" class="btn btn--sm" @click="chooseShotDir">浏览</button>
+            </div>
+          </label>
+          <p class="settings-note">留空则保存到「图片\到点截图」。另存时记住上次打开的文件夹。</p>
+          <label class="settings-field settings-stack">
+            <span>截屏方式</span>
+            <select v-model="draft.screenshot.captureMode">
+              <option value="freeze">冻结后再选</option>
+              <option value="live">实时选择</option>
+              <option value="native">原生覆盖层</option>
+            </select>
+          </label>
+          <p class="settings-note">
+            冻结后仍是原来的选区、标注和工具条。画面铺在这层界面下面，按物理像素对齐。实时选择会马上铺一层浅色，松开才截，画面可能还在动。原生覆盖层是另一套按钮，要标注时再打开原来的编辑工具。
           </p>
         </section>
 

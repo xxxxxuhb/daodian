@@ -54,7 +54,10 @@ pub fn new_device_id() -> String {
     hasher.update(now_ms().to_le_bytes());
     hasher.update(std::process::id().to_le_bytes());
     let digest = hasher.finalize();
-    format!("desktop-{:02x}{:02x}{:02x}", digest[0], digest[1], digest[2])
+    format!(
+        "desktop-{:02x}{:02x}{:02x}",
+        digest[0], digest[1], digest[2]
+    )
 }
 
 pub fn dirty_generation() -> u64 {

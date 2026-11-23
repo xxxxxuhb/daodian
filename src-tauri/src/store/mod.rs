@@ -149,18 +149,7 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<bool, String> {
         .unwrap_or("store");
     let tmp = path.with_file_name(format!(".{name}.tmp"));
     fs::write(&tmp, bytes).map_err(|err| err.to_string())?;
-    if fs::rename(&tmp, path).is_err() {
-        let backup = path.with_extension("replacing");
-        let _ = fs::remove_file(&backup);
-        if path.exists() {
-            fs::rename(path, &backup).map_err(|err| err.to_string())?;
-        }
-        if let Err(err) = fs::rename(&tmp, path) {
-            let _ = fs::rename(&backup, path);
-            return Err(err.to_string());
-        }
-        let _ = fs::remove_file(&backup);
-    }
+    crate::fsutil::replace_file(&tmp, path)?;
     Ok(true)
 }
 

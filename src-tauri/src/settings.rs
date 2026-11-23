@@ -26,6 +26,7 @@ pub struct Settings {
     pub feishu: WebhookSettings,
     pub wecom: WebhookSettings,
     pub quick_capture: QuickCaptureSettings,
+    pub screenshot: ScreenshotSettings,
     pub deep_seek: DeepSeekSettings,
     pub cloud: CloudSettings,
 }
@@ -44,6 +45,7 @@ impl Default for Settings {
             feishu: WebhookSettings::default(),
             wecom: WebhookSettings::default(),
             quick_capture: QuickCaptureSettings::default(),
+            screenshot: ScreenshotSettings::default(),
             deep_seek: DeepSeekSettings::default(),
             cloud: CloudSettings::default(),
         }
@@ -168,7 +170,10 @@ impl WindowFrame {
 }
 
 fn validate_cloud(settings: &CloudSettings) -> Result<(), String> {
-    let dir_ok = settings.dir.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    let dir_ok = settings
+        .dir
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
         && !settings.dir.is_empty();
     if !dir_ok {
         return Err("同步目录只能包含字母、数字、- 和 _".into());
@@ -306,6 +311,46 @@ impl Default for QuickCaptureSettings {
             enabled: false,
             shortcut: default_quick_capture_shortcut(),
             last_status: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ScreenshotSettings {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_screenshot_shortcut")]
+    pub shortcut: String,
+    pub last_status: String,
+    /// 用户指定的「保存到」。空字符串表示图片\到点截图。
+    #[serde(default)]
+    pub save_dir: String,
+    /// 上次另存实际使用的目录。设置表单不改它，避免把新记住的路径写回去。
+    #[serde(default)]
+    pub last_save_dir: String,
+    /// freeze：先冻结再选。live：实时选择。native：原生覆盖层。
+    #[serde(default = "default_capture_mode")]
+    pub capture_mode: String,
+}
+
+fn default_capture_mode() -> String {
+    "freeze".into()
+}
+
+fn default_screenshot_shortcut() -> String {
+    "Ctrl+1".into()
+}
+
+impl Default for ScreenshotSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            shortcut: default_screenshot_shortcut(),
+            last_status: String::new(),
+            save_dir: String::new(),
+            last_save_dir: String::new(),
+            capture_mode: default_capture_mode(),
         }
     }
 }
@@ -473,6 +518,12 @@ impl SettingsStore {
         settings.cloud.last_sync_at = previous_cloud.last_sync_at;
         settings.cloud.last_status = previous_cloud.last_status.clone();
         settings.cloud.has_token = false;
+        let previous_shot = self.doc.settings.screenshot.clone();
+        if settings.screenshot.save_dir.trim() != previous_shot.save_dir.trim() {
+            settings.screenshot.last_save_dir.clear();
+        } else {
+            settings.screenshot.last_save_dir = previous_shot.last_save_dir;
+        }
         settings.cloud.provider = "gitee".into();
         if settings.cloud.dir.trim().is_empty() {
             settings.cloud.dir = "daodian".into();
@@ -552,8 +603,19 @@ impl SettingsStore {
         )
     }
 
+    pub(crate) fn directory(&self) -> PathBuf {
+        self.path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+
     pub(crate) fn quick_capture_settings(&self) -> QuickCaptureSettings {
         self.doc.settings.quick_capture.clone()
+    }
+
+    pub(crate) fn screenshot_settings(&self) -> ScreenshotSettings {
+        self.doc.settings.screenshot.clone()
     }
 
     pub(crate) fn deep_seek_credentials(&self) -> Result<(DeepSeekSettings, Vec<u8>), String> {
@@ -575,6 +637,16 @@ impl SettingsStore {
 
     pub(crate) fn set_quick_capture_status(&mut self, status: &str) -> Result<(), String> {
         self.doc.settings.quick_capture.last_status = status.to_string();
+        self.persist()
+    }
+
+    pub(crate) fn set_screenshot_status(&mut self, status: &str) -> Result<(), String> {
+        self.doc.settings.screenshot.last_status = status.to_string();
+        self.persist()
+    }
+
+    pub(crate) fn set_last_shot_dir(&mut self, dir: &str) -> Result<(), String> {
+        self.doc.settings.screenshot.last_save_dir = dir.to_string();
         self.persist()
     }
 
@@ -660,7 +732,11 @@ impl SettingsStore {
         self.persist()
     }
 
-    pub(crate) fn set_cloud_status(&mut self, status: &str, synced_at: Option<i64>) -> Result<(), String> {
+    pub(crate) fn set_cloud_status(
+        &mut self,
+        status: &str,
+        synced_at: Option<i64>,
+    ) -> Result<(), String> {
         self.doc.settings.cloud.last_status = status.to_string();
         if let Some(at) = synced_at {
             self.doc.settings.cloud.last_sync_at = at;
@@ -724,6 +800,7 @@ pub fn save_settings(
     let launch_at_startup = lock(&store)?.public_settings().launch_at_startup;
     crate::autostart::sync(launch_at_startup).map_err(|err| format!("更新开机启动失败: {err}"))?;
     crate::quick_capture::persist_registration_status(&app)?;
+    crate::shot::persist_registration_status(&app)?;
     crate::pet::sync_visibility(&app)?;
     let saved = lock(&store)?.public_settings();
     let _ = app.emit("settings-changed", saved.clone());
@@ -856,12 +933,67 @@ mod tests {
         assert!(!settings.wecom.enabled);
         assert!(!settings.quick_capture.enabled);
         assert_eq!(settings.quick_capture.shortcut, "Alt+Space");
+        assert!(settings.screenshot.enabled);
+        assert_eq!(settings.screenshot.shortcut, "Ctrl+1");
         assert!(!settings.deep_seek.enabled);
         assert!(!settings.deep_seek.has_api_key);
         assert!(settings.repeat.default_skip_weekends);
         assert_eq!(settings.window.default_tier, "standard");
         assert_eq!(settings.pet.idle_min_seconds, 12);
         assert_eq!(settings.pet.idle_max_seconds, 28);
+    }
+
+    #[test]
+    fn missing_screenshot_settings_stay_enabled() {
+        let settings: Settings = serde_json::from_str(r#"{"theme":"celadon"}"#).unwrap();
+        assert!(settings.screenshot.enabled);
+        assert_eq!(settings.screenshot.shortcut, "Ctrl+1");
+        assert!(settings.screenshot.save_dir.is_empty());
+        assert!(settings.screenshot.last_save_dir.is_empty());
+        assert_eq!(settings.screenshot.capture_mode, "freeze");
+    }
+
+    #[test]
+    fn old_screenshot_settings_keep_empty_save_dirs() {
+        let settings: ScreenshotSettings = serde_json::from_str(
+            r#"{"enabled":true,"shortcut":"Ctrl+1","lastStatus":"已启用：Ctrl+1"}"#,
+        )
+        .unwrap();
+        assert!(settings.save_dir.is_empty());
+        assert!(settings.last_save_dir.is_empty());
+        assert_eq!(settings.capture_mode, "freeze");
+    }
+
+    #[test]
+    fn screenshot_capture_mode_keeps_live_and_native() {
+        let live: ScreenshotSettings =
+            serde_json::from_str(r#"{"captureMode":"live"}"#).unwrap();
+        assert_eq!(live.capture_mode, "live");
+        let native: ScreenshotSettings =
+            serde_json::from_str(r#"{"captureMode":"native"}"#).unwrap();
+        assert_eq!(native.capture_mode, "native");
+    }
+
+    #[test]
+    fn changing_save_dir_forgets_the_previous_folder() {
+        let dir = temp_dir("shot-dir");
+        let mut store = SettingsStore::open(&dir).unwrap();
+        store.set_last_shot_dir(r"D:\旧目录").unwrap();
+        let mut settings = store.public_settings();
+        settings.screenshot.save_dir = r"D:\新目录".into();
+        store.save(settings, None, false).unwrap();
+        assert_eq!(store.public_settings().screenshot.save_dir, r"D:\新目录");
+        assert!(store.public_settings().screenshot.last_save_dir.is_empty());
+
+        store.set_last_shot_dir(r"D:\新目录").unwrap();
+        let mut again = store.public_settings();
+        again.theme = "night".into();
+        store.save(again, None, false).unwrap();
+        assert_eq!(
+            store.public_settings().screenshot.last_save_dir,
+            r"D:\新目录"
+        );
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

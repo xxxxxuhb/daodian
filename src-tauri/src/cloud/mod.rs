@@ -71,7 +71,11 @@ pub fn cloud_status(app: AppHandle) -> Result<CloudStatus, String> {
 }
 
 #[tauri::command]
-pub fn cloud_save_config(app: AppHandle, settings: State<SharedSettings>, cloud: CloudSettings) -> Result<CloudStatus, String> {
+pub fn cloud_save_config(
+    app: AppHandle,
+    settings: State<SharedSettings>,
+    cloud: CloudSettings,
+) -> Result<CloudStatus, String> {
     let saved = {
         let mut guard = settings.lock().map_err(|err| err.to_string())?;
         guard.save_cloud(cloud)?;
@@ -82,7 +86,11 @@ pub fn cloud_save_config(app: AppHandle, settings: State<SharedSettings>, cloud:
 }
 
 #[tauri::command]
-pub fn cloud_set_token(app: AppHandle, settings: State<SharedSettings>, token: String) -> Result<CloudStatus, String> {
+pub fn cloud_set_token(
+    app: AppHandle,
+    settings: State<SharedSettings>,
+    token: String,
+) -> Result<CloudStatus, String> {
     let saved = {
         let mut guard = settings.lock().map_err(|err| err.to_string())?;
         guard.set_cloud_token(&token)?;
@@ -93,7 +101,10 @@ pub fn cloud_set_token(app: AppHandle, settings: State<SharedSettings>, token: S
 }
 
 #[tauri::command]
-pub fn cloud_clear_token(app: AppHandle, settings: State<SharedSettings>) -> Result<CloudStatus, String> {
+pub fn cloud_clear_token(
+    app: AppHandle,
+    settings: State<SharedSettings>,
+) -> Result<CloudStatus, String> {
     let saved = {
         let mut guard = settings.lock().map_err(|err| err.to_string())?;
         guard.clear_cloud_token()?;
@@ -104,10 +115,15 @@ pub fn cloud_clear_token(app: AppHandle, settings: State<SharedSettings>) -> Res
 }
 
 #[tauri::command]
-pub fn cloud_create_repo(app: AppHandle, settings: State<SharedSettings>, name: String) -> Result<RepoInfo, String> {
+pub fn cloud_create_repo(
+    app: AppHandle,
+    settings: State<SharedSettings>,
+    name: String,
+) -> Result<RepoInfo, String> {
     let token = {
         let guard = settings.lock().map_err(|err| err.to_string())?;
-        String::from_utf8(guard.cloud_token()?).map_err(|_| "令牌读不出来，请重新填写".to_string())?
+        String::from_utf8(guard.cloud_token()?)
+            .map_err(|_| "令牌读不出来，请重新填写".to_string())?
     };
     let name = clean_repo_name(&name)?;
     let gitee = Gitee::new(&token).map_err(|err| err.message)?;
@@ -155,7 +171,8 @@ pub fn cloud_test(app: AppHandle) -> Result<String, String> {
         let settings = app.state::<SharedSettings>();
         let guard = settings.lock().map_err(|err| err.to_string())?;
         let cloud = guard.public_settings().cloud;
-        let token = String::from_utf8(guard.cloud_token()?).map_err(|_| "令牌读不出来，请重新填写".to_string())?;
+        let token = String::from_utf8(guard.cloud_token()?)
+            .map_err(|_| "令牌读不出来，请重新填写".to_string())?;
         (cloud, token)
     };
     if cloud.owner.trim().is_empty() || cloud.repo.trim().is_empty() {
@@ -173,8 +190,19 @@ pub fn cloud_test(app: AppHandle) -> Result<String, String> {
     if !repo.private {
         return Err("这个仓库是公开的，不能用来同步。".into());
     }
-    let branch = if cloud.branch.trim().is_empty() { repo.branch } else { cloud.branch };
-    let path = format!("{}/store.json", if cloud.dir.trim().is_empty() { "daodian" } else { cloud.dir.as_str() });
+    let branch = if cloud.branch.trim().is_empty() {
+        repo.branch
+    } else {
+        cloud.branch
+    };
+    let path = format!(
+        "{}/store.json",
+        if cloud.dir.trim().is_empty() {
+            "daodian"
+        } else {
+            cloud.dir.as_str()
+        }
+    );
     match gitee.read(&cloud.owner, &cloud.repo, &path, &branch) {
         Ok(_) => {}
         Err(err) if err.code == 404 => {}
@@ -207,7 +235,11 @@ pub fn cloud_sync_now(app: AppHandle) -> Result<CloudReport, String> {
 }
 
 #[tauri::command]
-pub fn cloud_disconnect(app: AppHandle, settings: State<SharedSettings>, store: State<SharedStore>) -> Result<CloudStatus, String> {
+pub fn cloud_disconnect(
+    app: AppHandle,
+    settings: State<SharedSettings>,
+    store: State<SharedStore>,
+) -> Result<CloudStatus, String> {
     let saved = {
         let mut guard = settings.lock().map_err(|err| err.to_string())?;
         guard.disconnect_cloud()?;
@@ -233,11 +265,15 @@ fn open_token_page() -> Result<(), String> {
     use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    let verb: Vec<u16> = std::ffi::OsStr::new("open").encode_wide().chain(std::iter::once(0)).collect();
-    let file: Vec<u16> = std::ffi::OsStr::new("https://gitee.com/profile/personal_access_tokens/new")
+    let verb: Vec<u16> = std::ffi::OsStr::new("open")
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
+    let file: Vec<u16> =
+        std::ffi::OsStr::new("https://gitee.com/profile/personal_access_tokens/new")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
     let code = unsafe {
         ShellExecuteW(
             std::ptr::null_mut(),
@@ -261,7 +297,11 @@ fn open_token_page() -> Result<(), String> {
 
 fn clean_repo_name(name: &str) -> Result<String, String> {
     let name = name.trim();
-    let name = if name.is_empty() { "daodian-sync" } else { name };
+    let name = if name.is_empty() {
+        "daodian-sync"
+    } else {
+        name
+    };
     let ok = !name.is_empty()
         && name.len() <= 100
         && name

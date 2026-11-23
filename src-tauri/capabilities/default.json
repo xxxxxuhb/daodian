@@ -2,7 +2,30 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "主窗口权限",
-  "windows": ["main", "pet"],
+  "windows": [
+    "main",
+    "pet",
+    "shot-0",
+    "shot-1",
+    "shot-2",
+    "shot-3",
+    "shot-4",
+    "shot-5",
+    "shot-6",
+    "shot-7",
+    "pin-0",
+    "pin-1",
+    "pin-2",
+    "pin-3",
+    "pin-4",
+    "pin-5",
+    "pin-6",
+    "pin-7",
+    "pin-8",
+    "pin-9",
+    "pin-10",
+    "pin-11"
+  ],
   "permissions": [
     "core:default",
     "dialog:allow-open",
@@ -19,6 +42,8 @@
     },
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
-    "global-shortcut:allow-is-registered"
+    "global-shortcut:allow-is-registered",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
   ]
 }

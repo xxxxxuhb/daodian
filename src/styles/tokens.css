@@ -1,0 +1,185 @@
+/* 到点 · 设计令牌 / 两套主题：青瓷（浅）· 夜航（深） */
+:root {
+	--serif: Georgia, "Times New Roman", "Songti SC", SimSun, serif;
+	--sans:
+		"Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system,
+		sans-serif;
+	--r-card: 14px;
+}
+
+/* ---------- 主题 A：青瓷（浅） ---------- */
+:root,
+[data-theme="celadon"] {
+	--bg: #ebf0ed;
+	--card: #fafcfb;
+	--fill: #e1e8e4;
+	--fill-2: #ccd8d2;
+	--ink: #0e1613;
+	--ink-2: #47564f;
+	--ink-3: #74847c;
+	--ink-4: #98a69f;
+	--line: #d3dfd9;
+	--line-2: #e3ebe6;
+	--rail: #0c1f1a;
+	--rail-ink: #e9f1ec;
+	--rail-dim: rgba(233, 241, 236, 0.62);
+	--rail-faint: rgba(233, 241, 236, 0.34);
+	--rail-line: rgba(233, 241, 236, 0.12);
+	--rail-hover: rgba(233, 241, 236, 0.06);
+	--rail-active: #eaf3ee;
+	--rail-active-ink: #0c1f1a;
+	--rail-glow: rgba(233, 241, 236, 0.08);
+	--rail-glow-2: rgba(125, 183, 203, 0.12);
+	--accent: #15637b;
+	--accent-hover: #0f5165;
+	--accent-soft: #dce9ef;
+	--accent-ink: #ffffff;
+	--accent-line: rgba(21, 99, 123, 0.22);
+	--accent-glow: rgba(21, 99, 123, 0.18);
+	--warn: #9c640e;
+	--warn-soft: #f3e7d1;
+	--danger: #a33c3c;
+	--danger-soft: #f4e0de;
+	--done: #2c7a58;
+	--done-soft: #dbeae2;
+	--hero: #0c1f1a;
+	--hero-ink: #e9f1ec;
+	--hero-dim: rgba(233, 241, 236, 0.55);
+	--hero-line: rgba(233, 241, 236, 0.14);
+	--hero-accent: #79c6af;
+	--hover: #f3f8f5;
+	--foot: #f3f7f4;
+	--head: #f1f5f2;
+	--dot: rgba(14, 22, 19, 0.05);
+	--now-tint: rgba(21, 99, 123, 0.07);
+	--hl: #ffffff;
+	--inset-sh: rgba(14, 22, 19, 0.03);
+	--check-line: #bccbc4;
+	--mark-hand: #79b7cc;
+	--scrim: rgba(12, 20, 17, 0.42);
+	--shadow-1: 0 1px 2px rgba(14, 22, 19, 0.05);
+	--shadow-2: 0 2px 8px rgba(14, 22, 19, 0.07);
+	--shadow-3: 0 24px 60px -24px rgba(14, 22, 19, 0.45);
+	--drawer-shadow: -30px 0 70px -30px rgba(14, 22, 19, 0.55);
+}
+
+/* ---------- 主题 B：夜航（深） ---------- */
+[data-theme="night"] {
+	--bg: #0e1116;
+	--card: #161a21;
+	--fill: #1e242c;
+	--fill-2: #2b333d;
+	--ink: #e7ecf2;
+	--ink-2: #a7b2bf;
+	--ink-3: #77828e;
+	--ink-4: #59636e;
+	--line: #252c36;
+	--line-2: #1d232b;
+	--rail: #080a0e;
+	--rail-ink: #dfe6ee;
+	--rail-dim: rgba(223, 230, 238, 0.6);
+	--rail-faint: rgba(223, 230, 238, 0.32);
+	--rail-line: rgba(223, 230, 238, 0.1);
+	--rail-hover: rgba(223, 230, 238, 0.05);
+	--rail-active: rgba(91, 141, 246, 0.18);
+	--rail-active-ink: #dce7fa;
+	--rail-glow: rgba(143, 180, 255, 0.08);
+	--rail-glow-2: rgba(91, 141, 246, 0.14);
+	--accent: #5b8df6;
+	--accent-hover: #7aa2ff;
+	--accent-soft: rgba(91, 141, 246, 0.16);
+	--accent-ink: #0b1220;
+	--accent-line: rgba(91, 141, 246, 0.32);
+	--accent-glow: rgba(91, 141, 246, 0.2);
+	--warn: #e0a24c;
+	--warn-soft: rgba(224, 162, 76, 0.15);
+	--danger: #e9646b;
+	--danger-soft: rgba(233, 100, 107, 0.15);
+	--done: #45b98f;
+	--done-soft: rgba(69, 185, 143, 0.15);
+	--hero: #1b2434;
+	--hero-ink: #e7ecf2;
+	--hero-dim: rgba(231, 236, 242, 0.55);
+	--hero-line: rgba(231, 236, 242, 0.12);
+	--hero-accent: #8fb4ff;
+	--hover: #1b212a;
+	--foot: #12161c;
+	--head: #171c25;
+	--dot: rgba(255, 255, 255, 0.035);
+	--now-tint: rgba(91, 141, 246, 0.06);
+	--hl: rgba(255, 255, 255, 0.04);
+	--inset-sh: rgba(0, 0, 0, 0.25);
+	--check-line: #39424e;
+	--mark-hand: #8fb4ff;
+	--scrim: rgba(4, 7, 11, 0.45);
+	--shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+	--shadow-2: 0 4px 14px rgba(0, 0, 0, 0.35);
+	--shadow-3: 0 30px 70px -20px rgba(0, 0, 0, 0.75);
+	--drawer-shadow: -30px 0 80px -20px rgba(0, 0, 0, 0.8);
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+html,
+body {
+	margin: 0;
+	height: 100%;
+}
+body {
+	background: var(--bg);
+	color: var(--ink);
+	font-family: var(--sans);
+	font-size: 14px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	user-select: none;
+	-webkit-user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"] {
+	user-select: text;
+	-webkit-user-select: text;
+}
+h1,
+h2,
+h3,
+h4,
+p {
+	margin: 0;
+}
+b,
+strong {
+	font-weight: 600;
+}
+svg.ico {
+	width: 16px;
+	height: 16px;
+	flex: none;
+	stroke: currentColor;
+	fill: none;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+svg.ico.s {
+	width: 13px;
+	height: 13px;
+	stroke-width: 1.8;
+}
+.num {
+	font-family: var(--serif);
+	font-variant-numeric: tabular-nums;
+}
+.eyebrow {
+	font-size: 10.5px;
+	letter-spacing: 0.2em;
+	color: var(--ink-3);
+	font-weight: 600;
+}
+.mut {
+	color: var(--ink-3);
+}
