@@ -62,6 +62,14 @@ pub struct PetSettings {
     pub idle_min_seconds: u32,
     #[serde(default = "default_idle_max_seconds")]
     pub idle_max_seconds: u32,
+    #[serde(default = "default_true")]
+    pub follow_input: bool,
+    #[serde(default = "default_true")]
+    pub show_key_names: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_idle_min_seconds() -> u32 {
@@ -82,6 +90,8 @@ impl Default for PetSettings {
             hidden_until: 0,
             idle_min_seconds: default_idle_min_seconds(),
             idle_max_seconds: default_idle_max_seconds(),
+            follow_input: true,
+            show_key_names: true,
         }
     }
 }
@@ -858,6 +868,8 @@ mod tests {
     fn pet_idle_keeps_a_five_second_minimum() {
         let legacy: PetSettings = serde_json::from_str(r#"{"enabled":true}"#).unwrap();
         assert_eq!(legacy.idle_min_seconds, 12);
+        assert!(legacy.follow_input);
+        assert!(legacy.show_key_names);
         assert!(validate_pet_idle(&legacy).is_ok());
 
         let mut too_short = PetSettings::default();

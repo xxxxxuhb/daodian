@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { savePlan, saveTodo, setStageDone, setTodoDone } from "../../api/library";
 import { useLibrary } from "../../data/useLibrary";
 import { useSettings } from "../../data/useSettings";
@@ -9,6 +9,7 @@ import { useNow } from "../../domain/clock";
 import { clockTime, relative, upcoming } from "../../domain/present";
 import { REMINDER_SETTLED, reminderStillPending, type ReminderSettled } from "../../domain/reminderSync";
 import type { Settings } from "../../domain/settings";
+import { usePetShots } from "./usePetShots";
 
 interface PetItem {
   key: string;
@@ -70,6 +71,7 @@ let unlistenData: UnlistenFn | null = null;
 let unlistenReminder: UnlistenFn | null = null;
 let unlistenSettled: UnlistenFn | null = null;
 let unlistenSettings: UnlistenFn | null = null;
+let unlistenLayout: UnlistenFn | null = null;
 let holdTimer = 0;
 let down: { clientX: number; clientY: number; screenX: number; screenY: number } | null = null;
 let frame = 0;
@@ -101,10 +103,14 @@ const next = computed<PetItem | null>(() => {
   };
 });
 const item = computed(() => activeReminder.value ?? next.value);
-const sleeping = computed(() => {
+const followInput = computed(() => settings.value.pet.followInput !== false);
+const stageRight = shallowRef(new URLSearchParams(location.search).get("stage") === "right");
+const shots = usePetShots(followInput, stageRight);
+const night = computed(() => {
   const hour = new Date(now.value).getHours();
   return hour >= 22 || hour < 8;
 });
+const sleeping = computed(() => night.value && !shots.engaged.value);
 const isDue = computed(() => item.value != null && item.value.at <= now.value);
 const isSoon = computed(() => {
   const delta = (item.value?.at ?? Infinity) - now.value;
@@ -116,6 +122,16 @@ const mode = computed(() => {
   if (action.value === "peek") return "hover";
   return hovered.value ? "hover" : "compact";
 });
+const hitMode = computed(() => {
+  if (panel.value === "card") return "card";
+  if (panel.value === "menu") return "menu";
+  if (shots.shooting.value) return "effect";
+  if (hovered.value || action.value === "peek") return "hover";
+  return "compact";
+});
+const eyesOpen = computed(
+  () => !sleeping.value && !pinched.value && !blinking.value && action.value !== "yawn",
+);
 const state = computed(() =>
   sleeping.value ? "sleep" : isDue.value ? "due" : isSoon.value ? "soon" : "idle",
 );
@@ -135,9 +151,11 @@ const completedCount = computed(
 );
 const petStyle = computed(() => ({
   "--ring-offset": `${157 * (1 - ringProgress.value)}`,
+  "--eye-x": eyesOpen.value ? `${shots.eye.value.x.toFixed(2)}px` : "0px",
+  "--eye-y": eyesOpen.value ? `${shots.eye.value.y.toFixed(2)}px` : "0px",
 }));
 
-watch(mode, (value) => {
+watch(hitMode, (value) => {
   void invoke("pet_set_mode", { mode: value }).catch(() => {});
 });
 watch(
@@ -149,6 +167,9 @@ watch(
 );
 watch(isDue, (due) => {
   if (due) interruptAction();
+});
+watch(shots.shooting, (active) => {
+  if (active) interruptAction();
 });
 watch([todos, plans], () => {
   const current = activeReminder.value;
@@ -172,7 +193,8 @@ function canIdleAnimate() {
     !pressed.value &&
     !moving.value &&
     !isDue.value &&
-    !sleeping.value
+    !sleeping.value &&
+    !shots.shooting.value
   );
 }
 
@@ -329,7 +351,8 @@ async function onPointerUp() {
     if (frame) cancelAnimationFrame(frame);
     flushMove();
     await moveChain.catch(() => undefined);
-    await invoke("pet_snap").catch(() => {});
+    const layout = await invoke<{ opensRight: boolean }>("pet_snap").catch(() => null);
+    if (layout) stageRight.value = layout.opensRight;
     window.setTimeout(() => (moving.value = false), 80);
   }
   if (pinched.value) window.setTimeout(() => (pinched.value = false), 180);
@@ -443,11 +466,13 @@ function hideToday() {
 
 onMounted(async () => {
   window.addEventListener("blur", closePanelOnBlur);
-  const [snapshot] = await Promise.all([
+  const [snapshot, layout] = await Promise.all([
     invoke<PetSnapshot>("pet_snapshot").catch(() => ({ pinches: 0, hiddenUntil: 0 })),
+    invoke<{ opensRight: boolean }>("pet_layout").catch(() => null),
     reload(),
     loadSettings(),
   ]);
+  if (layout) stageRight.value = layout.opensRight;
   pinches.value = snapshot.pinches;
   completionBaseline = completedCount.value;
   document.documentElement.dataset.theme = settings.value.theme;
@@ -475,6 +500,9 @@ onMounted(async () => {
     };
     panel.value = "card";
   }).catch(() => null);
+  unlistenLayout = await listen<{ opensRight: boolean }>("pet-layout", ({ payload }) => {
+    stageRight.value = !!payload?.opensRight;
+  }).catch(() => null);
   unlistenSettled = await listen<ReminderSettled>(REMINDER_SETTLED, ({ payload }) => {
     if (payload?.key && activeReminder.value?.key === payload.key) hideReminderCard();
   }).catch(() => null);
@@ -486,6 +514,7 @@ onBeforeUnmount(() => {
   unlistenReminder?.();
   unlistenSettled?.();
   unlistenSettings?.();
+  unlistenLayout?.();
   window.clearTimeout(holdTimer);
   window.clearTimeout(randomTimer);
   window.clearTimeout(blinkTimer);
@@ -502,11 +531,15 @@ onBeforeUnmount(() => {
       `is-${mode}`,
       `is-${state}`,
       action && `is-action-${action}`,
+      { 'is-stage-right': stageRight },
+      { 'is-firing': shots.beams.value.length > 0 },
+      { 'is-boom': shots.mood.value === 'boom', 'is-slack': shots.mood.value === 'slack', 'is-still': shots.mood.value === 'still' },
       { 'is-pressed': pressed, 'is-pinched': pinched, 'is-blinking': blinking, 'is-hop': hopping },
     ]"
     :style="petStyle"
     @mouseleave="leavePet"
   >
+    <div class="pet-stage">
     <section v-if="panel === 'card'" class="pet-card">
       <div class="pet-card__cap">
         <span>到点</span>
@@ -535,6 +568,40 @@ onBeforeUnmount(() => {
       <button type="button" class="pet-menu__close" @click="panel = 'none'">返回</button>
     </section>
 
+    <svg class="pet-rain" viewBox="0 0 300 300" aria-hidden="true">
+      <g
+        v-for="glyph in shots.glyphs.value"
+        :key="glyph.id"
+        class="pet-glyph"
+        :class="{ 'is-wide': glyph.wide, 'is-target': glyph.targeted, 'is-loose': glyph.loose, 'is-frozen': glyph.frozen }"
+        :opacity="glyph.opacity"
+        :transform="`translate(${glyph.x} ${glyph.y}) rotate(${glyph.rot})`"
+      >
+        <template v-if="glyph.label">
+          <rect :x="glyph.wide ? -22 : -11" y="-11" :width="glyph.wide ? 44 : 22" height="22" rx="6" />
+          <text y="4">{{ glyph.label }}</text>
+        </template>
+        <circle v-else class="pet-ink" r="3.2" />
+      </g>
+      <g v-for="beam in shots.beams.value" :key="beam.id" :opacity="beam.opacity">
+        <line class="pet-beam-glow" :x1="shots.tip.value.x" :y1="shots.tip.value.y" :x2="beam.x" :y2="beam.y" />
+        <line class="pet-beam-core" :x1="shots.tip.value.x" :y1="shots.tip.value.y" :x2="beam.x" :y2="beam.y" />
+      </g>
+      <g v-if="shots.wave.value" class="pet-wave" :class="{ 'is-still': shots.mood.value === 'still' }" :opacity="shots.wave.value.opacity">
+        <circle class="pet-wave-fill" :cx="shots.tip.value.x" :cy="shots.tip.value.y" :r="Math.max(0, shots.wave.value.r - 16)" />
+        <circle class="pet-wave-ring" :cx="shots.tip.value.x" :cy="shots.tip.value.y" :r="shots.wave.value.r" />
+      </g>
+      <g v-for="burst in shots.bursts.value" :key="`burst-${burst.id}`" :opacity="burst.opacity">
+        <circle
+          v-for="(dot, index) in burst.dots"
+          :key="index"
+          class="pet-burst-dot"
+          :cx="dot.x"
+          :cy="dot.y"
+          :r="dot.r"
+        />
+      </g>
+    </svg>
     <div v-if="mode === 'hover' && action !== 'peek'" class="pet-bubble">{{ bubble }}</div>
     <div
       class="pet-anchor"
@@ -568,6 +635,7 @@ onBeforeUnmount(() => {
       <span class="pet-shadow"></span>
       <span v-if="action === 'peek' && next" class="pet-peek">{{ clockTime(next.at) }} {{ next.title }}</span>
       <span v-if="wheelOffset" class="pet-wheel-tip">推后 {{ wheelOffset }} 分钟</span>
+    </div>
     </div>
   </main>
 </template>

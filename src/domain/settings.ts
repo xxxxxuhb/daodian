@@ -24,6 +24,8 @@ export interface Settings {
     hiddenUntil: number;
     idleMinSeconds: number;
     idleMaxSeconds: number;
+    followInput: boolean;
+    showKeyNames: boolean;
   };
   repeat: {
     defaultSkipWeekends: boolean;

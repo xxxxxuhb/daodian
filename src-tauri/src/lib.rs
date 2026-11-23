@@ -7,6 +7,7 @@ mod domain;
 mod logging;
 mod notes;
 mod pet;
+mod pet_input;
 mod quick_capture;
 mod remind;
 mod settings;
@@ -134,6 +135,7 @@ pub fn run() {
             }
             pet::sync_visibility(app.handle())
                 .map_err(|err| logged_step("打开桌面珠子", std::io::Error::other(err).into()))?;
+            pet_input::spawn(app.handle().clone());
             quick_capture::install_windows_alt_space_fallback(app.handle().clone());
             match quick_capture::persist_registration_status(app.handle()) {
                 Ok(status) => logging::info(format_args!("快速记录快捷键: {status}")),
@@ -176,6 +178,7 @@ pub fn run() {
             backup::list_backups,
             backup::restore_backup,
             pet::pet_set_mode,
+            pet::pet_layout,
             pet::pet_move_to,
             pet::pet_snap,
             pet::pet_record_pinch,

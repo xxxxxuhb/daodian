@@ -3,19 +3,37 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl,
+    WebviewWindowBuilder,
 };
 
 use crate::settings::SharedSettings;
 
 const COMPACT: f64 = 96.0;
-const WINDOW_WIDTH: f64 = 390.0;
-const WINDOW_HEIGHT: f64 = 292.0;
+const WINDOW_WIDTH: f64 = 300.0;
+const WINDOW_HEIGHT: f64 = 300.0;
 const EDGE_GAP: i32 = 14;
 
-#[derive(Default)]
 pub struct PetRuntime {
     compact_position: Mutex<Option<PhysicalPosition<i32>>>,
+    opens_right: Mutex<bool>,
+    mode: Mutex<String>,
+}
+
+impl Default for PetRuntime {
+    fn default() -> Self {
+        Self {
+            compact_position: Mutex::new(None),
+            opens_right: Mutex::new(false),
+            mode: Mutex::new("compact".into()),
+        }
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PetLayout {
+    pub opens_right: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -73,8 +91,20 @@ pub fn sync_visibility(app: &AppHandle) -> Result<(), String> {
 
 fn create(app: &AppHandle, remembered: Option<(i32, i32)>) -> Result<tauri::WebviewWindow, String> {
     let webview_data = crate::webview_data_dir().map_err(|err| err.to_string())?;
+    let remembered_pos = remembered.map(|(x, y)| PhysicalPosition::new(x, y));
+    let hinted_right = remembered_pos
+        .and_then(|pos| {
+            app.get_webview_window("main")
+                .and_then(|probe| opens_right_at(&probe, pos).ok())
+        })
+        .unwrap_or(false);
+    let url = if hinted_right {
+        "index.html?window=pet&stage=right"
+    } else {
+        "index.html?window=pet"
+    };
     let window =
-        WebviewWindowBuilder::new(app, "pet", WebviewUrl::App("index.html?window=pet".into()))
+        WebviewWindowBuilder::new(app, "pet", WebviewUrl::App(url.into()))
             .data_directory(webview_data)
             .title("到点桌面珠子")
             .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -88,17 +118,19 @@ fn create(app: &AppHandle, remembered: Option<(i32, i32)>) -> Result<tauri::Webv
             .build()
             .map_err(|err| err.to_string())?;
 
-    let position = if let Some((x, y)) = remembered {
-        PhysicalPosition::new(x, y)
-    } else {
-        default_position(&window)?
-    };
-    let window_position = expanded_position(&window, position)?;
+    let position = remembered_pos.unwrap_or(default_position(&window)?);
+    let opens_right = opens_right_at(&window, position).unwrap_or(hinted_right);
+    let scale = window.scale_factor().map_err(|err| err.to_string())?;
     window
-        .set_position(window_position)
+        .set_position(window_origin(position, opens_right, scale))
         .map_err(|err| err.to_string())?;
-    apply_hit_region(&window, "compact")?;
-    *app.state::<PetRuntime>()
+    let runtime = app.state::<PetRuntime>();
+    *runtime
+        .opens_right
+        .lock()
+        .map_err(|err| err.to_string())? = opens_right;
+    apply_hit_region(&window, "compact", opens_right)?;
+    *runtime
         .compact_position
         .lock()
         .map_err(|err| err.to_string())? = Some(position);
@@ -109,15 +141,64 @@ fn create(app: &AppHandle, remembered: Option<(i32, i32)>) -> Result<tauri::Webv
     Ok(window)
 }
 
-fn expanded_position(
-    window: &tauri::WebviewWindow,
+fn stage_opens_right(space_left: i32, space_right: i32, extend: i32) -> bool {
+    space_left < extend && space_right >= space_left
+}
+
+fn monitor_containing(
+    probe: &tauri::WebviewWindow,
+    x: i32,
+    y: i32,
+) -> Result<tauri::Monitor, String> {
+    let monitors = probe.available_monitors().map_err(|err| err.to_string())?;
+    if let Some(monitor) = monitors.into_iter().find(|monitor| {
+        let area = monitor.work_area();
+        let right = area.position.x + area.size.width as i32;
+        let bottom = area.position.y + area.size.height as i32;
+        x >= area.position.x && x < right && y >= area.position.y && y < bottom
+    }) {
+        return Ok(monitor);
+    }
+    probe
+        .current_monitor()
+        .map_err(|err| err.to_string())?
+        .or_else(|| probe.primary_monitor().ok().flatten())
+        .ok_or_else(|| "没有可用显示器".to_string())
+}
+
+fn opens_right_at(
+    probe: &tauri::WebviewWindow,
     compact: PhysicalPosition<i32>,
-) -> Result<PhysicalPosition<i32>, String> {
-    let scale = window.scale_factor().map_err(|err| err.to_string())?;
-    Ok(PhysicalPosition::new(
-        compact.x - ((WINDOW_WIDTH - COMPACT) * scale).round() as i32,
-        compact.y - ((WINDOW_HEIGHT - COMPACT) * scale).round() as i32,
-    ))
+) -> Result<bool, String> {
+    let monitor = monitor_containing(probe, compact.x, compact.y)?;
+    let scale = monitor.scale_factor();
+    let extend = ((WINDOW_WIDTH - COMPACT) * scale).round() as i32;
+    let pet = (COMPACT * scale).round() as i32;
+    let area = monitor.work_area();
+    let space_left = compact.x - area.position.x;
+    let space_right = area.position.x + area.size.width as i32 - (compact.x + pet);
+    Ok(stage_opens_right(space_left, space_right, extend))
+}
+
+fn window_origin(
+    compact: PhysicalPosition<i32>,
+    opens_right: bool,
+    scale: f64,
+) -> PhysicalPosition<i32> {
+    let extend_x = ((WINDOW_WIDTH - COMPACT) * scale).round() as i32;
+    let extend_y = ((WINDOW_HEIGHT - COMPACT) * scale).round() as i32;
+    PhysicalPosition::new(
+        if opens_right {
+            compact.x
+        } else {
+            compact.x - extend_x
+        },
+        compact.y - extend_y,
+    )
+}
+
+fn emit_layout(app: &AppHandle, opens_right: bool) {
+    let _ = app.emit_to("pet", "pet-layout", PetLayout { opens_right });
 }
 
 fn default_position(window: &tauri::WebviewWindow) -> Result<PhysicalPosition<i32>, String> {
@@ -137,17 +218,23 @@ fn default_position(window: &tauri::WebviewWindow) -> Result<PhysicalPosition<i3
 #[tauri::command]
 pub fn pet_set_mode(
     app: AppHandle,
-    _runtime: State<PetRuntime>,
+    runtime: State<PetRuntime>,
     mode: String,
 ) -> Result<(), String> {
     let window = app
         .get_webview_window("pet")
         .ok_or_else(|| "桌面珠子窗口不存在".to_string())?;
-    apply_hit_region(&window, &mode)
+    *runtime.mode.lock().map_err(|err| err.to_string())? = mode.clone();
+    let opens_right = *runtime.opens_right.lock().map_err(|err| err.to_string())?;
+    apply_hit_region(&window, &mode, opens_right)
 }
 
 #[cfg(windows)]
-fn apply_hit_region(window: &tauri::WebviewWindow, mode: &str) -> Result<(), String> {
+fn apply_hit_region(
+    window: &tauri::WebviewWindow,
+    mode: &str,
+    opens_right: bool,
+) -> Result<(), String> {
     use windows_sys::Win32::Graphics::Gdi::{
         CombineRgn, CreateEllipticRgn, CreateRectRgn, DeleteObject, RGN_OR, SetWindowRgn,
     };
@@ -157,23 +244,26 @@ fn apply_hit_region(window: &tauri::WebviewWindow, mode: &str) -> Result<(), Str
     let inset = (5.0 * scale).round() as i32;
     let width = (WINDOW_WIDTH * scale).round() as i32;
     let height = (WINDOW_HEIGHT * scale).round() as i32;
-    let pet_left = ((WINDOW_WIDTH - COMPACT) * scale).round() as i32;
-    let pet_top = ((WINDOW_HEIGHT - COMPACT) * scale).round() as i32;
+    let pet_size = (COMPACT * scale).round() as i32;
+    let pet_left = if opens_right { 0 } else { width - pet_size };
+    let pet_top = height - pet_size;
     let region = unsafe {
         CreateEllipticRgn(
             pet_left + inset,
             pet_top + inset,
-            width - inset,
-            height - inset,
+            pet_left + pet_size - inset,
+            pet_top + pet_size - inset,
         )
     };
     if region.is_null() {
         return Err("创建桌面珠子点击区域失败".into());
     }
     let bounds = match mode {
-        "hover" => Some((32.0, 116.0, WINDOW_WIDTH, WINDOW_HEIGHT)),
-        "card" => Some((0.0, 48.0, 310.0, WINDOW_HEIGHT)),
-        "menu" => Some((76.0, 24.0, 326.0, 228.0)),
+        "hover" => Some((0.0, 160.0, WINDOW_WIDTH, WINDOW_HEIGHT)),
+        "card" => Some((0.0, 16.0, WINDOW_WIDTH, 208.0)),
+        "menu" => Some((0.0, 4.0, WINDOW_WIDTH, 208.0)),
+        // 有字块在飞时临时盖住 300×260 场景，打完回到珠子。
+        "effect" => Some((0.0, 40.0, WINDOW_WIDTH, WINDOW_HEIGHT)),
         _ => None,
     };
     if let Some((left, top, right, bottom)) = bounds {
@@ -203,7 +293,11 @@ fn apply_hit_region(window: &tauri::WebviewWindow, mode: &str) -> Result<(), Str
 }
 
 #[cfg(not(windows))]
-fn apply_hit_region(_window: &tauri::WebviewWindow, _mode: &str) -> Result<(), String> {
+fn apply_hit_region(
+    _window: &tauri::WebviewWindow,
+    _mode: &str,
+    _opens_right: bool,
+) -> Result<(), String> {
     Ok(())
 }
 
@@ -218,9 +312,10 @@ pub fn pet_move_to(
         .get_webview_window("pet")
         .ok_or_else(|| "桌面珠子窗口不存在".to_string())?;
     let position = PhysicalPosition::new(x, y);
-    let window_position = expanded_position(&window, position)?;
+    let opens_right = *runtime.opens_right.lock().map_err(|err| err.to_string())?;
+    let scale = window.scale_factor().map_err(|err| err.to_string())?;
     window
-        .set_position(window_position)
+        .set_position(window_origin(position, opens_right, scale))
         .map_err(|err| err.to_string())?;
     *runtime
         .compact_position
@@ -230,7 +325,7 @@ pub fn pet_move_to(
 }
 
 #[tauri::command]
-pub fn pet_snap(app: AppHandle, runtime: State<PetRuntime>) -> Result<(), String> {
+pub fn pet_snap(app: AppHandle, runtime: State<PetRuntime>) -> Result<PetLayout, String> {
     let window = app
         .get_webview_window("pet")
         .ok_or_else(|| "桌面珠子窗口不存在".to_string())?;
@@ -267,17 +362,34 @@ pub fn pet_snap(app: AppHandle, runtime: State<PetRuntime>) -> Result<(), String
         2 => PhysicalPosition::new(position.x.clamp(left, right), top),
         _ => PhysicalPosition::new(position.x.clamp(left, right), bottom),
     };
+    let opens_right = opens_right_at(&window, target)?;
+    let scale = window.scale_factor().map_err(|err| err.to_string())?;
     window
-        .set_position(expanded_position(&window, target)?)
+        .set_position(window_origin(target, opens_right, scale))
         .map_err(|err| err.to_string())?;
     *runtime
         .compact_position
         .lock()
         .map_err(|err| err.to_string())? = Some(target);
+    *runtime
+        .opens_right
+        .lock()
+        .map_err(|err| err.to_string())? = opens_right;
+    let mode = runtime.mode.lock().map_err(|err| err.to_string())?.clone();
+    apply_hit_region(&window, &mode, opens_right)?;
+    emit_layout(&app, opens_right);
     app.state::<SharedSettings>()
         .lock()
         .map_err(|err| err.to_string())?
-        .save_pet_position(target.x, target.y)
+        .save_pet_position(target.x, target.y)?;
+    Ok(PetLayout { opens_right })
+}
+
+#[tauri::command]
+pub fn pet_layout(runtime: State<PetRuntime>) -> Result<PetLayout, String> {
+    Ok(PetLayout {
+        opens_right: *runtime.opens_right.lock().map_err(|err| err.to_string())?,
+    })
 }
 
 #[tauri::command]
@@ -297,8 +409,8 @@ pub fn pet_snapshot(app: AppHandle) -> Result<PetSnapshot, String> {
     })
 }
 
-#[tauri::command]
-pub fn pet_can_idle() -> bool {
+/// 锁屏、全屏和演示模式时珠子不自己动，也不读取按键。
+pub(crate) fn system_allows_motion() -> bool {
     #[cfg(windows)]
     {
         use windows_sys::Win32::UI::Shell::{
@@ -307,7 +419,6 @@ pub fn pet_can_idle() -> bool {
         };
         let mut state = 0;
         let result = unsafe { SHQueryUserNotificationState(&mut state) };
-        // 免打扰和普通前台应用不阻止珠子自己动；锁屏、全屏和演示模式才停。
         result < 0
             || !matches!(
                 state,
@@ -318,6 +429,11 @@ pub fn pet_can_idle() -> bool {
     {
         true
     }
+}
+
+#[tauri::command]
+pub fn pet_can_idle() -> bool {
+    system_allows_motion()
 }
 
 #[tauri::command]
@@ -368,4 +484,16 @@ pub fn pet_open_main(
         },
     )
     .map_err(|err| err.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stage_opens_right;
+
+    #[test]
+    fn stage_opens_toward_the_free_side() {
+        assert!(stage_opens_right(14, 1600, 204));
+        assert!(!stage_opens_right(1600, 14, 204));
+        assert!(!stage_opens_right(800, 800, 204));
+    }
 }

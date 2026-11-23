@@ -25,9 +25,10 @@ window.addEventListener("unhandledrejection", (event) => {
   logFrontend("error", `unhandled rejection: ${reason}`);
 });
 
-const petWindow = new URLSearchParams(location.search).get("window") === "pet";
-document.documentElement.classList.toggle("pet-host", petWindow);
-document.body.classList.toggle("pet-host", petWindow);
+const windowKind = new URLSearchParams(location.search).get("window");
+const overlayWindow = windowKind === "pet";
+document.documentElement.classList.toggle("pet-host", overlayWindow);
+document.body.classList.toggle("pet-host", overlayWindow);
 
 logFrontend("info", `Vue bootstrap; url=${location.href}`);
 

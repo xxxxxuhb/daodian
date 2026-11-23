@@ -2,7 +2,8 @@
 import AppShell from "./features/shell/AppShell.vue";
 import PetApp from "./features/pet/PetApp.vue";
 
-const isPetWindow = new URLSearchParams(location.search).get("window") === "pet";
+const windowKind = new URLSearchParams(location.search).get("window");
+const isPetWindow = windowKind === "pet";
 </script>
 
 <template>

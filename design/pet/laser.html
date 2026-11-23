@@ -1,0 +1,159 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>到点 · 桌面珠子 · 只加射击</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0b0d10;color:#e7ecf2;font-family:"Segoe UI","Microsoft YaHei UI",sans-serif;padding:28px 32px 24px}
+  .head{display:flex;align-items:flex-end;gap:18px;margin-bottom:18px}
+  .kick{font-size:9.5px;letter-spacing:.24em;color:#59636e}
+  h1{margin:6px 0 0;font-size:23px;font-weight:600;letter-spacing:-.01em}
+  .head p{margin-left:auto;text-align:right;font-size:10.5px;color:#8b95a1;line-height:1.9}
+  .cols{display:flex;gap:22px;align-items:flex-start}
+  .pair{display:flex;gap:18px}
+  .panel{width:300px}
+  .panel__t{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;font-size:10.5px;color:#8b95a1}
+  .panel__t b{font-size:12px;color:#e7ecf2;font-weight:600}
+  .panel__t em{font-style:normal;font-size:9px;color:#59636e;letter-spacing:.12em}
+  .desk{width:300px;height:300px;border-radius:12px;position:relative;overflow:hidden;border:1px solid #2a323c;
+    background:linear-gradient(160deg,#465654 0%,#2e3c3a 55%,#1e2a28 100%)}
+  .desk.light{background:linear-gradient(160deg,#dfe9e4 0%,#c3d3cc 55%,#aec1b9 100%);border-color:#c9d6cf}
+  .cap{margin-top:7px;font-size:9.5px;color:#77828e;line-height:1.6}
+  .cap b{color:#c3ccd6;font-weight:600}
+  .side{width:360px;display:flex;flex-direction:column;gap:12px}
+  .box{border:1px solid #1c222a;border-radius:12px;background:#101419;padding:13px 15px}
+  .box h4{margin:0 0 8px;font-size:9.5px;letter-spacing:.18em;color:#59636e;font-weight:600}
+  .row{display:flex;gap:10px;font-size:10.5px;color:#a9b4c2;line-height:1.65;padding:5px 0;border-bottom:1px dashed #1a1f26}
+  .row:last-child{border-bottom:0}
+  .row b{width:58px;flex:none;color:#e7ecf2;font-weight:600}
+  .note{font-size:10px;color:#78828e;line-height:1.8}
+  .note b{color:#c3ccd6;font-weight:600}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  button{border:1px solid #2a323c;background:#161c23;color:#c3ccd6;border-radius:7px;padding:7px 11px;font-size:10.5px;cursor:pointer}
+  button:hover{border-color:#3d6dcc;color:#fff}
+
+  /* 原样珠子：尺寸、颜色、结构都照搬 PetApp.vue / pet.css */
+  .bead-anchor{position:absolute;right:24px;bottom:24px;width:96px;height:96px;display:grid;place-items:center}
+  .pet-art{width:92px;height:92px;overflow:visible;filter:drop-shadow(0 7px 8px rgba(12,20,17,.13))}
+  .pet-progress-bg,.pet-progress{fill:none;stroke:rgba(21,99,123,.18);stroke-width:1.5}
+  .pet-progress{stroke:#9c640e;stroke-width:2;stroke-linecap:round;stroke-dasharray:157;stroke-dashoffset:157;transform:rotate(-90deg);transform-origin:48px 52px;opacity:0}
+  .pet-creature{transform-origin:48px 52px;animation:breathe 3.6s ease-in-out infinite}
+  .pet-antenna{fill:none;stroke:#15637b;stroke-width:2.8;stroke-linecap:round;opacity:.55}
+  .pet-tip,.pet-body{fill:#15637b}
+  .pet-tip{opacity:.78}
+  .pet-eyes{fill:#fff;stroke:#fff;stroke-width:1.8;stroke-linecap:round;transition:transform .12s linear}
+  .pet-mark{fill:currentColor;font:13px Georgia,serif}
+  .pet-shadow{position:absolute;left:31px;bottom:7px;width:34px;height:5px;border-radius:50%;background:rgba(0,0,0,.28);filter:blur(1px)}
+  @keyframes breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2px) scale(1.025)}}
+
+  /* 新增：字块 + 激光 + 眼睛平移 */
+  .rain{position:absolute;inset:0;overflow:visible;pointer-events:none}
+  .glyph rect{fill:#fafcfb;stroke:#0e1613;stroke-width:1.1}
+  .glyph text{fill:#0e1613;font-family:Consolas,monospace;font-weight:600;text-anchor:middle}
+  .glyph.is-target rect{stroke:#b97818}
+  .glyph.is-target{filter:drop-shadow(0 0 4px rgba(185,120,24,.55))}
+  .beam-glow{stroke:#b97818;stroke-width:3;stroke-linecap:round;opacity:.12}
+  .beam-core{stroke:#ffe0b0;stroke-width:.8;stroke-linecap:round;opacity:.9}
+  .hit-halo{fill:#b97818;opacity:.3}
+  .hit{fill:#b97818}
+  .burst-ring{fill:none;stroke:#b97818;stroke-width:1.2}
+  .burst-dot{fill:#b97818}
+  .zzz{fill:#15637b;font:600 11px Georgia,serif;opacity:.7}
+  .target-mark{fill:#b97818;font:700 17px Georgia,serif}
+</style></head><body>
+<div class="head">
+  <div><div class="kick">到点 · 桌面珠子 · 交互修订</div><h1>形象一像素不改，只加“打掉字符”</h1></div>
+  <p>左边是现在的珠子；右边是同一颗珠子<br>多出来的只有字块、激光和眼睛平移</p>
+</div>
+
+<div class="cols">
+  <div class="pair">
+    <div class="panel">
+      <div class="panel__t"><b>现在</b><em>ORIGINAL</em></div>
+      <div class="desk light" id="before">
+        <div class="bead-anchor"><svg class="pet-art" viewBox="0 0 96 96" aria-label="原来的桌面珠子">
+          <circle class="pet-progress-bg" cx="48" cy="52" r="25"/><circle class="pet-progress" cx="48" cy="52" r="25"/>
+          <g class="pet-creature">
+            <path class="pet-antenna" d="M48 39.5V26.5"/><circle class="pet-tip" cx="48" cy="24" r="3.5"/><circle class="pet-body" cx="48" cy="52" r="16"/>
+            <g class="pet-eyes"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+          </g>
+        </svg><span class="pet-shadow"></span></div>
+      </div>
+      <div class="cap">92px 的珠子、25px 的环、天线和两颗白点眼睛，<b>全部照旧</b>。</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel__t"><b>只加射击</b><em>+ LASER</em></div>
+      <div class="desk" id="after">
+        <svg class="rain" viewBox="0 0 300 300">
+          <g class="glyph" transform="translate(92 156) rotate(6)">
+            <rect x="-22" y="-11" width="44" height="22" rx="6"/><text x="0" y="4" style="font-size:7.2px">Enter</text>
+          </g>
+          <g class="glyph" transform="translate(34 202) rotate(-3)">
+            <rect x="-11" y="-11" width="22" height="22" rx="6"/><text x="0" y="4" style="font-size:11px">点</text>
+          </g>
+          <line class="beam-glow" x1="242" y1="219" x2="58" y2="104"/>
+          <line class="beam-core" x1="242" y1="219" x2="58" y2="104"/>
+          <circle class="hit-halo" cx="58" cy="104" r="6"/><circle class="hit" cx="58" cy="104" r="2.6"/>
+          <g class="burst" transform="translate(58 104)">
+            <circle class="burst-ring" r="4"/>
+            <circle class="burst-dot" cx="8" cy="-6" r="1.5"/><circle class="burst-dot" cx="-9" cy="-5" r="1.2"/>
+            <circle class="burst-dot" cx="7" cy="8" r="1.3"/><circle class="burst-dot" cx="-7" cy="7" r="1.1"/>
+            <circle class="burst-dot" cx="0" cy="-11" r="1.2"/><circle class="burst-dot" cx="-2" cy="11" r="1.2"/>
+          </g>
+          <g class="glyph is-target" transform="translate(58 104) rotate(-5)">
+            <rect x="-11" y="-11" width="22" height="22" rx="6"/><text x="0" y="4" style="font-size:11px">K</text>
+          </g>
+          <g transform="translate(58 104)">
+            <circle class="burst-dot" cx="17" cy="-8" r="1.6"/>
+            <circle class="burst-dot" cx="-16" cy="-9" r="1.3"/>
+            <circle class="burst-dot" cx="14" cy="12" r="1.2"/>
+            <circle class="burst-dot" cx="-13" cy="13" r="1.5"/>
+          </g>
+        </svg>
+        <div class="bead-anchor"><svg class="pet-art" viewBox="0 0 96 96" aria-label="同一颗桌面珠子">
+          <circle class="pet-progress-bg" cx="48" cy="52" r="25"/><circle class="pet-progress" cx="48" cy="52" r="25"/>
+          <g class="pet-creature">
+            <path class="pet-antenna" d="M48 39.5V26.5"/><circle class="pet-tip" cx="48" cy="24" r="3.5"/><circle class="pet-body" cx="48" cy="52" r="16"/>
+            <g class="pet-eyes" style="transform:translate(-3px,-2.4px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+          </g>
+        </svg><span class="pet-shadow"></span></div>
+      </div>
+      <div class="cap">同一颗珠子；<b>只有两颗白点眼睛向左上偏了 3px</b>。天线不动，激光从尖端出发。</div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="box">
+      <h4>只加三样东西</h4>
+      <div class="row"><b>字块</b><span>每敲一个键，按键名变成小块，从左侧落下。不画键盘、不画鼠标。</span></div>
+      <div class="row"><b>激光</b><span>从原来的天线尖端发一条细激光，打到字块；字块炸成几颗小点。</span></div>
+      <div class="row"><b>眼睛</b><span>珠子本来只有两颗白点；不新增瞳孔，只让这两颗白点朝字块平移最多 3px。</span></div>
+    </div>
+    <div class="box">
+      <h4>明确不改</h4>
+      <p class="note">珠子的形状、尺寸、颜色、环、天线、位置、拖拽/捏扁/双击/右键/到点卡片全部保持原样。没有嘴、没有腮红、没有新瞳孔、没有键盘。</p>
+    </div>
+    <div class="box">
+      <h4>布局</h4>
+      <p class="note">珠子仍然是右下角 92px。窗口向外扩出一块透明区域给字块；<b>平时只有珠子可点</b>，有字在飞时才临时打开那块区域，字打完就缩回。提醒卡出现在珠子上方，不挡珠子。</p>
+    </div>
+    <div class="box">
+      <h4>隐私</h4>
+      <p class="note">只读当前按下的键名；字块在内存里活一秒左右，不写日志、不落盘、不联网。设置里可以关掉键名，只显示墨点。</p>
+    </div>
+    <div class="btns">
+      <button onclick="replay()">重放射击</button>
+      <button onclick="toggleTheme()">切换桌面</button>
+    </div>
+  </div>
+</div>
+<script>
+function replay(){
+  const after=document.getElementById('after');
+  after.style.opacity='0.2';
+  setTimeout(()=>after.style.opacity='1',60);
+}
+function toggleTheme(){
+  document.getElementById('before').classList.toggle('light');
+  document.getElementById('after').classList.toggle('light');
+}
+</script>
+</body></html>

@@ -17,10 +17,16 @@ html.pet-host #app {
   font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
 }
 
+.pet-stage {
+  position: absolute;
+  inset: 0;
+}
+
 .pet-anchor {
   position: absolute;
   right: 0;
   bottom: 0;
+  z-index: 1;
   width: 96px;
   height: 96px;
   display: grid;
@@ -72,6 +78,7 @@ html.pet-host #app {
 .pet-antenna,
 .pet-tip {
   transform-origin: 48px 52px;
+  transition: stroke .14s ease, fill .14s ease, opacity .14s ease, filter .14s ease;
 }
 
 .pet-antenna {
@@ -91,16 +98,126 @@ html.pet-host #app {
   opacity: .78;
 }
 
+.is-boom:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-boom 1.1s cubic-bezier(.3, .1, .2, 1) forwards;
+}
+
+.is-boom .pet-tip {
+  fill: #f6d48a;
+  filter: drop-shadow(0 0 6px rgba(243, 193, 90, .95));
+}
+
+.is-slack:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-slack 1.4s cubic-bezier(.3, .7, .3, 1) forwards;
+}
+
+.is-slack .pet-antenna,
+.is-slack .pet-tip {
+  transform-origin: 48px 40px;
+  animation: pet-slack-antenna 1.4s ease-in-out forwards;
+}
+
+.is-still:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-still .4s ease forwards;
+}
+
 .pet-eyes {
   fill: #fff;
   stroke: #fff;
   stroke-width: 1.8;
   stroke-linecap: round;
+  transform: translate(var(--eye-x, 0px), var(--eye-y, 0px));
+  transition: transform .12s linear;
 }
 
 .pet-mark {
   fill: currentColor;
   font: 13px Georgia, serif;
+}
+
+.pet-rain {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pet-glyph rect {
+  fill: #fafcfb;
+  stroke: #0e1613;
+  stroke-width: 1.1;
+}
+
+.pet-glyph text {
+  fill: #0e1613;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.pet-glyph.is-wide text {
+  font-size: 7.2px;
+}
+
+.pet-glyph.is-target rect {
+  stroke: #b97818;
+}
+
+.pet-glyph.is-target {
+  filter: drop-shadow(0 0 4px rgba(185, 120, 24, .55));
+}
+
+.pet-glyph.is-frozen {
+  filter: saturate(.2) brightness(1.18) drop-shadow(0 0 5px rgba(143, 212, 224, .9));
+  transition: filter .22s ease;
+}
+
+.pet-glyph.is-frozen rect {
+  stroke: #7aaeb8;
+}
+
+.pet-wave.is-still .pet-wave-fill {
+  fill: rgba(143, 212, 224, .16);
+}
+
+.pet-wave.is-still .pet-wave-ring {
+  stroke: #8fd4e0;
+}
+
+.pet-beam-glow {
+  stroke: #b97818;
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: .22;
+}
+
+.pet-beam-core {
+  stroke: #ffe0b0;
+  stroke-width: .8;
+  stroke-linecap: round;
+}
+
+.pet-wave-fill {
+  fill: rgba(243, 193, 90, .18);
+}
+
+.pet-wave-ring {
+  fill: none;
+  stroke: #f3c15a;
+  stroke-width: 3.2;
+}
+
+.pet-burst-dot,
+.pet-ink {
+  fill: #b97818;
+}
+
+.pet-ink {
+  fill: #0e1613;
 }
 
 .is-soon .pet-body,
@@ -135,6 +252,17 @@ html.pet-host #app {
   stroke: #98a69f;
 }
 
+.pet-window.is-firing .pet-antenna {
+  stroke: #d3922a;
+  opacity: 1;
+}
+
+.pet-window.is-firing .pet-tip {
+  fill: #f6d48a;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(243, 193, 90, .9));
+}
+
 .is-sleep .pet-progress-bg {
   opacity: 0;
   animation: none;
@@ -165,7 +293,8 @@ html.pet-host #app {
   position: absolute;
   right: 44px;
   bottom: 76px;
-  max-width: 270px;
+  z-index: 2;
+  max-width: 248px;
   padding: 8px 11px;
   border: 1px solid rgba(233, 241, 236, .08);
   border-radius: 9px;
@@ -254,7 +383,7 @@ html.pet-host #app {
 }
 
 .is-action-startled .pet-eyes {
-  transform: scale(1.3);
+  transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)) scale(1.3);
   transform-origin: 48px 50px;
 }
 
@@ -268,8 +397,9 @@ html.pet-host #app {
 
 .pet-card {
   position: absolute;
-  left: 8px;
-  bottom: 18px;
+  left: 4px;
+  bottom: 100px;
+  z-index: 2;
   width: 292px;
   padding: 13px 14px 12px;
   border: 1px solid #d3dfd9;
@@ -366,8 +496,9 @@ html.pet-host #app {
 
 .pet-menu {
   position: absolute;
-  right: 72px;
-  bottom: 72px;
+  right: 8px;
+  bottom: 100px;
+  z-index: 2;
   width: 234px;
   height: 188px;
   display: flex;
@@ -408,6 +539,63 @@ html.pet-host #app {
 
 .pet-menu button.pet-menu__close {
   text-align: center;
+}
+
+.pet-window.is-stage-right .pet-anchor {
+  right: auto;
+  left: 0;
+}
+
+.pet-window.is-stage-right .pet-bubble {
+  right: auto;
+  left: 44px;
+}
+
+.pet-window.is-stage-right .pet-bubble::after {
+  right: auto;
+  left: 45px;
+}
+
+.pet-window.is-stage-right .pet-wheel-tip,
+.pet-window.is-stage-right .pet-peek {
+  right: auto;
+  left: 72px;
+}
+
+.pet-window.is-stage-right .pet-peek {
+  left: 66px;
+}
+
+.pet-window.is-stage-right .pet-menu {
+  right: auto;
+  left: 8px;
+}
+
+@keyframes pet-boom {
+  0% { transform: scale(1); }
+  24% { transform: scale(1.16, .76); }
+  36% { transform: scale(.74, 1.24); }
+  52% { transform: scale(1.08, .92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pet-slack {
+  0% { transform: translateY(0) rotate(0deg) scale(1); }
+  16% { transform: translateY(2px) rotate(-12deg) scale(1.06, .9); }
+  46% { transform: translateY(5px) rotate(9deg) scale(1.08, .84); }
+  74% { transform: translateY(3px) rotate(-5deg) scale(1.04, .93); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+@keyframes pet-slack-antenna {
+  0%, 100% { transform: rotate(0deg); }
+  22% { transform: rotate(16deg); }
+  48% { transform: rotate(-28deg); }
+  72% { transform: rotate(10deg); }
+}
+
+@keyframes pet-still {
+  to { transform: scale(.98, 1.03); }
 }
 
 @keyframes pet-breathe {

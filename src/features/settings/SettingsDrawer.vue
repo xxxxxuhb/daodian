@@ -674,6 +674,15 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
             <input v-model="draft.pet.enabled" type="checkbox" />
             <span>在桌面显示陪伴珠子</span>
           </label>
+          <label class="settings-check">
+            <input v-model="draft.pet.followInput" type="checkbox" :disabled="!draft.pet.enabled" />
+            <span>跟随按键，用激光打掉字块</span>
+          </label>
+          <label class="settings-check">
+            <input v-model="draft.pet.showKeyNames" type="checkbox" :disabled="!draft.pet.enabled || !draft.pet.followInput" />
+            <span>显示按键名</span>
+          </label>
+          <p class="settings-note">只读取按下的键名，不读取输入内容。关闭按键名后只显示墨点。</p>
           <label class="settings-field">
             <span>最短间隔（秒）</span>
             <input v-model.number="draft.pet.idleMinSeconds" type="number" min="5" max="1800" step="1" />
