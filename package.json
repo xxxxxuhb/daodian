@@ -1,11 +1,13 @@
 {
   "name": "daodian",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "build:sidecar": "cargo build --release -p daodian-shot --manifest-path src-tauri/Cargo.toml && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/copy-sidecar.ps1 -Profile release",
+    "build:sidecar:dev": "cargo build -p daodian-shot --manifest-path src-tauri/Cargo.toml && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/copy-sidecar.ps1 -Profile debug",
     "preview": "vite preview",
     "test": "pnpm test:unit",
     "test:unit": "node --experimental-strip-types --test tests/*.test.mjs",

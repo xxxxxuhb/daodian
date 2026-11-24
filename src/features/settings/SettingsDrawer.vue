@@ -753,7 +753,7 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
           </label>
           <p
             class="settings-note"
-            :class="{ 'settings-error': draft.screenshot.lastStatus.startsWith('注册失败') || draft.screenshot.lastStatus.startsWith('注销快捷键失败') }"
+            :class="{ 'settings-error': draft.screenshot.lastStatus.startsWith('注册失败') || draft.screenshot.lastStatus.startsWith('注销快捷键失败') || draft.screenshot.lastStatus.startsWith('截图服务') }"
           >
             {{ draft.screenshot.lastStatus || "默认 Ctrl+1。拖一块区域后可以标注，再复制、贴到桌面或保存。再按一次快捷键退出。" }}
           </p>
@@ -770,11 +770,10 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
             <select v-model="draft.screenshot.captureMode">
               <option value="freeze">冻结后再选</option>
               <option value="live">实时选择</option>
-              <option value="native">原生覆盖层</option>
             </select>
           </label>
           <p class="settings-note">
-            冻结后仍是原来的选区、标注和工具条。画面铺在这层界面下面，按物理像素对齐。实时选择会马上铺一层浅色，松开才截，画面可能还在动。原生覆盖层是另一套按钮，要标注时再打开原来的编辑工具。
+            冻结后仍是原来的选区、标注和工具条。画面直接交给截图窗口。实时选择会马上铺一层浅色，松开才截，画面可能还在动。截图热键和窗口都在单独的截图进程里，主进程不再自己截屏。
           </p>
         </section>
 

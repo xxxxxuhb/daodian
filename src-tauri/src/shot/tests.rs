@@ -26,6 +26,15 @@ fn bmp_stores_rows_bottom_up() {
 }
 
 #[test]
+fn rgba_frame_puts_red_in_the_first_channel() {
+    let bytes = rgba_frame(1, 1, &[0, 0, 255, 255]).expect("rgba");
+    assert_eq!(u32::from_le_bytes(bytes[0..4].try_into().unwrap()), 1);
+    assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()), 1);
+    assert_eq!(&bytes[8..], &[255, 0, 0, 255]);
+    assert!(rgba_frame(2, 1, &[0, 0, 255, 255]).is_err());
+}
+
+#[test]
 fn bmp_rejects_a_mismatched_buffer() {
     assert!(bmp_file(2, 1, &[0, 0, 255, 255]).is_err());
     assert!(bmp_file(0, 1, &[]).is_err());
@@ -35,7 +44,10 @@ fn bmp_rejects_a_mismatched_buffer() {
 fn css_selection_maps_onto_the_monitor() {
     assert_eq!(css_to_physical(10.0, 1280.0, 1920), 15);
     assert_eq!(css_to_physical(1280.0, 1280.0, 1920), 1920);
-    assert_eq!(clamp_grab(1920, 1080, 15, 0, 1920, 100).unwrap(), (15, 0, 1905, 100));
+    assert_eq!(
+        clamp_grab(1920, 1080, 15, 0, 1920, 100).unwrap(),
+        (15, 0, 1905, 100)
+    );
     assert!(clamp_grab(100, 100, 0, 0, 2, 2).is_err());
 }
 
@@ -68,6 +80,10 @@ fn screenshot_name_includes_the_stamp() {
     assert_eq!(
         format_screenshot_name("20261123-144512"),
         "到点截图-20261123-144512.png"
+    );
+    assert_eq!(
+        format_long_screenshot_name("20261123-144512"),
+        "到点长截图-20261123-144512.png"
     );
 }
 

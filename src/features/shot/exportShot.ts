@@ -23,8 +23,16 @@ export function blobToBase64(blob: Blob) {
 	});
 }
 
+export interface ShotSurface {
+	naturalWidth: number;
+	naturalHeight: number;
+	clientWidth: number;
+	clientHeight: number;
+	getBoundingClientRect(): DOMRect;
+}
+
 export async function renderShotBlob(input: {
-	image: HTMLImageElement;
+	image: ShotSurface;
 	stage: HTMLElement | null;
 	box: Box | null;
 	shapes: Shape[];

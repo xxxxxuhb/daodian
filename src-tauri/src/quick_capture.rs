@@ -65,8 +65,11 @@ pub(crate) fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
             }
             crate::logging::info(format_args!("global shortcut pressed: {shortcut:?}"));
             if crate::shot::matches_configured(app, shortcut) {
-                // 只往截图线程投递，不在热键消息里动窗口。
-                crate::shot::trigger(app);
+                // 截图热键由截屏服务注册。主进程如果还收到，只转发给服务。
+                #[cfg(windows)]
+                if let Err(err) = crate::shot_sidecar::capture() {
+                    crate::logging::warn(format_args!("截图热键没有送到截图服务: {err}"));
+                }
                 return;
             }
             let app = app.clone();

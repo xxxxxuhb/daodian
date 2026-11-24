@@ -329,9 +329,19 @@ pub struct ScreenshotSettings {
     /// 上次另存实际使用的目录。设置表单不改它，避免把新记住的路径写回去。
     #[serde(default)]
     pub last_save_dir: String,
-    /// freeze：先冻结再选。live：实时选择。native：原生覆盖层。
+    /// freeze：先冻结再选。live：实时选择。旧的 native 会在读取时改成 freeze。
     #[serde(default = "default_capture_mode")]
     pub capture_mode: String,
+    /// 截图只走独立进程。字段保留，读出来一律是 true。
+    #[serde(default = "default_true")]
+    pub sidecar: bool,
+}
+
+pub(crate) fn normalize_screenshot(shot: &mut ScreenshotSettings) {
+    if shot.capture_mode != "live" {
+        shot.capture_mode = "freeze".into();
+    }
+    shot.sidecar = true;
 }
 
 fn default_capture_mode() -> String {
@@ -351,6 +361,7 @@ impl Default for ScreenshotSettings {
             save_dir: String::new(),
             last_save_dir: String::new(),
             capture_mode: default_capture_mode(),
+            sidecar: true,
         }
     }
 }
@@ -457,18 +468,20 @@ impl SettingsStore {
         } else {
             SettingsDocument::default()
         };
-        let store = Self {
+        let mut store = Self {
             path,
             secret_path,
             token_path,
             doc,
         };
+        normalize_screenshot(&mut store.doc.settings.screenshot);
         store.persist().map_err(std::io::Error::other)?;
         Ok(store)
     }
 
     pub(crate) fn public_settings(&self) -> Settings {
         let mut settings = self.doc.settings.clone();
+        normalize_screenshot(&mut settings.screenshot);
         settings.deep_seek.has_api_key = self.secret_path.exists();
         settings.cloud.has_token = self.token_path.exists();
         settings
@@ -534,6 +547,7 @@ impl SettingsStore {
         if settings.cloud.interval_minutes > 24 * 60 {
             settings.cloud.interval_minutes = 24 * 60;
         }
+        normalize_screenshot(&mut settings.screenshot);
         validate_cloud(&settings.cloud)?;
         if settings.cloud.enabled && settings.cloud.device_id.is_empty() {
             settings.cloud.device_id = crate::cloud::state::new_device_id();
@@ -615,7 +629,27 @@ impl SettingsStore {
     }
 
     pub(crate) fn screenshot_settings(&self) -> ScreenshotSettings {
-        self.doc.settings.screenshot.clone()
+        let mut shot = self.doc.settings.screenshot.clone();
+        normalize_screenshot(&mut shot);
+        shot
+    }
+
+    /// 截图进程只更新内存里的截图配置，避免把过期的整份设置写回磁盘。
+    pub(crate) fn adopt_shot_runtime(
+        &mut self,
+        enabled: bool,
+        shortcut: &str,
+        save_dir: &str,
+        capture_mode: &str,
+    ) {
+        let shot = &mut self.doc.settings.screenshot;
+        shot.enabled = enabled;
+        shot.shortcut = shortcut.to_string();
+        shot.save_dir = save_dir.to_string();
+        if !capture_mode.is_empty() {
+            shot.capture_mode = capture_mode.to_string();
+        }
+        normalize_screenshot(shot);
     }
 
     pub(crate) fn deep_seek_credentials(&self) -> Result<(DeepSeekSettings, Vec<u8>), String> {
@@ -951,6 +985,7 @@ mod tests {
         assert!(settings.screenshot.save_dir.is_empty());
         assert!(settings.screenshot.last_save_dir.is_empty());
         assert_eq!(settings.screenshot.capture_mode, "freeze");
+        assert!(settings.screenshot.sidecar);
     }
 
     #[test]
@@ -965,13 +1000,17 @@ mod tests {
     }
 
     #[test]
-    fn screenshot_capture_mode_keeps_live_and_native() {
-        let live: ScreenshotSettings =
+    fn native_capture_mode_becomes_freeze() {
+        let mut live: ScreenshotSettings =
             serde_json::from_str(r#"{"captureMode":"live"}"#).unwrap();
+        normalize_screenshot(&mut live);
         assert_eq!(live.capture_mode, "live");
-        let native: ScreenshotSettings =
-            serde_json::from_str(r#"{"captureMode":"native"}"#).unwrap();
-        assert_eq!(native.capture_mode, "native");
+        assert!(live.sidecar);
+        let mut native: ScreenshotSettings =
+            serde_json::from_str(r#"{"captureMode":"native","sidecar":false}"#).unwrap();
+        normalize_screenshot(&mut native);
+        assert_eq!(native.capture_mode, "freeze");
+        assert!(native.sidecar);
     }
 
     #[test]

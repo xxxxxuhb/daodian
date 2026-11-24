@@ -7,6 +7,7 @@ import {
 	nextTick,
 	onBeforeUnmount,
 	onMounted,
+	ref,
 	shallowRef,
 	useTemplateRef,
 	watch,
@@ -37,6 +38,7 @@ import {
 } from "./annotate";
 import { blobToBase64, renderShotBlob, shotSaveUsesBytes } from "./exportShot";
 import ShotBar from "./ShotBar.vue";
+import ShotOcr from "./ShotOcr.vue";
 import { shotColors, shotTools, type ShotDrag, type ShotTool } from "./palette";
 
 const colors = shotColors;
@@ -50,10 +52,12 @@ const openedLive = shotQuery.get("live") === "1";
 const openedBackdrop = shotQuery.get("backdrop") === "1";
 const stageRef = useTemplateRef("stage");
 const imageRef = useTemplateRef("image");
+const frameRef = useTemplateRef("frame");
 const canvasRef = useTemplateRef("canvas");
 const textRef = useTemplateRef("text");
 
 const src = shallowRef("");
+const rawFrame = shallowRef(false);
 const ready = shallowRef(openedLive);
 const live = shallowRef(openedLive);
 const backdrop = shallowRef(openedBackdrop);
@@ -62,8 +66,23 @@ const backdropOn = computed(
 	() => backdrop.value && !live.value && !cropped.value,
 );
 const keysLive = shallowRef(false);
+const picking = shallowRef(false);
 const error = shallowRef("");
 const busy = shallowRef(false);
+interface OcrPanel {
+	open: boolean;
+	text: string;
+	hint: string;
+	notice: string;
+	settings: boolean;
+}
+const ocr = ref<OcrPanel>({
+	open: false,
+	text: "",
+	hint: "",
+	notice: "",
+	settings: false,
+});
 const notice = shallowRef("");
 const savePath = shallowRef("");
 const phase = shallowRef<"select" | "edit">("select");
@@ -82,10 +101,10 @@ let textSession = 0;
 let suppressBlurCommit = false;
 let textFocusTimer = 0;
 const spaceDown = shallowRef(false);
-const freezing = computed(() => !ready.value && !error.value);
+const canPick = computed(() => ready.value || picking.value || live.value);
 const shadeStyle = computed(() => {
 	const box = selection.value;
-	if (!ready.value || !box || box.w < 1 || box.h < 1) return null;
+	if (!canPick.value || !box || box.w < 1 || box.h < 1) return null;
 	return {
 		left: `${box.x}px`,
 		top: `${box.y}px`,
@@ -95,7 +114,10 @@ const shadeStyle = computed(() => {
 });
 
 const showHint = computed(
-	() => ready.value && !error.value && !selection.value && !drag.value,
+	() => canPick.value && !error.value && !selection.value && !drag.value,
+);
+const hintText = computed(() =>
+	live.value ? "拖一块区域，松开后截取 · 右键退出" : "拖一块区域 · 右键退出",
 );
 const imageStyle = computed(() => {
 	if (!cropped.value || !selection.value) return undefined;
@@ -109,7 +131,11 @@ const imageStyle = computed(() => {
 });
 const showBar = computed(
 	() =>
-		phase.value === "edit" && !!selection.value && !drag.value && !textAt.value,
+		ready.value &&
+		phase.value === "edit" &&
+		!!selection.value &&
+		!drag.value &&
+		!textAt.value,
 );
 const visibleHandles = computed(() => {
 	const box = selection.value;
@@ -130,7 +156,7 @@ const barStyle = computed(() => {
 	const stage = stageRef.value;
 	if (!box || !stage) return {};
 	const barHeight = 52;
-	const barWidth = Math.min(480, Math.max(220, stage.clientWidth - 16));
+	const barWidth = Math.min(560, Math.max(220, stage.clientWidth - 16));
 	const below = box.y + box.h + 10;
 	let top = below;
 	if (below + barHeight > stage.clientHeight - 8) {
@@ -182,8 +208,10 @@ onMounted(() => {
 		active?: boolean;
 		crop?: boolean;
 		backdrop?: boolean;
+		generation?: number;
 	}>("shot-refresh", (event) => {
 		if (Number(event.payload?.index) !== screen) return;
+		const generation = Number(event.payload?.generation) || 0;
 		if (event.payload?.crop) {
 			backdrop.value = false;
 			live.value = false;
@@ -193,12 +221,14 @@ onMounted(() => {
 			error.value = "";
 			phase.value = "edit";
 			markShot("shot-visible");
-			void showFrame({ raw: true });
+			void showFrame({ raw: true, generation });
 			return;
 		}
-		resetCapture();
 		backdrop.value = !!event.payload?.backdrop;
-		if (event.payload?.active) keysLive.value = true;
+		if (event.payload?.active) {
+			keysLive.value = true;
+			picking.value = true;
+		}
 		const path = event.payload?.path;
 		const raw = !!event.payload?.raw;
 		if (!raw && !path) {
@@ -207,12 +237,12 @@ onMounted(() => {
 		}
 		error.value = "";
 		markShot("shot-visible");
-		void showFrame({ path, raw });
+		void showFrame({ path, raw, generation });
 	}).then((stop) => {
 		stopRefresh = stop;
 	});
-	void listen("shot-arm", () => {
-		armCapture();
+	void listen<string | null>("shot-arm", (event) => {
+		armCapture(event.payload === "reset");
 	}).then((stop) => {
 		stopArm = stop;
 	});
@@ -222,7 +252,9 @@ onMounted(() => {
 		stopLive = stop;
 	});
 	void listen<number>("shot-active", (event) => {
-		keysLive.value = Number(event.payload) === screen;
+		const active = Number(event.payload) === screen;
+		keysLive.value = active;
+		if (active) picking.value = true;
 	}).then((stop) => {
 		stopActive = stop;
 	});
@@ -252,10 +284,17 @@ onBeforeUnmount(() => {
 	window.removeEventListener("contextmenu", blockMenu);
 });
 
-function armCapture() {
+function armCapture(force = false) {
+	if (!force && (drag.value || selection.value)) {
+		picking.value = true;
+		return;
+	}
+	frameTiming.generation = 0;
 	resetCapture();
 	releaseFrameUrl();
+	clearRawFrame();
 	src.value = "";
+	picking.value = !force;
 }
 
 function resetCapture() {
@@ -279,6 +318,7 @@ function resetCapture() {
 	error.value = "";
 	notice.value = "";
 	savePath.value = "";
+	ocr.value = { open: false, text: "", hint: "", notice: "", settings: false };
 	window.clearTimeout(noticeTimer);
 	releaseExportFrame();
 }
@@ -349,6 +389,7 @@ async function load() {
 			raw?: boolean;
 			active?: boolean;
 			live?: boolean;
+			generation?: number;
 		}>("shot_screen", { index: screen });
 		if (info.live) {
 			enterLive();
@@ -368,6 +409,7 @@ async function load() {
 }
 
 let frameUrl = "";
+let frameTiming = { generation: 0, request: 0, bytes: 0 };
 
 function releaseFrameUrl() {
 	if (!frameUrl) return;
@@ -375,18 +417,37 @@ function releaseFrameUrl() {
 	frameUrl = "";
 }
 
-async function showFrame(info: { path?: string; raw?: boolean }) {
+function clearRawFrame() {
+	rawFrame.value = false;
+	const canvas = frameRef.value;
+	if (!canvas) return;
+	canvas.width = 0;
+	canvas.height = 0;
+}
+
+async function showFrame(info: { path?: string; raw?: boolean; generation?: number }) {
+	frameTiming = {
+		generation: info.generation ?? frameTiming.generation,
+		request: performance.now(),
+		bytes: 0,
+	};
+	markShot("frame-request");
 	try {
 		if (info.raw) {
-			const bytes = await invoke<ArrayBuffer>("shot_frame", { index: screen });
-			swapFrameUrl(
-				URL.createObjectURL(new Blob([bytes], { type: "image/bmp" })),
-			);
+			const bytes = await invoke<ArrayBuffer | Uint8Array>("shot_frame", {
+				index: screen,
+			});
+			frameTiming.bytes = performance.now();
+			markShot("frame-bytes");
+			await paintRawFrame(bytes);
 			return;
 		}
+		clearRawFrame();
 		const path = info.path ?? "";
 		if (!path) throw new Error("找不到这一屏");
 		const bytes = await readFile(path);
+		frameTiming.bytes = performance.now();
+		markShot("frame-bytes");
 		const next = URL.createObjectURL(new Blob([bytes], { type: "image/png" }));
 		swapFrameUrl(next);
 	} catch (cause) {
@@ -405,6 +466,51 @@ async function showFrame(info: { path?: string; raw?: boolean }) {
 	}
 }
 
+async function paintRawFrame(input: ArrayBuffer | Uint8Array) {
+	const bytes =
+		input instanceof ArrayBuffer
+			? input
+			: input.buffer.slice(
+					input.byteOffset,
+					input.byteOffset + input.byteLength,
+				);
+	const view = new DataView(bytes);
+	if (view.byteLength < 8) throw new Error("冻结画面没有显示出来");
+	const width = view.getUint32(0, true);
+	const height = view.getUint32(4, true);
+	const count = width * height * 4;
+	if (!width || !height || view.byteLength !== 8 + count) {
+		throw new Error("冻结画面没有显示出来");
+	}
+	const generation = frameTiming.generation;
+	const pixels = new Uint8ClampedArray(count);
+	pixels.set(new Uint8Array(bytes, 8, count));
+	const bitmap = await createImageBitmap(new ImageData(pixels, width, height));
+	if (frameTiming.generation !== generation) {
+		bitmap.close();
+		return;
+	}
+	const canvas = frameRef.value;
+	if (!canvas) {
+		bitmap.close();
+		throw new Error("画布不可用");
+	}
+	canvas.width = width;
+	canvas.height = height;
+	const ctx = canvas.getContext("2d", { alpha: false });
+	if (!ctx) {
+		bitmap.close();
+		throw new Error("画布不可用");
+	}
+	ctx.drawImage(bitmap, 0, 0);
+	releaseFrameUrl();
+	src.value = "";
+	rawFrame.value = true;
+	exportFrame?.close();
+	exportFrame = bitmap;
+	markFrameVisible();
+}
+
 function swapFrameUrl(next: string) {
 	const previous = frameUrl;
 	frameUrl = next;
@@ -413,22 +519,71 @@ function swapFrameUrl(next: string) {
 }
 
 function markShot(name: string) {
+	performance.clearMarks(name);
 	performance.mark(name);
 }
 
+function beginStage(name: string) {
+	markShot(`${name}-start`);
+	return performance.now();
+}
+
+function endStage(name: string, started: number) {
+	const end = `${name}-end`;
+	markShot(end);
+	let ms = Math.max(0, Math.round(performance.now() - started));
+	try {
+		performance.clearMeasures(name);
+		performance.measure(name, `${name}-start`, end);
+		const entries = performance.getEntriesByName(name);
+		const entry = entries[entries.length - 1];
+		if (entry) ms = Math.round(entry.duration);
+	} catch {
+		// 打点对不上时保留 now 差值。
+	}
+	console.info(`[shot] ${name} ${ms}ms`);
+}
+
 function onImage() {
-	markShot("shot-image-ready");
+	const image = imageRef.value;
+	if (image?.naturalWidth) {
+		void createImageBitmap(image)
+			.then((bitmap) => {
+				exportFrame?.close();
+				exportFrame = bitmap;
+			})
+			.catch(() => {});
+	}
+	markFrameVisible();
+}
+
+function markFrameVisible() {
+	markShot("image-ready");
+	const generation = frameTiming.generation;
+	const bytesAt = frameTiming.bytes || frameTiming.request;
+	const readyAt = performance.now();
+	const decodeMs = Math.max(0, Math.round(readyAt - bytesAt));
+	const bytesMs = Math.max(0, Math.round(bytesAt - frameTiming.request));
 	ready.value = true;
 	error.value = "";
-	const image = imageRef.value;
-	if (!image?.naturalWidth) return;
-	void createImageBitmap(image)
-		.then((bitmap) => {
-			exportFrame?.close();
-			exportFrame = bitmap;
-		})
-		.catch(() => {});
-	void invoke("shot_ready", { index: screen });
+	if (!drag.value && selection.value) {
+		selection.value = snapBox(selection.value, pixelScale());
+	}
+	if (generation) {
+		void invoke("shot_ready", { index: screen, generation, bytesMs, decodeMs });
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				if (frameTiming.generation !== generation) return;
+				markShot("first-paint");
+				const paintMs = Math.max(0, Math.round(performance.now() - readyAt));
+				void invoke("shot_painted", {
+					index: screen,
+					generation,
+					paintMs,
+				}).catch(() => {});
+			});
+		});
+	}
 }
 
 function onImageError() {
@@ -457,8 +612,24 @@ function bounds(): Box {
 	return { x: 0, y: 0, w: stageRect.width, h: stageRect.height };
 }
 
-function pixelScale() {
+function frameMetrics() {
 	const image = imageRef.value;
+	if (image?.naturalWidth && image.clientWidth) return image;
+	const canvas = frameRef.value;
+	if (rawFrame.value && canvas?.width && canvas.clientWidth) {
+		return {
+			naturalWidth: canvas.width,
+			naturalHeight: canvas.height,
+			clientWidth: canvas.clientWidth,
+			clientHeight: canvas.clientHeight,
+			getBoundingClientRect: () => canvas.getBoundingClientRect(),
+		};
+	}
+	return null;
+}
+
+function pixelScale() {
+	const image = frameMetrics();
 	if (!image?.naturalWidth || !image.clientWidth)
 		return window.devicePixelRatio || 1;
 	return image.naturalWidth / image.clientWidth;
@@ -469,16 +640,12 @@ function liveBox() {
 }
 
 function physicalSize(box: Box | null) {
-	const image = imageRef.value;
-	if (
-		!box ||
-		box.w < 2 ||
-		box.h < 2 ||
-		!image?.naturalWidth ||
-		!image.clientWidth
-	)
-		return "";
-	const scale = image.naturalWidth / image.clientWidth;
+	if (!box || box.w < 2 || box.h < 2) return "";
+	const image = frameMetrics();
+	const scale =
+		image?.naturalWidth && image.clientWidth
+			? image.naturalWidth / image.clientWidth
+			: window.devicePixelRatio || 1;
 	return `${Math.round(box.w * scale)} × ${Math.round(box.h * scale)}`;
 }
 
@@ -501,6 +668,7 @@ function onDown(event: PointerEvent) {
 		return;
 	}
 	if (event.button !== 0) return;
+	picking.value = true;
 	if (consumeTextPointer(event)) {
 		focusScreen();
 		return;
@@ -1013,6 +1181,11 @@ function onKey(event: KeyboardEvent) {
 	const typing =
 		event.target instanceof HTMLInputElement ||
 		event.target instanceof HTMLTextAreaElement;
+	if (event.key === "Escape" && ocr.value.open) {
+		event.preventDefault();
+		closeOcr();
+		return;
+	}
 	if (event.key === "Escape") {
 		if (typing) return;
 		event.preventDefault();
@@ -1045,6 +1218,11 @@ function onKey(event: KeyboardEvent) {
 	if (event.ctrlKey && key === "s") {
 		event.preventDefault();
 		void saveImage();
+		return;
+	}
+	if (event.ctrlKey && event.shiftKey && key === "o") {
+		event.preventDefault();
+		void recognize();
 		return;
 	}
 	if ((event.ctrlKey && key === "t") || event.key === "F3") {
@@ -1082,10 +1260,14 @@ function releaseExportFrame() {
 }
 
 async function renderBlob(box: Box | null) {
-	const image = imageRef.value;
+	const image = frameMetrics();
 	if (!image?.naturalWidth || !image.clientWidth)
 		throw new Error("画面还没准备好");
-	if (!exportFrame) exportFrame = await createImageBitmap(image);
+	if (!exportFrame) {
+		const source = imageRef.value ?? frameRef.value;
+		if (!source) throw new Error("画面还没准备好");
+		exportFrame = await createImageBitmap(source);
+	}
 	return renderShotBlob({
 		image,
 		stage: stageRef.value,
@@ -1105,10 +1287,61 @@ function chosenBox() {
 	return box;
 }
 
+async function longShot() {
+	if (busy.value) return;
+	busy.value = true;
+	error.value = "";
+	try {
+		const box = chosenBox();
+		if (!stageRect.width) rememberStage();
+		await invoke("shot_long", {
+			grab: {
+				index: screen,
+				x: box.x,
+				y: box.y,
+				width: box.w,
+				height: box.h,
+				stageWidth: stageRect.width,
+				stageHeight: stageRect.height,
+			},
+		});
+	} catch (cause) {
+		error.value = errorText(cause);
+	} finally {
+		busy.value = false;
+	}
+}
+
+async function gifShot() {
+	if (busy.value) return;
+	busy.value = true;
+	error.value = "";
+	try {
+		const box = chosenBox();
+		if (!stageRect.width) rememberStage();
+		await invoke("shot_gif", {
+			grab: {
+				index: screen,
+				x: box.x,
+				y: box.y,
+				width: box.w,
+				height: box.h,
+				stageWidth: stageRect.width,
+				stageHeight: stageRect.height,
+			},
+		});
+	} catch (cause) {
+		error.value = errorText(cause);
+	} finally {
+		busy.value = false;
+	}
+}
+
 async function copyImage() {
 	if (busy.value) return;
 	busy.value = true;
 	error.value = "";
+	const started = beginStage("copy");
 	try {
 		commitText();
 		const box =
@@ -1117,7 +1350,7 @@ async function copyImage() {
 				: null;
 		const png = await renderPng(box);
 		await invoke("shot_copy", { png });
-		const image = imageRef.value;
+		const image = frameMetrics();
 		savePath.value = "";
 		notice.value = `已复制 · ${
 			box && image
@@ -1134,6 +1367,7 @@ async function copyImage() {
 	} catch (cause) {
 		error.value = errorText(cause);
 	} finally {
+		endStage("copy", started);
 		busy.value = false;
 	}
 }
@@ -1142,6 +1376,7 @@ async function pinImage() {
 	if (busy.value) return;
 	busy.value = true;
 	error.value = "";
+	const started = beginStage("pin");
 	try {
 		commitText();
 		const box = chosenBox();
@@ -1157,6 +1392,7 @@ async function pinImage() {
 	} catch (cause) {
 		error.value = errorText(cause);
 	} finally {
+		endStage("pin", started);
 		busy.value = false;
 	}
 }
@@ -1206,6 +1442,7 @@ async function saveImage() {
 	savePath.value = "";
 	window.clearTimeout(noticeTimer);
 	let holding = false;
+	const started = beginStage("save");
 	try {
 		commitText();
 		const blob = await renderBlob(chosenBox());
@@ -1228,7 +1465,89 @@ async function saveImage() {
 	} catch (cause) {
 		error.value = errorText(cause);
 	} finally {
+		endStage("save", started);
 		if (!holding) busy.value = false;
+	}
+}
+
+const ocrStyle = computed(() => {
+	const box = selection.value;
+	const stage = stageRef.value;
+	if (!box || !stage) return {};
+	const width = 280;
+	const right = box.x + box.w + 12;
+	const left =
+		right + width < stage.clientWidth - 8
+			? right
+			: Math.max(8, box.x - width - 12);
+	const top = Math.min(
+		Math.max(8, box.y),
+		Math.max(8, stage.clientHeight - 240),
+	);
+	return { left: `${left}px`, top: `${top}px` };
+});
+
+function closeOcr() {
+	ocr.value = { open: false, text: "", hint: "", notice: "", settings: false };
+}
+
+async function recognize() {
+	if (busy.value) return;
+	busy.value = true;
+	error.value = "";
+	const started = beginStage("ocr");
+	try {
+		commitText();
+		const png = await renderPng(chosenBox());
+		const result = await invoke<{
+			text: string;
+			hint: string;
+			openSettings: boolean;
+		}>("shot_ocr", { png });
+		ocr.value = {
+			open: true,
+			text: result.text,
+			hint: result.hint,
+			notice: "",
+			settings: result.openSettings,
+		};
+	} catch (cause) {
+		error.value = errorText(cause);
+	} finally {
+		endStage("ocr", started);
+		busy.value = false;
+	}
+}
+
+async function copyOcr() {
+	try {
+		await invoke("shot_copy_text", { text: ocr.value.text });
+		ocr.value.notice = "已复制文字";
+	} catch (cause) {
+		ocr.value.notice = errorText(cause);
+	}
+}
+
+async function sendOcr(kind: "note" | "todo") {
+	if (!ocr.value.text.trim()) {
+		ocr.value.notice = "没有可保存的文字";
+		return;
+	}
+	try {
+		ocr.value.notice = await invoke<string>("shot_text_send", {
+			kind,
+			text: ocr.value.text,
+		});
+	} catch (cause) {
+		ocr.value.notice = errorText(cause);
+	}
+}
+
+async function openOcrSettings() {
+	try {
+		await invoke("shot_ocr_settings");
+	} catch (cause) {
+		ocr.value.notice = errorText(cause);
 	}
 }
 
@@ -1259,8 +1578,16 @@ async function dismiss() {
 		<button type="button" class="shot-exit" @pointerdown.stop.prevent="dismiss">
 			退出 Esc
 		</button>
+		<canvas
+			v-show="rawFrame && ready"
+			ref="frame"
+			class="shot-image"
+			:class="{ 'is-crop': cropped, 'is-held': backdropOn }"
+			:style="imageStyle"
+		/>
 		<img
 			v-if="src"
+			v-show="ready"
 			ref="image"
 			class="shot-image"
 			:class="{ 'is-crop': cropped, 'is-held': backdropOn }"
@@ -1272,7 +1599,7 @@ async function dismiss() {
 			@load="onImage"
 			@error="onImageError"
 		/>
-		<div v-if="ready && !shadeStyle" class="shot-veil" />
+		<div v-if="canPick && !shadeStyle" class="shot-veil" />
 		<div v-else-if="shadeStyle" class="shot-shade" :style="shadeStyle" />
 		<canvas
 			v-show="!!shadeStyle"
@@ -1280,11 +1607,7 @@ async function dismiss() {
 			class="shot-canvas"
 			:style="shadeStyle"
 		/>
-		<p v-if="freezing" class="shot-hint">正在冻结…</p>
-		<p v-else-if="live && showHint" class="shot-hint">
-			拖一块区域，松开后截取 · 右键退出
-		</p>
-		<p v-else-if="showHint" class="shot-hint">拖一块区域 · 右键退出</p>
+		<p v-if="showHint" class="shot-hint">{{ hintText }}</p>
 		<div v-if="error && !ready" class="shot-fail" @pointerdown.stop>
 			<p>{{ error }}</p>
 			<button type="button" @click="load">重试</button>
@@ -1334,6 +1657,20 @@ async function dismiss() {
 		<p v-else-if="notice" class="shot-notice" :style="noticeStyle">
 			{{ notice }}
 		</p>
+		<ShotOcr
+			v-if="ocr.open"
+			:style="ocrStyle"
+			:text="ocr.text"
+			:hint="ocr.hint"
+			:notice="ocr.notice"
+			:settings="ocr.settings"
+			@update:text="ocr.text = $event"
+			@copy="copyOcr"
+			@note="sendOcr('note')"
+			@todo="sendOcr('todo')"
+			@settings="openOcrSettings"
+			@close="closeOcr"
+		/>
 		<ShotBar
 			v-if="showBar"
 			v-model:tool="tool"
@@ -1345,6 +1682,9 @@ async function dismiss() {
 			:error="src && error ? error : ''"
 			@undo="undo"
 			@reselect="reselect"
+			@longshot="longShot"
+			@gif="gifShot"
+			@ocr="recognize"
 			@copy="copyImage"
 			@pin="pinImage"
 			@save="saveImage"
@@ -1359,7 +1699,7 @@ async function dismiss() {
 	width: 100vw;
 	height: 100vh;
 	overflow: hidden;
-	background: #0c1f1a;
+	background: transparent;
 	cursor: crosshair;
 	user-select: none;
 }

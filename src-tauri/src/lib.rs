@@ -14,7 +14,7 @@ mod remind;
 mod settings;
 mod shot;
 #[cfg(windows)]
-mod shot_native;
+mod shot_sidecar;
 mod store;
 mod tray;
 mod webhook;
@@ -31,6 +31,10 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Some(parent) = shot_service_parent() {
+        run_shot_service(parent);
+        return;
+    }
     let log_path = logging::init();
     logging::info(format_args!(
         "application starting; exe={}; cwd={}; log={}",
@@ -179,7 +183,6 @@ pub fn run() {
                 Ok(status) => logging::info(format_args!("截图快捷键: {status}")),
                 Err(err) => logging::warn(format_args!("保存截图状态失败: {err}")),
             }
-            shot::prewarm(app.handle());
             remind::spawn(app.handle().clone());
             backup::spawn(app.handle().clone());
             cloud::spawn(app.handle().clone());
@@ -214,21 +217,6 @@ pub fn run() {
             window_state::toggle_window_tier,
             quick_capture::dismiss_quick_capture,
             quick_capture::is_quick_capture_active,
-            shot::shot_start,
-            shot::shot_screen,
-            shot::shot_frame,
-            shot::shot_grab,
-            shot::shot_dismiss,
-            shot::shot_backdrop_hide,
-            shot::shot_escape_ack,
-            shot::shot_focus,
-            shot::shot_ready,
-            shot::shot_copy,
-            shot::shot_save,
-            shot::shot_save_bytes,
-            shot::shot_show_saved,
-            shot::shot_pin,
-            shot::shot_pin_info,
             backup::list_backups,
             backup::restore_backup,
             pet::pet_set_mode,
@@ -276,6 +264,12 @@ pub fn run() {
                         Err(err) => logging::error(format_args!("初始化托盘: {err:#}")),
                     }
                 }
+                if matches!(event, tauri::RunEvent::ExitRequested { .. })
+                    && tray::QUITTING.load(std::sync::atomic::Ordering::SeqCst)
+                {
+                    #[cfg(windows)]
+                    shot_sidecar::shutdown();
+                }
             });
             logging::info(format_args!("application exited normally"));
         }
@@ -284,6 +278,144 @@ pub fn run() {
             panic!("到点启动失败: {err}");
         }
     }
+}
+
+fn shot_service_parent() -> Option<u32> {
+    let mut args = std::env::args().skip(1);
+    let mut service = false;
+    let mut parent = None;
+    while let Some(arg) = args.next() {
+        if arg == "--shot-service" {
+            service = true;
+        } else if arg == "--parent" {
+            parent = args.next().and_then(|value| value.parse().ok());
+        }
+    }
+    service.then_some(parent).flatten()
+}
+
+fn run_shot_service(parent: u32) {
+    use std::sync::Arc;
+
+    let log_path = logging::init();
+    logging::info(format_args!(
+        "shot service starting; parent={parent}; log={}",
+        log_path
+            .as_deref()
+            .map(Path::display)
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "<unavailable>".to_string())
+    ));
+    shot::mark_shot_service();
+    let result = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .on_window_event(|window, event| {
+            let label = window.label().to_string();
+            if let tauri::WindowEvent::Destroyed = event {
+                shot::forget_window(&label);
+                if let Some(id) = label.strip_prefix("pin-").and_then(|raw| raw.parse().ok()) {
+                    shot::release_pin(window.app_handle(), id);
+                }
+            }
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if label.starts_with("pin-") {
+                    return;
+                }
+                if label.starts_with("shot-") {
+                    api.prevent_close();
+                    shot::request_cancel(window.app_handle());
+                }
+            }
+        })
+        .setup(move |app| {
+            logging::info(format_args!("shot service setup"));
+            app.manage(shot::ShotRuntime::default());
+            let dir = data_dir(app).map_err(|err| logged_step("取数据目录", err))?;
+            let settings = settings::SettingsStore::open(&dir).map_err(|err| {
+                logged_step(
+                    format!("打开 {}", dir.join("settings.json").display()),
+                    err.into(),
+                )
+            })?;
+            app.manage(Mutex::new(settings));
+            let shots = dir.join("shots");
+            if let Err(err) = app.asset_protocol_scope().allow_directory(&shots, true) {
+                logging::warn(format_args!("截图文件授权失败: {err:#}"));
+            }
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("shot-service".into())
+                .spawn(move || {
+                    daodian_shot::init();
+                    let on_capture = {
+                        let handle = handle.clone();
+                        Arc::new(move || shot::trigger(&handle))
+                    };
+                    let on_dismiss = {
+                        let handle = handle.clone();
+                        Arc::new(move || shot::dismiss(&handle))
+                    };
+                    let on_config = {
+                        let handle = handle.clone();
+                        Arc::new(move |config: shot_core::ShotConfig| {
+                            if let Ok(mut store) = handle.state::<settings::SharedSettings>().lock()
+                            {
+                                store.adopt_shot_runtime(
+                                    config.enabled,
+                                    &config.shortcut,
+                                    &config.save_dir,
+                                    &config.capture_mode,
+                                );
+                            }
+                        })
+                    };
+                    let result = daodian_shot::serve(daodian_shot::ServeOptions {
+                        parent,
+                        pipe: shot_core::PIPE_NAME.to_string(),
+                        mutex: shot_core::MUTEX_NAME.to_string(),
+                        on_capture,
+                        on_dismiss,
+                        on_config,
+                    });
+                    if let Err(err) = result {
+                        logging::warn(format_args!("截图服务退出: {err}"));
+                    }
+                    handle.exit(0);
+                })
+                .map_err(|err| logged_step("启动截图服务", std::io::Error::other(err).into()))?;
+            shot::prewarm(app.handle());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            shot::shot_start,
+            shot::shot_screen,
+            shot::shot_frame,
+            shot::shot_grab,
+            shot::shot_long,
+            shot::shot_gif,
+            shot::shot_dismiss,
+            shot::shot_backdrop_hide,
+            shot::shot_escape_ack,
+            shot::shot_focus,
+            shot::shot_ready,
+            shot::shot_painted,
+            shot::shot_copy,
+            shot::shot_ocr,
+            shot::shot_copy_text,
+            shot::shot_ocr_settings,
+            shot::shot_text_send,
+            shot::shot_save,
+            shot::shot_save_bytes,
+            shot::shot_show_saved,
+            shot::shot_pin,
+            shot::shot_pin_info,
+        ])
+        .build(tauri::generate_context!())
+        .expect("截图服务启动失败")
+        .run(|_app, _event| {});
+    logging::info(format_args!("shot service exited normally"));
+    let _ = result;
 }
 
 /// 用户数据必须放在卸载程序不会清理的目录中，不能再写入安装目录。

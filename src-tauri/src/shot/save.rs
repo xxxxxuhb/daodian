@@ -12,8 +12,8 @@ use tauri_plugin_dialog::DialogExt;
 use crate::settings::SharedSettings;
 
 use super::{
-    conceal_shot_windows, reveal_shots, shots_dir, unix_ms, ACTIVE, LAST_SAVED, MAX_PNG_BYTES,
-    SAVING, TMP_SEQ,
+    ACTIVE, LAST_SAVED, MAX_PNG_BYTES, SAVING, TMP_SEQ, conceal_shot_windows, reveal_shots,
+    shots_dir, unix_ms,
 };
 
 pub(super) fn flatten_alpha(image: &mut image::RgbaImage) {
@@ -45,7 +45,7 @@ pub(super) fn write_png(path: &Path, image: &image::RgbaImage) -> Result<(), Str
     .map_err(|err| format!("保存截图失败: {err}"))
 }
 
-pub(super) fn decode_png(raw: &str) -> Result<image::RgbaImage, String> {
+pub(crate) fn decode_png(raw: &str) -> Result<image::RgbaImage, String> {
     let trimmed = raw.trim();
     let encoded = trimmed
         .split_once(',')
@@ -71,7 +71,11 @@ pub(crate) fn copy_bgra(width: u32, height: u32, pixels: &[u8]) -> Result<(), St
     copy_image(&image)
 }
 
-pub(crate) fn png_bytes_from_bgra(width: u32, height: u32, pixels: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn png_bytes_from_bgra(
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+) -> Result<Vec<u8>, String> {
     encode_png(&rgba_image(width, height, pixels)?)
 }
 
@@ -90,45 +94,23 @@ fn rgba_image(width: u32, height: u32, pixels: &[u8]) -> Result<image::RgbaImage
     image::RgbaImage::from_raw(width, height, rgba).ok_or_else(|| "截图区域无效".into())
 }
 
-pub(crate) fn save_native_async(app: AppHandle, bytes: Vec<u8>) {
-    if std::thread::Builder::new()
-        .name("shot-save".into())
-        .spawn(move || {
-            if let Err(err) = save_native_dialog(&app, &bytes) {
-                crate::logging::warn(format_args!("原生截图保存失败: {err}"));
-            }
-        })
-        .is_err()
-    {
-        crate::logging::warn(format_args!("原生截图保存失败: 启动保存失败"));
-    }
-}
-
-fn save_native_dialog(app: &AppHandle, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn save_png_dialog(
+    app: &AppHandle,
+    bytes: &[u8],
+    file_name: &str,
+) -> Result<(), String> {
     let _saving = SavingGuard::enter();
-    #[cfg(windows)]
-    crate::shot_native::set_visible(false);
-    std::thread::sleep(Duration::from_millis(80));
-    let start = match dialog_directory(app) {
-        Ok(start) => start,
-        Err(err) => {
-            #[cfg(windows)]
-            crate::shot_native::set_visible(true);
-            return Err(err);
-        }
-    };
+    let start = dialog_directory(app)?;
     let mut dialog = app
         .dialog()
         .file()
         .add_filter("PNG 图片", &["png"])
         .set_directory(&start.directory)
-        .set_file_name(&screenshot_file_name());
+        .set_file_name(file_name);
     if let Some(main) = app.get_webview_window("main") {
         dialog = dialog.set_parent(&main);
     }
     let picked = dialog.blocking_save_file();
-    #[cfg(windows)]
-    crate::shot_native::set_visible(true);
     let Some(picked) = picked else {
         return Ok(());
     };
@@ -177,6 +159,67 @@ fn screenshot_file_name() -> String {
 
 pub(super) fn format_screenshot_name(stamp: &str) -> String {
     format!("到点截图-{stamp}.png")
+}
+
+pub(crate) fn long_screenshot_name() -> String {
+    format_long_screenshot_name(&chrono::Local::now().format("%Y%m%d-%H%M%S").to_string())
+}
+
+pub(crate) fn gif_name() -> String {
+    format!(
+        "到点GIF-{}.gif",
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    )
+}
+
+pub(crate) fn save_gif_dialog(
+    app: &AppHandle,
+    bytes: &[u8],
+    file_name: &str,
+) -> Result<(), String> {
+    let _saving = SavingGuard::enter();
+    let start = dialog_directory(app)?;
+    let mut dialog = app
+        .dialog()
+        .file()
+        .add_filter("GIF 图片", &["gif"])
+        .set_directory(&start.directory)
+        .set_file_name(file_name);
+    if let Some(main) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&main);
+    }
+    let Some(picked) = dialog.blocking_save_file() else {
+        return Ok(());
+    };
+    let path = picked
+        .into_path()
+        .map(ensure_gif)
+        .map_err(|err| format!("保存路径无效: {err}"))?;
+    write_bytes_atomic(&path, bytes)?;
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            remember_last_save_dir(app, parent);
+        }
+    }
+    remember_saved(&path);
+    crate::logging::info(format_args!("gif saved: {}", path.display()));
+    Ok(())
+}
+
+fn ensure_gif(path: PathBuf) -> PathBuf {
+    if path.extension().is_some() {
+        return path;
+    }
+    let mut name = path
+        .file_name()
+        .map(|value| value.to_os_string())
+        .unwrap_or_else(|| "到点GIF".into());
+    name.push(".gif");
+    path.with_file_name(name)
+}
+
+pub(super) fn format_long_screenshot_name(stamp: &str) -> String {
+    format!("到点长截图-{stamp}.png")
 }
 
 /// 没有对话框的自动保存才改名。用户在另存框里确认的路径不能再加 `-2`。

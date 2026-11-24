@@ -53,6 +53,7 @@ function fallbackSettings(): Settings {
       saveDir: "",
       lastSaveDir: "",
       captureMode: "freeze",
+      sidecar: true,
     },
     deepSeek: {
       enabled: false,

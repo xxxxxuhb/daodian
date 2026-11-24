@@ -8,7 +8,7 @@ use tauri::{PhysicalPosition, PhysicalSize};
 
 #[cfg(windows)]
 use super::{
-    shot_index, MAX_SCREENS, SHOT_LOCK_H, SHOT_LOCK_HWND, SHOT_LOCK_W, SHOT_LOCK_X, SHOT_LOCK_Y,
+    MAX_SCREENS, SHOT_LOCK_H, SHOT_LOCK_HWND, SHOT_LOCK_W, SHOT_LOCK_X, SHOT_LOCK_Y, shot_index,
 };
 
 #[cfg(windows)]
@@ -117,7 +117,7 @@ fn finish_shot_place(window: &WebviewWindow, x: i32, y: i32, width: u32, height:
 #[cfg(windows)]
 fn fill_descendants(hwnd: windows_sys::Win32::Foundation::HWND, width: i32, height: i32) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindow, SetWindowPos, GW_CHILD, GW_HWNDNEXT, SWP_NOACTIVATE, SWP_NOZORDER,
+        GW_CHILD, GW_HWNDNEXT, GetWindow, SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos,
     };
     unsafe {
         let mut child = GetWindow(hwnd, GW_CHILD);
@@ -170,13 +170,13 @@ fn sync_shot_surface(
     width: i32,
     height: i32,
 ) {
-    use windows::Win32::Foundation::RECT;
-    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOACTIVATE, SWP_NOZORDER};
-    use windows_core::Interface;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         COREWEBVIEW2_BOUNDS_MODE_USE_RAW_PIXELS, COREWEBVIEW2_COLOR, ICoreWebView2Controller2,
         ICoreWebView2Controller3,
     };
+    use windows::Win32::Foundation::RECT;
+    use windows::Win32::UI::WindowsAndMessaging::{SWP_NOACTIVATE, SWP_NOZORDER, SetWindowPos};
+    use windows_core::Interface;
 
     unsafe {
         let controller = platform.controller();
@@ -198,7 +198,15 @@ fn sync_shot_surface(
         let mut host = windows::Win32::Foundation::HWND::default();
         if controller.ParentWindow(&mut host).is_ok() {
             // 宿主子窗口才是网页实际占的那一块。只改外层窗口，画面仍会缩在左上角。
-            let _ = SetWindowPos(host, None, 0, 0, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+            let _ = SetWindowPos(
+                host,
+                None,
+                0,
+                0,
+                width,
+                height,
+                SWP_NOZORDER | SWP_NOACTIVATE,
+            );
         }
         let _ = controller.SetBounds(RECT {
             left: 0,
@@ -234,8 +242,8 @@ fn apply_shot_rect(
 ) {
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetClientRect, GetWindow, SetWindowPos, GW_CHILD, GW_HWNDNEXT, SWP_NOACTIVATE, SWP_NOSIZE,
-        SWP_NOZORDER,
+        GW_CHILD, GW_HWNDNEXT, GetClientRect, GetWindow, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+        SetWindowPos,
     };
 
     unsafe {

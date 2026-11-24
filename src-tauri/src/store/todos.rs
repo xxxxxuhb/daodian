@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::domain::{
     Document, Repeat, Todo, TodoInput, clean_note, local_offset_secs, new_id, next_due,
@@ -86,6 +86,50 @@ pub fn save_todo(
     remind::check(&app);
     super::notify_changed(&app);
     Ok(saved)
+}
+
+pub(crate) fn from_capture(app: &AppHandle, text: &str) -> Result<(String, String), String> {
+    let mut lines = text.lines().map(str::trim).filter(|line| !line.is_empty());
+    let title = require_title(&clip_chars(lines.next().unwrap_or(""), 80), 80)?;
+    let rest = lines.collect::<Vec<_>>().join("\n");
+    let clipped = rest.chars().count() > 500;
+    let note = clean_note(&clip_chars(&rest, 500))?;
+    let now = now_ms();
+    let id = new_id();
+    let todo = Todo {
+        id: id.clone(),
+        title,
+        note,
+        due_at: None,
+        priority: normalize_priority("normal"),
+        done: false,
+        created_at: now,
+        updated_at: now,
+        reminded: false,
+        repeat: None,
+        lead_ms: 0,
+        lead_reminded: false,
+        series_id: None,
+        skipped: false,
+    };
+    {
+        let store = app.state::<SharedStore>();
+        let mut guard = lock(&store)?;
+        guard.doc.todos.push(todo);
+        guard.persist()?;
+    }
+    remind::check(app);
+    super::notify_changed(app);
+    let message = if clipped {
+        "已建成待办，备注只保留了前 500 个字"
+    } else {
+        "已建成待办"
+    };
+    Ok((id, message.into()))
+}
+
+fn clip_chars(text: &str, max: usize) -> String {
+    text.chars().take(max).collect()
 }
 
 #[tauri::command]

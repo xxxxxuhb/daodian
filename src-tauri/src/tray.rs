@@ -71,6 +71,13 @@ pub fn alert(app: &AppHandle) {
     });
 }
 
+fn retry_shot_service(app: &AppHandle) {
+    match crate::shot::persist_registration_status(app) {
+        Ok(status) => crate::logging::info(format_args!("截图服务已重试: {status}")),
+        Err(err) => crate::logging::warn(format_args!("重试截图服务失败: {err}")),
+    }
+}
+
 pub fn mark_read(app: &AppHandle) {
     if UNREAD.swap(false, Ordering::SeqCst) {
         set_icon(app, TRAY_NORMAL);
@@ -91,8 +98,9 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "打开到点", true, None::<&str>)?;
     let mini = MenuItem::with_id(app, "mini", "迷你窗", true, None::<&str>)?;
     let shot = MenuItem::with_id(app, "shot", "截一张图", true, None::<&str>)?;
+    let shot_retry = MenuItem::with_id(app, "shot-retry", "重试截图服务", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &mini, &shot, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &mini, &shot, &shot_retry, &quit])?;
     let icon = match tauri::image::Image::from_bytes(TRAY_NORMAL) {
         Ok(icon) => icon,
         Err(err) => {
@@ -120,7 +128,17 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                         crate::logging::warn(format_args!("切换迷你窗失败: {err}"));
                     }
                 }
-                "shot" => crate::shot::trigger(app),
+                "shot" => {
+                    if let Err(err) = crate::shot_sidecar::capture() {
+                        crate::logging::warn(format_args!("托盘截图失败: {err}"));
+                        let app = app.clone();
+                        std::thread::spawn(move || retry_shot_service(&app));
+                    }
+                }
+                "shot-retry" => {
+                    let app = app.clone();
+                    std::thread::spawn(move || retry_shot_service(&app));
+                }
                 "quit" => {
                     QUITTING.store(true, Ordering::SeqCst);
                     app.exit(0);
@@ -147,6 +165,8 @@ pub fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // 创建成功就可以隐藏主窗口。图标位于 Windows 溢出区时 rect() 会返回 None，
     // 但并不代表托盘不可用。
     READY.store(true, Ordering::SeqCst);
+    #[cfg(windows)]
+    crate::shot_sidecar::apply_tooltip(app);
     // Windows 11 上 Shell_NotifyIconGetRect 经常返回失败，即使图标已经加进通知区。
     // 不能据此判断托盘不存在。图标默认进溢出区，后面再把它设成直接显示。
     match tray.rect() {

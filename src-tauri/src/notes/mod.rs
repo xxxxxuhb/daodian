@@ -544,6 +544,70 @@ pub fn note_create(
     Ok(note)
 }
 
+pub(crate) fn from_capture(app: &AppHandle, text: &str) -> Result<(String, String), String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Err("没有可保存的文字".into());
+    }
+    let title = text
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(str::trim)
+        .unwrap_or("取字");
+    let now = now_ms();
+    let id = format!("n_{}", new_id());
+    let stored = clip_bytes(text, TEXT_BYTES);
+    let note = Note {
+        id: id.clone(),
+        title: clean_title(title),
+        doc: text_doc(text),
+        doc_version: DOC_VERSION,
+        tags: Vec::new(),
+        due_at: None,
+        pinned: false,
+        archived: false,
+        reminded: false,
+        thumb: None,
+        attachments: Vec::new(),
+        summary: summarize(&stored),
+        text: stored,
+        created_at: now,
+        updated_at: now,
+    };
+    let notes = app.state::<SharedNotes>();
+    {
+        let mut guard = lock(&notes)?;
+        guard.upsert(note)?;
+        crate::cloud::state::mark_dirty(&guard.data_dir);
+    }
+    wake(app);
+    Ok((id, "已新建笔记".into()))
+}
+
+fn text_doc(text: &str) -> Value {
+    let content: Vec<Value> = text
+        .split('\n')
+        .map(|line| {
+            if line.is_empty() {
+                serde_json::json!({ "type": "paragraph" })
+            } else {
+                serde_json::json!({
+                    "type": "paragraph",
+                    "content": [{ "type": "text", "text": line }]
+                })
+            }
+        })
+        .collect();
+    serde_json::json!({
+        "type": "doc",
+        "content": if content.is_empty() {
+            vec![serde_json::json!({ "type": "paragraph" })]
+        } else {
+            content
+        }
+    })
+}
+
 #[tauri::command]
 pub fn note_save(
     app: AppHandle,

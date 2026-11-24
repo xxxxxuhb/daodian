@@ -15,6 +15,9 @@ const emit = defineEmits<{
 	"update:color": [color: string];
 	undo: [];
 	reselect: [];
+	longshot: [];
+	gif: [];
+	ocr: [];
 	copy: [];
 	pin: [];
 	save: [];
@@ -90,6 +93,36 @@ const emit = defineEmits<{
 			@pointerdown.stop.prevent="emit('reselect')"
 		>
 			重新选
+		</button>
+		<button
+			type="button"
+			class="shot-textbtn"
+			:disabled="busy"
+			aria-label="长截图"
+			title="长截图"
+			@pointerdown.stop.prevent="emit('longshot')"
+		>
+			长截图
+		</button>
+		<button
+			type="button"
+			class="shot-textbtn"
+			:disabled="busy"
+			aria-label="GIF"
+			title="GIF"
+			@pointerdown.stop.prevent="emit('gif')"
+		>
+			GIF
+		</button>
+		<button
+			type="button"
+			class="shot-textbtn"
+			:disabled="busy"
+			aria-label="取字 Ctrl+Shift+O"
+			title="取字 Ctrl+Shift+O"
+			@pointerdown.stop.prevent="emit('ocr')"
+		>
+			取字
 		</button>
 		<button
 			type="button"

@@ -61,6 +61,7 @@ export interface Settings {
     saveDir: string;
     lastSaveDir: string;
     captureMode: string;
+    sidecar: boolean;
   };
   deepSeek: {
     enabled: boolean;

@@ -196,6 +196,7 @@ async function onKey(event: KeyboardEvent) {
 let unlisten: UnlistenFn | null = null;
 let unlistenQuickCapture: UnlistenFn | null = null;
 let unlistenPetTarget: UnlistenFn | null = null;
+let unlistenShotText: UnlistenFn | null = null;
 
 interface PetOpenTarget {
   kind: "todo" | "stage";
@@ -259,6 +260,17 @@ onMounted(async () => {
     unlistenPetTarget = await listen<PetOpenTarget>("pet-open-target", ({ payload }) => {
       openPetTarget(payload);
     });
+    unlistenShotText = await listen<{ kind: string; id: string }>(
+      "shot-text-landed",
+      ({ payload }) => {
+        if (payload.kind === "note" && payload.id) openNote(payload.id);
+        if (payload.kind === "todo") {
+          settingsOpen.value = false;
+          section.value = "todo";
+          todoFilter.value = "today";
+        }
+      },
+    );
     if (await invoke<boolean>("is_quick_capture_active")) {
       await enterQuickCaptureUi();
     }
@@ -293,6 +305,7 @@ onUnmounted(() => {
   unlisten?.();
   unlistenQuickCapture?.();
   unlistenPetTarget?.();
+  unlistenShotText?.();
   window.removeEventListener("keydown", onKey);
   window.removeEventListener("resize", onResize);
 });

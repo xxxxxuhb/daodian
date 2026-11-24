@@ -4,8 +4,8 @@ use std::sync::atomic::{
     AtomicBool, AtomicI32, AtomicIsize, AtomicU8, AtomicU32, AtomicU64, Ordering,
 };
 use std::sync::mpsc::{self, Sender};
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -17,23 +17,30 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut}
 use crate::settings::SharedSettings;
 
 mod capture;
+mod ocr;
+pub(crate) mod gifshot;
+#[cfg(windows)]
+pub(crate) mod longshot;
 mod place;
 mod save;
+mod stitch;
 
-pub use save::ShotSaveResult;
-pub(crate) use save::{cleanup_leftovers, copy_bgra, png_bytes_from_bgra, save_native_async};
 use capture::{capture_bgra, capture_rect};
 use place::place_shot_physical;
+pub use save::ShotSaveResult;
+pub(crate) use save::{cleanup_leftovers, copy_bgra, png_bytes_from_bgra};
 use save::{
     copy_image, decode_png, encode_png, flatten_alpha, remove_tree, reveal_in_folder,
     save_with_dialog, validate_export_bytes, write_png,
 };
 #[cfg(test)]
 use save::{
-    ensure_png, format_screenshot_name, resolve_save_start, unique_png, write_bytes_atomic,
+    ensure_png, format_long_screenshot_name, format_screenshot_name, resolve_save_start,
+    unique_png, write_bytes_atomic,
 };
 
 const MAX_SCREENS: usize = 8;
+static IN_SHOT_SERVICE: AtomicBool = AtomicBool::new(false);
 const PIN_LIMIT: usize = 12;
 const MAX_PNG_BYTES: usize = 80 * 1024 * 1024;
 
@@ -51,6 +58,22 @@ static LAST_SAVED: Mutex<String> = Mutex::new(String::new());
 static TMP_SEQ: AtomicU32 = AtomicU32::new(0);
 static ACTIVE_SCREEN: AtomicU32 = AtomicU32::new(0);
 static OPENED_AT: AtomicU64 = AtomicU64::new(0);
+static READY_GATE: Mutex<u64> = Mutex::new(0);
+static READY_WAKE: Condvar = Condvar::new();
+static SPAN: Mutex<ShotSpan> = Mutex::new(ShotSpan {
+    generation: 0,
+    service_ms: 0,
+    capture_ms: 0,
+    shown_ms: 0,
+    frame_ms: 0,
+    bytes_ms: 0,
+    pack_ms: 0,
+    decode_ms: 0,
+    paint_ms: 0,
+    extras_ms: 0,
+    screens: 0,
+    summarized: false,
+});
 static DISMISS_ARMED: AtomicBool = AtomicBool::new(false);
 static HOLD_CLOSED: AtomicBool = AtomicBool::new(false);
 static SHOT_HWNDS: [AtomicIsize; MAX_SCREENS] = [const { AtomicIsize::new(0) }; MAX_SCREENS];
@@ -112,8 +135,9 @@ struct ShotRefresh {
     raw: bool,
     active: bool,
     crop: bool,
-    /// 画面由原生窗口按物理像素铺在编辑层下面。编辑层自己的图藏起来，选区和工具条不变。
+    /// 旧的原生底图标记。冻结图改走 shot_frame，这里保持 false。
     backdrop: bool,
+    generation: u64,
 }
 
 #[derive(Clone)]
@@ -134,11 +158,27 @@ struct CapturedScreen {
 }
 
 /// 展示用的一帧。像素是自上而下的 BGRA，alpha 已写成 255。
+/// `pixels` 用 Arc，shot_frame 只增加引用计数，不在锁里复制整帧。
 struct LiveFrame {
     index: u32,
     width: u32,
     height: u32,
-    pixels: Vec<u8>,
+    pixels: Arc<Vec<u8>>,
+}
+
+struct ShotSpan {
+    generation: u64,
+    service_ms: u64,
+    capture_ms: u64,
+    shown_ms: u64,
+    frame_ms: u64,
+    bytes_ms: u64,
+    pack_ms: u64,
+    decode_ms: u64,
+    paint_ms: u64,
+    extras_ms: u64,
+    screens: u32,
+    summarized: bool,
 }
 
 struct BgraImage {
@@ -184,6 +224,7 @@ pub struct ScreenPayload {
     raw: bool,
     active: bool,
     live: bool,
+    generation: u64,
 }
 
 #[derive(Serialize)]
@@ -221,6 +262,59 @@ struct TrackedWindow {
 }
 
 static TRACKED: Mutex<Vec<TrackedWindow>> = Mutex::new(Vec::new());
+
+#[cfg(windows)]
+fn exclude_from_capture(window: &WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetWindowDisplayAffinity;
+    const WDA_EXCLUDEFROMCAPTURE: u32 = 0x11;
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    unsafe {
+        let _ = SetWindowDisplayAffinity(hwnd.0 as _, WDA_EXCLUDEFROMCAPTURE);
+    }
+}
+
+/// 热键先把已经预热的窗口亮出来。抓屏在后面走，窗口已排除在抓屏之外。
+fn reveal_warm(app: &AppHandle, generation: u64) {
+    if !matches!(capture_mode(app), CaptureMode::Freeze) {
+        return;
+    }
+    let Ok(rects) = monitor_rects(app) else {
+        return;
+    };
+    let focus = cursor_screen(&rects);
+    let Some(rect) = rects.get(focus as usize).copied() else {
+        return;
+    };
+    ACTIVE_SCREEN.store(focus, Ordering::SeqCst);
+    let _ = app.emit("shot-arm", ());
+    let shown = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if CANCELLED.load(Ordering::SeqCst) || !generation_current(generation) {
+            return;
+        }
+        let Some(window) = shown.get_webview_window(&format!("shot-{focus}")) else {
+            return;
+        };
+        let _ = window.set_ignore_cursor_events(false);
+        #[cfg(windows)]
+        exclude_from_capture(&window);
+        remember_window(&window);
+        present_shot(&window, focus, true);
+        place_shot_physical(&window, rect.x, rect.y, rect.width, rect.height);
+        if CANCELLED.load(Ordering::SeqCst) || !generation_current(generation) {
+            conceal_shot_windows();
+            return;
+        }
+        PHASE.store(PHASE_OPEN, Ordering::SeqCst);
+        let _ = shown.emit("shot-active", focus);
+        crate::logging::info(format_args!(
+            "screenshot hotkey shown: {focus} in {}ms",
+            elapsed_since_open()
+        ));
+    });
+}
 
 pub(crate) fn remember_window(window: &WebviewWindow) {
     #[cfg(windows)]
@@ -262,10 +356,6 @@ pub(crate) fn handle_escape(app: &AppHandle) -> bool {
     if SAVING.load(Ordering::SeqCst) {
         return false;
     }
-    if crate::shot_native::is_open() {
-        crate::shot_native::request_close();
-        return true;
-    }
     let foreground =
         unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() as isize };
     if let Some(hwnd) = foreground_pin(foreground) {
@@ -304,8 +394,8 @@ fn foreground_pin(foreground: isize) -> Option<isize> {
 fn conceal_shot_windows() {
     #[cfg(windows)]
     {
-        crate::shot_native::request_close();
-        crate::shot_native::release_hosts();
+        longshot::shutdown();
+        gifshot::shutdown();
         for slot in &SHOT_HWNDS {
             force_hide(slot.load(Ordering::SeqCst));
         }
@@ -406,7 +496,6 @@ enum ShotCommand {
     Open(u64),
     Close,
     Suspend(Sender<()>),
-    Annotate,
 }
 
 static WORKER: OnceLock<Sender<ShotCommand>> = OnceLock::new();
@@ -423,6 +512,118 @@ fn elapsed_since_open() -> u64 {
     unix_ms().saturating_sub(OPENED_AT.load(Ordering::SeqCst))
 }
 
+fn shot_trace_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| match std::env::var("DAODIAN_SHOT_TRACE") {
+        Ok(value) => {
+            let value = value.trim();
+            value != "0"
+                && !value.eq_ignore_ascii_case("false")
+                && !value.eq_ignore_ascii_case("off")
+        }
+        Err(_) => true,
+    })
+}
+
+fn shot_trace(message: std::fmt::Arguments<'_>) {
+    if shot_trace_enabled() {
+        crate::logging::info(message);
+    }
+}
+
+fn span_lock() -> std::sync::MutexGuard<'static, ShotSpan> {
+    SPAN.lock().unwrap_or_else(|err| err.into_inner())
+}
+
+fn span_begin(generation: u64) {
+    let mut span = span_lock();
+    *span = ShotSpan {
+        generation,
+        service_ms: 0,
+        capture_ms: 0,
+        shown_ms: 0,
+        frame_ms: 0,
+        bytes_ms: 0,
+        pack_ms: 0,
+        decode_ms: 0,
+        paint_ms: 0,
+        extras_ms: 0,
+        screens: 0,
+        summarized: false,
+    };
+}
+
+fn span_update(generation: u64, update: impl FnOnce(&mut ShotSpan)) {
+    let mut span = span_lock();
+    if span.generation == generation {
+        update(&mut span);
+    }
+}
+
+fn ready_lock() -> std::sync::MutexGuard<'static, u64> {
+    READY_GATE.lock().unwrap_or_else(|err| err.into_inner())
+}
+
+fn note_active_ready(generation: u64) {
+    let mut guard = ready_lock();
+    *guard = generation;
+    READY_WAKE.notify_all();
+}
+
+fn wait_active_frame(generation: u64) {
+    let guard = ready_lock();
+    let (guard, result) = READY_WAKE
+        .wait_timeout_while(guard, Duration::from_millis(1200), |ready| {
+            *ready != generation
+                && generation_current(generation)
+                && !CANCELLED.load(Ordering::SeqCst)
+        })
+        .unwrap_or_else(|err| err.into_inner());
+    let matched = *guard == generation;
+    drop(guard);
+    if !matched && result.timed_out() {
+        crate::logging::info(format_args!(
+            "screenshot extra released: timeout at {}ms",
+            elapsed_since_open()
+        ));
+    }
+}
+
+struct ActionEnd(&'static str, Instant);
+
+impl Drop for ActionEnd {
+    fn drop(&mut self) {
+        crate::logging::info(format_args!(
+            "screenshot {}-end: {}ms",
+            self.0,
+            self.1.elapsed().as_millis()
+        ));
+    }
+}
+
+fn log_shot_summary(paint_ms: u64) {
+    let mut span = span_lock();
+    if span.summarized || span.generation == 0 {
+        return;
+    }
+    span.paint_ms = paint_ms;
+    span.summarized = true;
+    crate::logging::info(format_args!(
+        "screenshot summary: gen={} service={}ms capture={}ms shown={}ms frame={}ms ipc={}ms pack={}ms decode={}ms paint={}ms extras={}ms screens={}",
+        span.generation,
+        span.service_ms,
+        span.capture_ms,
+        span.shown_ms,
+        span.frame_ms,
+        span.bytes_ms,
+        span.pack_ms,
+        span.decode_ms,
+        span.paint_ms,
+        span.extras_ms,
+        span.screens,
+    ));
+}
+
 fn ensure_worker(app: &AppHandle) -> Sender<ShotCommand> {
     WORKER
         .get_or_init(|| {
@@ -435,7 +636,6 @@ fn ensure_worker(app: &AppHandle) -> Sender<ShotCommand> {
                         match command {
                             ShotCommand::Open(generation) => do_open(&app, generation),
                             ShotCommand::Close => do_close(&app),
-                            ShotCommand::Annotate => do_annotate(&app),
                             ShotCommand::Suspend(done) => {
                                 hide_overlay(&app, false);
                                 let _ = done.send(());
@@ -511,7 +711,9 @@ pub(crate) fn trigger(app: &AppHandle) {
     let previous = LAST_TOGGLE_MS.swap(now, Ordering::Relaxed);
     let phase = PHASE.load(Ordering::SeqCst);
     if phase == PHASE_OPEN {
-        send_command(app, ShotCommand::Close);
+        // 窗口已经在屏幕上。先藏起来，抓屏线程收尾时才不会再把它打开。
+        conceal_shot_windows();
+        enqueue_close(app);
         return;
     }
     // 只吞掉按住不放时的连发。已经打开时，再按一次立刻退出。
@@ -534,7 +736,9 @@ pub(crate) fn trigger(app: &AppHandle) {
     DISMISS_ARMED.store(false, Ordering::SeqCst);
     OPENED_AT.store(now, Ordering::SeqCst);
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    shot_trace(format_args!("screenshot hotkey gen={generation}"));
     send_command(app, ShotCommand::Open(generation));
+    reveal_warm(app, generation);
 }
 
 pub(crate) fn dismiss(app: &AppHandle) {
@@ -576,6 +780,78 @@ fn sync_registration(app: &AppHandle) -> String {
         Ok(store) => store.screenshot_settings(),
         Err(err) => return format!("截图状态读取失败：{err}"),
     };
+    #[cfg(windows)]
+    {
+        return sync_sidecar(app, &configured);
+    }
+    #[cfg(not(windows))]
+    {
+        register_on_main(app, &configured)
+    }
+}
+
+#[cfg(windows)]
+fn sync_sidecar(app: &AppHandle, configured: &crate::settings::ScreenshotSettings) -> String {
+    let shortcut = configured.shortcut.trim().to_string();
+    if !configured.enabled {
+        let _ = crate::shot_sidecar::apply(app, configured);
+        release_main_shortcut(app);
+        cache_dismiss(None);
+        crate::shot_sidecar::note_idle(app);
+        return "已关闭".into();
+    }
+    if shortcut.is_empty() || shortcut.parse::<Shortcut>().is_err() || conflicts(app, &shortcut) {
+        let mut disabled = configured.clone();
+        disabled.enabled = false;
+        let _ = crate::shot_sidecar::apply(app, &disabled);
+        release_main_shortcut(app);
+        cache_dismiss(None);
+        crate::shot_sidecar::note_idle(app);
+        if shortcut.is_empty() {
+            return "注册失败：快捷键不能为空".into();
+        }
+        if shortcut.parse::<Shortcut>().is_err() {
+            return "注册失败：快捷键格式无效".into();
+        }
+        return "注册失败：和快速记录的快捷键相同".into();
+    }
+    match crate::shot_sidecar::apply(app, configured) {
+        Ok(outcome) if outcome.hotkey => {
+            release_main_shortcut(app);
+            cache_dismiss(Some(shortcut.as_str()));
+            crate::shot_sidecar::note_ready(app);
+            outcome.status
+        }
+        Ok(outcome) => {
+            release_main_shortcut(app);
+            cache_dismiss(None);
+            crate::shot_sidecar::note_unavailable(app);
+            outcome.status
+        }
+        Err(err) => {
+            release_main_shortcut(app);
+            cache_dismiss(None);
+            crate::shot_sidecar::note_unavailable(app);
+            err
+        }
+    }
+}
+
+pub(crate) fn release_main_shortcut(app: &AppHandle) {
+    let runtime = app.state::<ShotRuntime>();
+    let Ok(mut state) = runtime.inner.lock() else {
+        return;
+    };
+    let Some(previous) = state.registered.take() else {
+        return;
+    };
+    if let Err(err) = app.global_shortcut().unregister(previous.as_str()) {
+        crate::logging::warn(format_args!("注销主进程截图快捷键失败: {err}"));
+    }
+}
+
+#[cfg(not(windows))]
+fn register_on_main(app: &AppHandle, configured: &crate::settings::ScreenshotSettings) -> String {
     let shortcut = configured.shortcut.trim().to_string();
     let conflict = configured.enabled && conflicts(app, &shortcut);
     let runtime = app.state::<ShotRuntime>();
@@ -627,7 +903,7 @@ fn sync_registration(app: &AppHandle) -> String {
     }
 }
 
-fn cache_dismiss(shortcut: Option<&str>) {
+pub(crate) fn cache_dismiss(shortcut: Option<&str>) {
     let binding = shortcut.and_then(|value| {
         let parsed = value.parse::<Shortcut>().ok()?;
         Some(DismissBinding {
@@ -779,9 +1055,11 @@ where
 }
 
 fn do_open(app: &AppHandle, generation: u64) {
+    let service_ms = elapsed_since_open();
+    span_begin(generation);
+    span_update(generation, |span| span.service_ms = service_ms);
     crate::logging::info(format_args!(
-        "screenshot worker: t1 {}ms",
-        elapsed_since_open()
+        "screenshot service-recv: {service_ms}ms gen={generation}"
     ));
     if !generation_current(generation) {
         settle_idle();
@@ -791,8 +1069,6 @@ fn do_open(app: &AppHandle, generation: u64) {
     crate::logging::info(format_args!("screenshot mode: {}", mode.label()));
     let opened = match mode {
         CaptureMode::Live => show_live(app, generation),
-        #[cfg(windows)]
-        CaptureMode::Native => show_native(app, generation),
         CaptureMode::Freeze => capture_and_show(app, generation),
     };
     match opened {
@@ -846,6 +1122,7 @@ fn hide_overlay(app: &AppHandle, clear_session: bool) {
     if !clear_session {
         return;
     }
+    let _ = app.emit("shot-arm", "reset");
     let dir = app
         .state::<ShotRuntime>()
         .inner
@@ -865,24 +1142,8 @@ fn capture_and_show(app: &AppHandle, generation: u64) -> Result<(), String> {
     if !generation_current(generation) {
         return Err("截图已取消".into());
     }
-    let monitors = app.available_monitors().map_err(|err| err.to_string())?;
-    if monitors.is_empty() {
-        return Err("没有可用的显示器".into());
-    }
-    let rects: Vec<CaptureRect> = monitors
-        .into_iter()
-        .take(MAX_SCREENS)
-        .map(|monitor| {
-            let position = monitor.position();
-            let size = monitor.size();
-            CaptureRect {
-                x: position.x,
-                y: position.y,
-                width: size.width,
-                height: size.height,
-            }
-        })
-        .collect();
+    // 不走 available_monitors。那条要等主线程，而主线程可能正卡在另一块屏的 WebView2 创建里。
+    let rects = monitor_rects(app)?;
     let focus = cursor_screen(&rects);
     ACTIVE_SCREEN.store(focus, Ordering::SeqCst);
     let raw = raw_frames_enabled();
@@ -907,16 +1168,23 @@ fn capture_and_show(app: &AppHandle, generation: u64) -> Result<(), String> {
         state.opening = false;
     }
     let _ = app.emit("shot-arm", ());
-    #[cfg(windows)]
-    crate::shot_native::begin(app.clone());
 
-    // 先只抓鼠标所在屏并显示。其他屏等覆盖层落到这块屏上再抓，避免一起 BitBlt 拖慢活动屏，也避免把覆盖层截进去。
+    // 先只抓鼠标所在屏并显示。其它屏可以并行抓，但窗口要等活动屏的冻结图出来再摆。
     let focus_index = usize::try_from(focus).map_err(|_| "没有可用的显示器")?;
     let focus_rect = rects.get(focus_index).copied().ok_or("没有可用的显示器")?;
+    shot_trace(format_args!(
+        "screenshot capture-start: {focus} at {}ms",
+        elapsed_since_open()
+    ));
+    let capture_at = elapsed_since_open();
     let captured = {
         let _priority = CapturePriority::boost();
         capture_one(&live, focus, focus_rect, raw)
     }?;
+    let capture_ms = elapsed_since_open().saturating_sub(capture_at);
+    shot_trace(format_args!(
+        "screenshot capture-end: {focus} {capture_ms}ms"
+    ));
     if !generation_current(generation) || CANCELLED.load(Ordering::SeqCst) {
         return Err("截图已取消".into());
     }
@@ -927,12 +1195,17 @@ fn capture_and_show(app: &AppHandle, generation: u64) -> Result<(), String> {
         screen.index, screen.width, screen.height
     ));
     remember_screen(app, &screen, captured.frame)?;
-    show_screen(app, &screen, true, generation, cfg!(windows))?;
+    show_screen(app, &screen, true, generation)?;
+    let shown_ms = elapsed_since_open();
     crate::logging::info(format_args!(
-        "screenshot active shown: {} in {}ms",
-        screen.index,
-        elapsed_since_open()
+        "screenshot active shown: {} in {shown_ms}ms",
+        screen.index
     ));
+    span_update(generation, |span| {
+        span.capture_ms = capture_ms;
+        span.shown_ms = shown_ms;
+        span.screens = rects.len() as u32;
+    });
 
     let pending: Vec<(u32, CaptureRect)> = rects
         .iter()
@@ -941,9 +1214,24 @@ fn capture_and_show(app: &AppHandle, generation: u64) -> Result<(), String> {
         .filter(|(index, _)| *index as u32 != focus)
         .map(|(index, rect)| (index as u32, rect))
         .collect();
+    if pending.is_empty() {
+        crate::logging::info(format_args!("screenshot session opened: 1 in {shown_ms}ms"));
+        return Ok(());
+    }
+    defer_extra_screens(app, generation, focus, live, pending, raw);
+    Ok(())
+}
+
+fn defer_extra_screens(
+    app: &AppHandle,
+    generation: u64,
+    focus: u32,
+    live: PathBuf,
+    pending: Vec<(u32, CaptureRect)>,
+    raw: bool,
+) {
     let (tx, rx) = mpsc::channel();
     let mut started = 0usize;
-    let mut failure: Option<String> = None;
     for (index, rect) in pending {
         let report = tx.clone();
         let dir = live.clone();
@@ -958,46 +1246,71 @@ fn capture_and_show(app: &AppHandle, generation: u64) -> Result<(), String> {
             }) {
             Ok(_) => started += 1,
             Err(err) => {
-                failure = Some(format!("启动截图失败: {err}"));
+                crate::logging::warn(format_args!("启动截图失败: {err}"));
                 break;
             }
         }
     }
     drop(tx);
+    let app = app.clone();
+    let task = move || finish_extra_screens(app, generation, focus, rx, started);
+    if let Err(err) = std::thread::Builder::new()
+        .name("shot-extra".into())
+        .spawn(task)
+    {
+        crate::logging::warn(format_args!("screenshot extra thread failed: {err}"));
+    }
+}
 
-    let mut slowest = active_ms;
+fn finish_extra_screens(
+    app: AppHandle,
+    generation: u64,
+    focus: u32,
+    rx: mpsc::Receiver<(Result<CapturedScreen, String>, u64)>,
+    started: usize,
+) {
+    let mut screens = Vec::new();
     let mut received = 0usize;
     while received < started {
-        let (frame, elapsed) = match rx.recv() {
+        let (frame, _elapsed) = match rx.recv() {
             Ok(frame) => frame,
-            Err(_) => {
-                failure.get_or_insert_with(|| "截图没有完成".into());
-                break;
-            }
+            Err(_) => break,
         };
         received += 1;
-        slowest = slowest.max(elapsed);
         if !generation_current(generation) || CANCELLED.load(Ordering::SeqCst) {
-            failure.get_or_insert_with(|| "截图已取消".into());
-            continue;
-        }
-        if failure.is_some() {
-            continue;
+            return;
         }
         let captured = match frame {
             Ok(captured) => captured,
             Err(err) => {
-                failure = Some(err);
+                crate::logging::warn(format_args!("screenshot extra capture failed: {err}"));
                 continue;
             }
         };
         let screen = captured.screen;
-        if let Err(err) = remember_screen(app, &screen, captured.frame) {
-            failure = Some(err);
+        if let Err(err) = remember_screen(&app, &screen, captured.frame) {
+            crate::logging::warn(format_args!("screenshot extra store failed: {err}"));
             continue;
         }
-        if let Err(err) = show_screen(app, &screen, false, generation, cfg!(windows)) {
-            failure = Some(err);
+        screens.push(screen);
+    }
+    if !generation_current(generation) || CANCELLED.load(Ordering::SeqCst) {
+        return;
+    }
+    if screens.is_empty() {
+        crate::logging::info(format_args!(
+            "screenshot session opened: 1 in {}ms",
+            elapsed_since_open()
+        ));
+        return;
+    }
+    wait_active_frame(generation);
+    if !generation_current(generation) || CANCELLED.load(Ordering::SeqCst) {
+        return;
+    }
+    for screen in &screens {
+        if let Err(err) = show_screen(&app, screen, false, generation) {
+            crate::logging::warn(format_args!("screenshot extra show failed: {err}"));
             continue;
         }
         crate::logging::info(format_args!(
@@ -1006,19 +1319,15 @@ fn capture_and_show(app: &AppHandle, generation: u64) -> Result<(), String> {
             elapsed_since_open()
         ));
     }
-    let total = started + 1;
-    if failure.is_none() && received == started {
-        crate::logging::info(format_args!("screenshot captured: {total} in {slowest}ms"));
+    if let Err(err) = focus_shot(&app, focus, generation) {
+        crate::logging::warn(format_args!("screenshot focus failed: {err}"));
     }
-    if let Some(err) = failure {
-        return Err(err);
-    }
-    focus_shot(app, focus, generation)?;
+    let total = screens.len() + 1;
+    let extras_ms = elapsed_since_open();
+    span_update(generation, |span| span.extras_ms = extras_ms);
     crate::logging::info(format_args!(
-        "screenshot session opened: {total} in {}ms",
-        elapsed_since_open()
+        "screenshot session opened: {total} in {extras_ms}ms"
     ));
-    Ok(())
 }
 
 fn show_screen(
@@ -1026,7 +1335,6 @@ fn show_screen(
     screen: &ScreenFile,
     activate: bool,
     generation: u64,
-    backdrop: bool,
 ) -> Result<(), String> {
     let screen = screen.clone();
     let shown = app.clone();
@@ -1035,7 +1343,7 @@ fn show_screen(
             conceal_shot_windows();
             return Err("截图已取消".into());
         }
-        ensure_shown(&shown, &screen, activate, backdrop)
+        ensure_shown(&shown, &screen, activate)
     })
     .and_then(|result| result)
 }
@@ -1082,7 +1390,11 @@ fn remember_screen(
     Ok(())
 }
 
-fn ensure_window(app: &AppHandle, screen: &ScreenFile, live: bool) -> Result<WebviewWindow, String> {
+fn ensure_window(
+    app: &AppHandle,
+    screen: &ScreenFile,
+    live: bool,
+) -> Result<WebviewWindow, String> {
     let label = format!("shot-{}", screen.index);
     let slot = shot_index(&label);
     let kind = if live { KIND_LIVE } else { KIND_FREEZE };
@@ -1095,7 +1407,19 @@ fn ensure_window(app: &AppHandle, screen: &ScreenFile, live: bool) -> Result<Web
             if let Some(index) = slot {
                 SHOT_KIND[index].store(kind, Ordering::SeqCst);
             }
-            place_shot_physical(&existing, screen.x, screen.y, screen.monitor_w, screen.monitor_h);
+            shot_trace(format_args!(
+                "screenshot window-ensure: {} reused",
+                screen.index
+            ));
+            #[cfg(windows)]
+            exclude_from_capture(&existing);
+            place_shot_physical(
+                &existing,
+                screen.x,
+                screen.y,
+                screen.monitor_w,
+                screen.monitor_h,
+            );
             return Ok(existing);
         }
         existing
@@ -1110,11 +1434,9 @@ fn ensure_window(app: &AppHandle, screen: &ScreenFile, live: bool) -> Result<Web
     if let Some(index) = slot {
         SHOT_SHOWN[index].store(false, Ordering::SeqCst);
     }
-    let webview = shot_webview_dir()?;
+    let webview = shot_webview_dir(screen.index)?;
     let url = if live {
         format!("shot.html?screen={}&live=1", screen.index)
-    } else if cfg!(windows) {
-        format!("shot.html?screen={}&backdrop=1", screen.index)
     } else {
         format!("shot.html?screen={}", screen.index)
     };
@@ -1128,13 +1450,9 @@ fn ensure_window(app: &AppHandle, screen: &ScreenFile, live: bool) -> Result<Web
         .skip_taskbar(true)
         .visible(false)
         .focused(false);
-    builder = if live {
-        builder
-            .transparent(true)
-            .background_color(tauri::window::Color(0, 0, 0, 0))
-    } else {
-        builder.background_color(tauri::window::Color(12, 31, 26, 255))
-    };
+    builder = builder
+        .transparent(true)
+        .background_color(tauri::window::Color(0, 0, 0, 0));
     #[cfg(windows)]
     {
         builder = builder.additional_browser_args(SHOT_BROWSER_ARGS);
@@ -1143,10 +1461,22 @@ fn ensure_window(app: &AppHandle, screen: &ScreenFile, live: bool) -> Result<Web
         .zoom_hotkeys_enabled(false)
         .build()
         .map_err(|err| format!("打开截图窗口失败: {err}"))?;
+    #[cfg(windows)]
+    exclude_from_capture(&window);
+    shot_trace(format_args!(
+        "screenshot window-ensure: {} created",
+        screen.index
+    ));
     if let Some(index) = slot {
         SHOT_KIND[index].store(kind, Ordering::SeqCst);
     }
-    place_shot_physical(&window, screen.x, screen.y, screen.monitor_w, screen.monitor_h);
+    place_shot_physical(
+        &window,
+        screen.x,
+        screen.y,
+        screen.monitor_w,
+        screen.monitor_h,
+    );
     Ok(window)
 }
 
@@ -1154,7 +1484,6 @@ fn ensure_shown(
     app: &AppHandle,
     screen: &ScreenFile,
     activate: bool,
-    backdrop: bool,
 ) -> Result<(), String> {
     if CANCELLED.load(Ordering::SeqCst) {
         return Err("截图已取消".into());
@@ -1166,14 +1495,19 @@ fn ensure_shown(
         conceal_shot_windows();
         return Err("截图已取消".into());
     }
-    let painted = backdrop && paint_shot_backdrop(app, screen);
     present_shot(&window, screen.index, activate);
     if CANCELLED.load(Ordering::SeqCst) {
         conceal_shot_windows();
         return Err("截图已取消".into());
     }
     // 显示后再摆一次。换屏时系统会按 DPI 把窗口尺寸乘一遍，必须在那之后用物理像素盖回去。
-    place_shot_physical(&window, screen.x, screen.y, screen.monitor_w, screen.monitor_h);
+    place_shot_physical(
+        &window,
+        screen.x,
+        screen.y,
+        screen.monitor_w,
+        screen.monitor_h,
+    );
     if activate {
         let _ = app.emit("shot-active", screen.index);
     }
@@ -1186,106 +1520,11 @@ fn ensure_shown(
             raw: screen.path.as_os_str().is_empty(),
             active: activate,
             crop: false,
-            backdrop: painted,
+            backdrop: false,
+            generation: GENERATION.load(Ordering::SeqCst),
         },
     );
     Ok(())
-}
-
-fn paint_shot_backdrop(app: &AppHandle, screen: &ScreenFile) -> bool {
-    #[cfg(windows)]
-    {
-        let Some((width, height, pixels)) = frame_copy(app, screen.index) else {
-            return false;
-        };
-        let Some(window) = app.get_webview_window(&format!("shot-{}", screen.index)) else {
-            return false;
-        };
-        let Ok(top) = window.hwnd() else {
-            return false;
-        };
-        let top_raw = top.0 as isize;
-        let origin_x = screen.x;
-        let origin_y = screen.y;
-        let outcome = std::sync::Arc::new(std::sync::Mutex::new(None));
-        let report = outcome.clone();
-        let view: &tauri::Webview<_> = window.as_ref();
-        if view
-            .with_webview(move |platform| {
-                let _ = clear_webview_background(&platform);
-                // 画在外层窗口上。网页宿主只有左上角那一块，画在它上面整屏仍是底色。
-                let result = crate::shot_native::bind_host(top_raw, top_raw, width, height, &pixels);
-                if let Ok(mut slot) = report.lock() {
-                    *slot = Some(result);
-                }
-            })
-            .is_err()
-        {
-            return false;
-        }
-        match outcome.lock().ok().and_then(|mut slot| slot.take()) {
-            Some(Ok(())) => {
-                crate::logging::info(format_args!(
-                    "screenshot backdrop: {width}x{height} at {origin_x},{origin_y}"
-                ));
-                true
-            }
-            Some(Err(err)) => {
-                crate::logging::warn(format_args!("截图底图没有画上: {err}"));
-                false
-            }
-            None => false,
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = (app, screen);
-        false
-    }
-}
-
-#[cfg(windows)]
-fn clear_webview_background(platform: &tauri::webview::PlatformWebview) -> isize {
-    use webview2_com::Microsoft::Web::WebView2::Win32::{
-        COREWEBVIEW2_COLOR, ICoreWebView2Controller2,
-    };
-    use windows_core::Interface;
-    let controller = platform.controller();
-    let mut parent = windows::Win32::Foundation::HWND::default();
-    let host = unsafe {
-        if controller.ParentWindow(&mut parent).is_ok() {
-            parent.0 as isize
-        } else {
-            0
-        }
-    };
-    if let Ok(color) = controller.cast::<ICoreWebView2Controller2>() {
-        let _ = unsafe {
-            color.SetDefaultBackgroundColor(COREWEBVIEW2_COLOR {
-                A: 0,
-                R: 0,
-                G: 0,
-                B: 0,
-            })
-        };
-    }
-    host
-}
-
-#[cfg(windows)]
-fn frame_copy(app: &AppHandle, index: u32) -> Option<(u32, u32, Vec<u8>)> {
-    let runtime = runtime(app);
-    let state = runtime.inner.lock().ok()?;
-    let frame = state
-        .session
-        .as_ref()?
-        .frames
-        .iter()
-        .find(|item| item.index == index)?;
-    if frame.pixels.is_empty() {
-        return None;
-    }
-    Some((frame.width, frame.height, frame.pixels.clone()))
 }
 
 fn present_shot(window: &WebviewWindow, index: u32, activate: bool) {
@@ -1364,16 +1603,18 @@ fn reveal_again(window: &WebviewWindow, raw: isize, activate: bool) {
     let _ = window.show();
 }
 
-fn shot_webview_dir() -> Result<PathBuf, String> {
-    // 截图窗口带了单独的浏览器参数。WebView2 要求这种窗口使用自己的数据目录。
+fn shot_webview_dir(index: u32) -> Result<PathBuf, String> {
+    // 截图窗口带了单独的浏览器参数，不能跟主窗口共用数据目录。
+    // 每块屏再各用一个目录：第二块屏如果复用第一块的环境，创建会卡在主线程的嵌套消息循环里，热键就再也打不开。
     let root = crate::webview_data_dir().map_err(|err| err.to_string())?;
-    let dir = root.join("shot");
+    let dir = root.join("shot").join(index.to_string());
     fs::create_dir_all(&dir).map_err(|err| format!("创建截图窗口目录失败: {err}"))?;
     Ok(dir)
 }
 
 pub(crate) fn prewarm(app: &AppHandle) {
-    if !screenshot_enabled(app) || PREWARM_STARTED.swap(true, Ordering::SeqCst) {
+    if !in_shot_service() || !screenshot_enabled(app) || PREWARM_STARTED.swap(true, Ordering::SeqCst)
+    {
         return;
     }
     let app = app.clone();
@@ -1389,58 +1630,52 @@ pub(crate) fn prewarm(app: &AppHandle) {
 fn prewarm_screens(app: &AppHandle) {
     #[cfg(windows)]
     relax_prewarm_thread();
-    std::thread::sleep(Duration::from_secs(2));
+    std::thread::sleep(Duration::from_millis(200));
     if prewarm_blocked() || !screenshot_enabled(app) {
         return;
     }
-    if prewarm_skips_webview(app) {
-        crate::logging::info(format_args!("screenshot prewarm skipped: native"));
-        return;
-    }
     let live = matches!(capture_mode(app), CaptureMode::Live);
-    let Ok(monitors) = app.available_monitors() else {
+    // 显示器列表不能等主线程，预热自己就跑在主线程外面。
+    let Ok(rects) = monitor_rects(app) else {
         return;
     };
-    let monitors: Vec<_> = monitors.into_iter().take(MAX_SCREENS).collect();
-    let count = monitors.len();
-    for (index, monitor) in monitors.into_iter().enumerate() {
-        if prewarm_blocked() || !screenshot_enabled(app) {
-            crate::logging::info(format_args!("screenshot prewarm stopped"));
+    let focus = usize::try_from(cursor_screen(&rects)).unwrap_or(0);
+    let Some(rect) = rects.get(focus).copied() else {
+        return;
+    };
+    // 只预热鼠标所在的那块屏。接着在主线程里创建第二块屏的 WebView2 时，
+    // 完成回调进不了正在跑的消息循环，主线程就不再回来，后面的热键全部空转。
+    if prewarm_blocked() || !screenshot_enabled(app) {
+        crate::logging::info(format_args!("screenshot prewarm stopped"));
+        return;
+    }
+    let screen = ScreenFile {
+        index: focus as u32,
+        path: PathBuf::new(),
+        width: rect.width,
+        height: rect.height,
+        x: rect.x,
+        y: rect.y,
+        monitor_w: rect.width,
+        monitor_h: rect.height,
+    };
+    let prepared = app.clone();
+    let build_at = unix_ms();
+    let created = on_main_prewarm(app, move || -> Result<(), String> {
+        if prewarm_blocked() {
+            return Ok(());
+        }
+        ensure_window(&prepared, &screen, live)?;
+        Ok(())
+    });
+    match created {
+        Ok(Ok(())) => crate::logging::info(format_args!(
+            "screenshot prewarm: screen {focus} build {}ms",
+            unix_ms().saturating_sub(build_at)
+        )),
+        Ok(Err(err)) | Err(err) => {
+            crate::logging::warn(format_args!("截图窗口预热失败: {err}"));
             return;
-        }
-        let position = monitor.position();
-        let size = monitor.size();
-        let screen = ScreenFile {
-            index: index as u32,
-            path: PathBuf::new(),
-            width: size.width,
-            height: size.height,
-            x: position.x,
-            y: position.y,
-            monitor_w: size.width,
-            monitor_h: size.height,
-        };
-        let prepared = app.clone();
-        let build_at = unix_ms();
-        let created = on_main_prewarm(app, move || -> Result<(), String> {
-            if prewarm_blocked() {
-                return Ok(());
-            }
-            ensure_window(&prepared, &screen, live)?;
-            Ok(())
-        });
-        match created {
-            Ok(Ok(())) => crate::logging::info(format_args!(
-                "screenshot prewarm: screen {index} build {}ms",
-                unix_ms().saturating_sub(build_at)
-            )),
-            Ok(Err(err)) | Err(err) => {
-                crate::logging::warn(format_args!("截图窗口预热失败: {err}"));
-                return;
-            }
-        }
-        if index + 1 < count {
-            std::thread::sleep(Duration::from_millis(300));
         }
     }
     crate::logging::info(format_args!("screenshot windows ready"));
@@ -1477,8 +1712,6 @@ fn screenshot_enabled(app: &AppHandle) -> bool {
 enum CaptureMode {
     Freeze,
     Live,
-    #[cfg(windows)]
-    Native,
 }
 
 impl CaptureMode {
@@ -1486,10 +1719,16 @@ impl CaptureMode {
         match self {
             Self::Freeze => "freeze",
             Self::Live => "live",
-            #[cfg(windows)]
-            Self::Native => "native",
         }
     }
+}
+
+pub(crate) fn mark_shot_service() {
+    IN_SHOT_SERVICE.store(true, Ordering::SeqCst);
+}
+
+fn in_shot_service() -> bool {
+    IN_SHOT_SERVICE.load(Ordering::SeqCst)
 }
 
 fn capture_mode(app: &AppHandle) -> CaptureMode {
@@ -1500,43 +1739,91 @@ fn capture_mode(app: &AppHandle) -> CaptureMode {
         .unwrap_or_default();
     match mode.as_str() {
         "live" => CaptureMode::Live,
-        #[cfg(windows)]
-        "native" => CaptureMode::Native,
         _ => CaptureMode::Freeze,
     }
 }
 
-fn prewarm_skips_webview(app: &AppHandle) -> bool {
+fn monitor_rects(app: &AppHandle) -> Result<Vec<CaptureRect>, String> {
     #[cfg(windows)]
     {
-        matches!(capture_mode(app), CaptureMode::Native)
+        let _ = app;
+        return local_monitors();
     }
     #[cfg(not(windows))]
     {
-        let _ = app;
-        false
+        let monitors = app.available_monitors().map_err(|err| err.to_string())?;
+        if monitors.is_empty() {
+            return Err("没有可用的显示器".into());
+        }
+        Ok(monitors
+            .into_iter()
+            .take(MAX_SCREENS)
+            .map(|monitor| {
+                let position = monitor.position();
+                let size = monitor.size();
+                CaptureRect {
+                    x: position.x,
+                    y: position.y,
+                    width: size.width,
+                    height: size.height,
+                }
+            })
+            .collect())
     }
 }
 
-fn monitor_rects(app: &AppHandle) -> Result<Vec<CaptureRect>, String> {
-    let monitors = app.available_monitors().map_err(|err| err.to_string())?;
-    if monitors.is_empty() {
+#[cfg(windows)]
+fn local_monitors() -> Result<Vec<CaptureRect>, String> {
+    use windows_sys::Win32::Foundation::{LPARAM, RECT};
+    use windows_sys::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
+    use windows_sys::Win32::UI::HiDpi::{
+        DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetThreadDpiAwarenessContext,
+    };
+
+    struct List(Vec<CaptureRect>);
+
+    unsafe extern "system" fn each(
+        _monitor: HMONITOR,
+        _hdc: HDC,
+        rect: *mut RECT,
+        data: LPARAM,
+    ) -> windows_sys::core::BOOL {
+        let list = unsafe { &mut *(data as *mut List) };
+        if list.0.len() >= MAX_SCREENS {
+            return 0;
+        }
+        let rect = unsafe { &*rect };
+        let width = rect.right.saturating_sub(rect.left);
+        let height = rect.bottom.saturating_sub(rect.top);
+        if width > 0 && height > 0 {
+            list.0.push(CaptureRect {
+                x: rect.left,
+                y: rect.top,
+                width: width as u32,
+                height: height as u32,
+            });
+        }
+        1
+    }
+
+    let previous =
+        unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
+    let mut list = List(Vec::new());
+    unsafe {
+        EnumDisplayMonitors(
+            std::ptr::null_mut(),
+            std::ptr::null(),
+            Some(each),
+            &mut list as *mut List as LPARAM,
+        );
+        if !previous.is_null() {
+            SetThreadDpiAwarenessContext(previous);
+        }
+    }
+    if list.0.is_empty() {
         return Err("没有可用的显示器".into());
     }
-    Ok(monitors
-        .into_iter()
-        .take(MAX_SCREENS)
-        .map(|monitor| {
-            let position = monitor.position();
-            let size = monitor.size();
-            CaptureRect {
-                x: position.x,
-                y: position.y,
-                width: size.width,
-                height: size.height,
-            }
-        })
-        .collect())
+    Ok(list.0)
 }
 
 fn open_empty_session(app: &AppHandle, generation: u64) -> Result<(), String> {
@@ -1595,7 +1882,13 @@ fn show_live_screen(app: &AppHandle, screen: &ScreenFile) -> Result<(), String> 
     #[cfg(windows)]
     set_no_activate(shot_hwnd(screen.index), true);
     present_shot(&window, screen.index, false);
-    place_shot_physical(&window, screen.x, screen.y, screen.monitor_w, screen.monitor_h);
+    place_shot_physical(
+        &window,
+        screen.x,
+        screen.y,
+        screen.monitor_w,
+        screen.monitor_h,
+    );
     let _ = app.emit_to(
         &format!("shot-{}", screen.index),
         "shot-live",
@@ -1605,126 +1898,6 @@ fn show_live_screen(app: &AppHandle, screen: &ScreenFile) -> Result<(), String> 
         },
     );
     Ok(())
-}
-
-#[cfg(windows)]
-fn show_native(app: &AppHandle, generation: u64) -> Result<(), String> {
-    let rects = monitor_rects(app)?;
-    if !generation_current(generation) || CANCELLED.load(Ordering::SeqCst) {
-        return Err("截图已取消".into());
-    }
-    let focus = cursor_screen(&rects);
-    ACTIVE_SCREEN.store(focus, Ordering::SeqCst);
-    open_empty_session(app, generation)?;
-    crate::shot_native::begin(app.clone());
-    hide_webview_shots();
-    let focus_rect = rects
-        .get(usize::try_from(focus).unwrap_or(usize::MAX))
-        .copied()
-        .ok_or("没有可用的显示器")?;
-    present_native(app, generation, focus, focus_rect, true)?;
-    for (index, rect) in rects.into_iter().enumerate() {
-        if index as u32 == focus {
-            continue;
-        }
-        present_native(app, generation, index as u32, rect, false)?;
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn present_native(
-    app: &AppHandle,
-    generation: u64,
-    index: u32,
-    rect: CaptureRect,
-    active: bool,
-) -> Result<(), String> {
-    if !generation_current(generation) || CANCELLED.load(Ordering::SeqCst) {
-        return Err("截图已取消".into());
-    }
-    let captured = if active {
-        let _priority = CapturePriority::boost();
-        capture_one(Path::new(""), index, rect, true)?
-    } else {
-        capture_one(Path::new(""), index, rect, true)?
-    };
-    let mut frame = captured.frame.ok_or("截图没有完成")?;
-    let screen = captured.screen;
-    if active {
-        crate::logging::info(format_args!(
-            "screenshot native captured: {} {}x{} in {}ms",
-            screen.index,
-            screen.width,
-            screen.height,
-            elapsed_since_open()
-        ));
-    }
-    let pixels = std::mem::take(&mut frame.pixels);
-    let kept = LiveFrame {
-        pixels: pixels.clone(),
-        ..frame
-    };
-    let origin_x = screen.x;
-    let origin_y = screen.y;
-    let width = kept.width;
-    let height = kept.height;
-    remember_screen(app, &screen, Some(kept))?;
-    on_main(app, move || {
-        crate::shot_native::present(index, origin_x, origin_y, width, height, pixels, true)
-    })
-    .and_then(|result| result)?;
-    if active {
-        crate::logging::info(format_args!(
-            "screenshot native shown: {index} in {}ms",
-            elapsed_since_open()
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn hide_webview_shots() {
-    for slot in &SHOT_HWNDS {
-        force_hide(slot.load(Ordering::SeqCst));
-    }
-}
-
-fn do_annotate(app: &AppHandle) {
-    #[cfg(windows)]
-    {
-        crate::shot_native::begin_handoff();
-        let _ = on_main(app, crate::shot_native::destroy_windows);
-        let screens = {
-            let runtime = runtime(app);
-            let Ok(state) = runtime.inner.lock() else {
-                crate::shot_native::end_handoff();
-                return;
-            };
-            let Some(session) = state.session.as_ref() else {
-                crate::shot_native::end_handoff();
-                return;
-            };
-            session.screens.clone()
-        };
-        let focus = ACTIVE_SCREEN.load(Ordering::SeqCst);
-        let generation = GENERATION.load(Ordering::SeqCst);
-        for screen in &screens {
-            if let Err(err) = show_screen(app, screen, screen.index == focus, generation, false) {
-                crate::logging::warn(format_args!("截图标注层打开失败: {err}"));
-                break;
-            }
-        }
-        crate::shot_native::end_handoff();
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = app;
-    }
-}
-
-pub(crate) fn annotate_from_native(app: &AppHandle) {
-    send_command(app, ShotCommand::Annotate);
 }
 
 pub(crate) fn close_from_native(app: &AppHandle) {
@@ -1747,7 +1920,7 @@ fn set_no_activate(raw: isize, enabled: bool) {
     }
     unsafe {
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
+            GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_NOACTIVATE,
         };
         let hwnd = raw as windows_sys::Win32::Foundation::HWND;
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -1764,11 +1937,10 @@ fn hide_shot_sync(index: u32) {
         return;
     }
     unsafe {
-        use windows_sys::Win32::Graphics::Dwm::DwmFlush;
-        use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SW_HIDE, ShowWindow};
         let hwnd = raw as windows_sys::Win32::Foundation::HWND;
+        // 不在主线程 DwmFlush：合成要等这个线程处理窗口消息，会一直卡成未响应。
         let _ = ShowWindow(hwnd, SW_HIDE);
-        let _ = DwmFlush();
     }
 }
 
@@ -1778,7 +1950,7 @@ fn reveal_shot_sync(app: &AppHandle, index: u32) {
     set_no_activate(raw, false);
     if raw != 0 {
         unsafe {
-            use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOW};
+            use windows_sys::Win32::UI::WindowsAndMessaging::{SW_SHOW, ShowWindow};
             let _ = ShowWindow(raw as windows_sys::Win32::Foundation::HWND, SW_SHOW);
         }
     }
@@ -1822,6 +1994,7 @@ fn clamp_grab(
     Ok((x, y, width as u32, height as u32))
 }
 
+#[cfg(test)]
 pub(crate) fn crop_bgra(
     width: u32,
     height: u32,
@@ -1925,7 +2098,7 @@ fn capture_one(
                 index,
                 width: image.width,
                 height: image.height,
-                pixels: image.pixels,
+                pixels: Arc::new(image.pixels),
             }),
         });
     }
@@ -2054,6 +2227,13 @@ fn place_pin(
 
 #[tauri::command]
 pub fn shot_start(app: AppHandle) {
+    if !in_shot_service() {
+        #[cfg(windows)]
+        if let Err(err) = crate::shot_sidecar::capture() {
+            crate::logging::warn(format_args!("截图失败: {err}"));
+        }
+        return;
+    }
     trigger(&app);
 }
 
@@ -2088,6 +2268,7 @@ pub fn shot_screen(app: AppHandle, index: u32) -> Result<ScreenPayload, String> 
         raw: path.as_os_str().is_empty(),
         active: index == ACTIVE_SCREEN.load(Ordering::SeqCst),
         live,
+        generation: GENERATION.load(Ordering::SeqCst),
     })
 }
 
@@ -2101,6 +2282,88 @@ pub struct ShotGrab {
     height: f64,
     stage_width: f64,
     stage_height: f64,
+}
+
+#[tauri::command]
+pub fn shot_long(app: AppHandle, grab: ShotGrab) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        start_live_from_overlay(&app, grab, longshot::start)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, grab);
+        Err("当前只支持在 Windows 上长截图".into())
+    }
+}
+
+#[tauri::command]
+pub fn shot_gif(app: AppHandle, grab: ShotGrab) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        start_live_from_overlay(&app, grab, gifshot::start)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, grab);
+        Err("当前只支持在 Windows 上录 GIF".into())
+    }
+}
+
+#[cfg(windows)]
+fn start_live_from_overlay(
+    app: &AppHandle,
+    grab: ShotGrab,
+    launch: impl FnOnce(AppHandle, longshot::LiveGrab) -> Result<(), String> + Send + 'static,
+) -> Result<(), String> {
+    if CANCELLED.load(Ordering::SeqCst) {
+        return Err("截图已取消".into());
+    }
+    let screen = {
+        let runtime = runtime(app);
+        let state = runtime.inner.lock().map_err(|err| err.to_string())?;
+        let session = state.session.as_ref().ok_or("截图已经关掉")?;
+        session
+            .screens
+            .iter()
+            .find(|screen| screen.index == grab.index)
+            .cloned()
+            .ok_or("找不到这一屏")?
+    };
+    let x = css_to_physical(grab.x, grab.stage_width, screen.monitor_w);
+    let y = css_to_physical(grab.y, grab.stage_height, screen.monitor_h);
+    let width = css_to_physical(grab.width, grab.stage_width, screen.monitor_w);
+    let height = css_to_physical(grab.height, grab.stage_height, screen.monitor_h);
+    let (x, y, width, height) =
+        clamp_grab(screen.monitor_w, screen.monitor_h, x, y, width, height)?;
+    let live = longshot::LiveGrab {
+        selection_x: screen.x.saturating_add(x),
+        selection_y: screen.y.saturating_add(y),
+        selection_w: width,
+        selection_h: height,
+        monitor_x: screen.x,
+        monitor_y: screen.y,
+        monitor_w: screen.monitor_w,
+        monitor_h: screen.monitor_h,
+    };
+    let owned = app.clone();
+    on_main(app, move || {
+        for index in 0..MAX_SCREENS as u32 {
+            hide_shot_sync(index);
+        }
+        std::thread::sleep(Duration::from_millis(80));
+        match launch(owned.clone(), live) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                for index in 0..MAX_SCREENS as u32 {
+                    if shot_hwnd(index) != 0 {
+                        reveal_shot_sync(&owned, index);
+                    }
+                }
+                Err(err)
+            }
+        }
+    })?
 }
 
 #[tauri::command]
@@ -2123,7 +2386,8 @@ pub fn shot_grab(app: AppHandle, grab: ShotGrab) -> Result<(), String> {
     let y = css_to_physical(grab.y, grab.stage_height, screen.monitor_h);
     let width = css_to_physical(grab.width, grab.stage_width, screen.monitor_w);
     let height = css_to_physical(grab.height, grab.stage_height, screen.monitor_h);
-    let (x, y, width, height) = clamp_grab(screen.monitor_w, screen.monitor_h, x, y, width, height)?;
+    let (x, y, width, height) =
+        clamp_grab(screen.monitor_w, screen.monitor_h, x, y, width, height)?;
     #[cfg(windows)]
     hide_shot_sync(screen.index);
     let image = match capture_bgra(
@@ -2147,7 +2411,7 @@ pub fn shot_grab(app: AppHandle, grab: ShotGrab) -> Result<(), String> {
             index: screen.index,
             width: image.width,
             height: image.height,
-            pixels: image.pixels,
+            pixels: Arc::new(image.pixels),
         }),
     )?;
     #[cfg(windows)]
@@ -2162,6 +2426,7 @@ pub fn shot_grab(app: AppHandle, grab: ShotGrab) -> Result<(), String> {
             active: true,
             crop: true,
             backdrop: false,
+            generation: GENERATION.load(Ordering::SeqCst),
         },
     );
     crate::logging::info(format_args!(
@@ -2177,10 +2442,7 @@ pub fn shot_dismiss(app: AppHandle) {
 }
 
 #[tauri::command]
-pub fn shot_backdrop_hide() {
-    #[cfg(windows)]
-    crate::shot_native::release_hosts();
-}
+pub fn shot_backdrop_hide() {}
 
 #[tauri::command]
 pub fn shot_escape_ack(tick: u64) {
@@ -2189,6 +2451,10 @@ pub fn shot_escape_ack(tick: u64) {
 
 #[tauri::command]
 pub fn shot_frame(app: AppHandle, index: u32) -> Result<tauri::ipc::Response, String> {
+    let requested = elapsed_since_open();
+    shot_trace(format_args!(
+        "screenshot frame-request: {index} at {requested}ms"
+    ));
     let (width, height, pixels) = {
         let runtime = runtime(&app);
         let state = runtime.inner.lock().map_err(|err| err.to_string())?;
@@ -2198,9 +2464,22 @@ pub fn shot_frame(app: AppHandle, index: u32) -> Result<tauri::ipc::Response, St
             .iter()
             .find(|frame| frame.index == index && !frame.pixels.is_empty())
             .ok_or("找不到这一屏")?;
-        (frame.width, frame.height, frame.pixels.clone())
+        (frame.width, frame.height, Arc::clone(&frame.pixels))
     };
-    Ok(tauri::ipc::Response::new(bmp_file(width, height, &pixels)?))
+    shot_trace(format_args!(
+        "screenshot frame-bytes: {index} {} at {}ms",
+        pixels.len(),
+        elapsed_since_open()
+    ));
+    let pack_at = Instant::now();
+    let file = rgba_frame(width, height, &pixels)?;
+    let pack_ms = pack_at.elapsed().as_millis() as u64;
+    if index == ACTIVE_SCREEN.load(Ordering::SeqCst) {
+        let generation = GENERATION.load(Ordering::SeqCst);
+        span_update(generation, |span| span.pack_ms = pack_ms);
+    }
+    shot_trace(format_args!("screenshot frame-pack: {index} {pack_ms}ms"));
+    Ok(tauri::ipc::Response::new(file))
 }
 
 #[tauri::command]
@@ -2213,15 +2492,35 @@ pub fn shot_focus(window: WebviewWindow, index: u32) {
 }
 
 #[tauri::command]
-pub fn shot_ready(app: AppHandle, index: u32) {
-    let started = OPENED_AT.load(Ordering::SeqCst);
-    if started != 0 {
-        crate::logging::info(format_args!(
-            "screenshot frame ready: {index} in {}ms",
-            unix_ms().saturating_sub(started)
-        ));
+pub fn shot_ready(app: AppHandle, index: u32, generation: u64, bytes_ms: u64, decode_ms: u64) {
+    if generation == 0 || generation != GENERATION.load(Ordering::SeqCst) {
+        return;
+    }
+    let frame_ms = elapsed_since_open();
+    crate::logging::info(format_args!(
+        "screenshot frame ready: {index} in {frame_ms}ms"
+    ));
+    if index == ACTIVE_SCREEN.load(Ordering::SeqCst) {
+        span_update(generation, |span| {
+            span.frame_ms = frame_ms;
+            span.bytes_ms = bytes_ms;
+            span.decode_ms = decode_ms;
+        });
     }
     release_frame(&app, index);
+}
+
+#[tauri::command]
+pub fn shot_painted(index: u32, generation: u64, paint_ms: u64) {
+    if generation == 0 || generation != GENERATION.load(Ordering::SeqCst) {
+        return;
+    }
+    if index != ACTIVE_SCREEN.load(Ordering::SeqCst) {
+        shot_trace(format_args!("screenshot first-paint: {index} {paint_ms}ms"));
+        return;
+    }
+    note_active_ready(generation);
+    log_shot_summary(paint_ms);
 }
 
 fn release_frame(app: &AppHandle, index: u32) {
@@ -2233,23 +2532,105 @@ fn release_frame(app: &AppHandle, index: u32) {
         return;
     };
     if let Some(frame) = session.frames.iter_mut().find(|frame| frame.index == index) {
-        frame.pixels = Vec::new();
+        frame.pixels = Arc::new(Vec::new());
     }
+}
+
+#[tauri::command]
+pub async fn shot_ocr(png: String) -> Result<ocr::OcrOutcome, String> {
+    let started = Instant::now();
+    shot_trace(format_args!("screenshot ocr-start"));
+    let result = tauri::async_runtime::spawn_blocking(move || ocr::recognize_png(&png))
+        .await
+        .map_err(|_| "取字被打断".to_string())?;
+    crate::logging::info(format_args!(
+        "screenshot ocr-end: {}ms",
+        started.elapsed().as_millis()
+    ));
+    result
+}
+
+#[tauri::command]
+pub fn shot_copy_text(text: String) -> Result<(), String> {
+    ocr::copy_text(&text)
+}
+
+#[tauri::command]
+pub fn shot_ocr_settings() -> Result<(), String> {
+    ocr::open_language_settings()
+}
+
+#[tauri::command]
+pub fn shot_text_send(app: AppHandle, kind: String, text: String) -> Result<String, String> {
+    let text = ocr::clip_text(&text);
+    if text.is_empty() {
+        return Err("没有可保存的文字".into());
+    }
+    if kind != "note" && kind != "todo" {
+        return Err("不知道要把文字放到哪里".into());
+    }
+    #[cfg(windows)]
+    if in_shot_service() {
+        return daodian_shot::send_text(&kind, &text);
+    }
+    land_text(&app, &kind, &text)
+}
+
+pub(crate) fn land_text(app: &AppHandle, kind: &str, text: &str) -> Result<String, String> {
+    let text = ocr::clip_text(text);
+    if text.is_empty() {
+        return Err("没有可保存的文字".into());
+    }
+    let (id, message) = match kind {
+        "note" => crate::notes::from_capture(app, &text)?,
+        "todo" => crate::store::todos::from_capture(app, &text)?,
+        _ => return Err("不知道要把文字放到哪里".into()),
+    };
+    crate::logging::info(format_args!(
+        "shot text landed kind={kind} chars={}",
+        text.chars().count()
+    ));
+    crate::tray::show_main(app);
+    let _ = app.emit(
+        "shot-text-landed",
+        serde_json::json!({ "kind": kind, "id": id }),
+    );
+    Ok(message)
 }
 
 #[tauri::command]
 pub fn shot_copy(png: String) -> Result<(), String> {
-    if SAVING.load(Ordering::SeqCst) {
-        return Err("正在保存，请稍等".into());
-    }
-    copy_image(&decode_png(&png)?)
+    let started = Instant::now();
+    shot_trace(format_args!("screenshot copy-start"));
+    let result = (|| {
+        if SAVING.load(Ordering::SeqCst) {
+            return Err("正在保存，请稍等".into());
+        }
+        copy_image(&decode_png(&png)?)
+    })();
+    crate::logging::info(format_args!(
+        "screenshot copy-end: {}ms",
+        started.elapsed().as_millis()
+    ));
+    result
 }
 
 #[tauri::command]
 pub async fn shot_save(app: AppHandle, png: String) -> Result<ShotSaveResult, String> {
+    let started = Instant::now();
+    shot_trace(format_args!("screenshot save-start"));
     let image = decode_png(&png)?;
     let bytes = encode_png(&image)?;
-    save_with_dialog(&app, &bytes)
+    crate::logging::info(format_args!(
+        "screenshot save-prepare: {}ms",
+        started.elapsed().as_millis()
+    ));
+    let result = save_with_dialog(&app, &bytes);
+    crate::logging::info(format_args!(
+        "screenshot save-end: {}ms",
+        started.elapsed().as_millis()
+    ));
+    result
 }
 
 #[tauri::command]
@@ -2257,12 +2638,23 @@ pub async fn shot_save_bytes(
     app: AppHandle,
     request: tauri::ipc::Request<'_>,
 ) -> Result<ShotSaveResult, String> {
+    let started = Instant::now();
+    shot_trace(format_args!("screenshot save-start"));
     let bytes = match request.body() {
         tauri::ipc::InvokeBody::Raw(bytes) => bytes.as_slice(),
         tauri::ipc::InvokeBody::Json(_) => return Err("截图数据无效".into()),
     };
     validate_export_bytes(bytes)?;
-    save_with_dialog(&app, bytes)
+    crate::logging::info(format_args!(
+        "screenshot save-prepare: {}ms",
+        started.elapsed().as_millis()
+    ));
+    let result = save_with_dialog(&app, bytes);
+    crate::logging::info(format_args!(
+        "screenshot save-end: {}ms",
+        started.elapsed().as_millis()
+    ));
+    result
 }
 
 #[tauri::command]
@@ -2288,6 +2680,9 @@ pub async fn shot_pin(
     width: u32,
     height: u32,
 ) -> Result<usize, String> {
+    let started = Instant::now();
+    shot_trace(format_args!("screenshot pin-start"));
+    let _pin_timer = ActionEnd("pin", started);
     if SAVING.load(Ordering::SeqCst) {
         return Err("正在保存，请稍等".into());
     }
@@ -2419,6 +2814,28 @@ pub fn shot_pin_info(app: AppHandle, id: usize) -> Result<PinPayload, String> {
     })
 }
 
+/// 8 字节宽高加上自上而下的 RGBA。不再包一层 BMP。
+fn rgba_frame(width: u32, height: u32, bgra: &[u8]) -> Result<Vec<u8>, String> {
+    let pixels = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|count| count.checked_mul(4))
+        .ok_or("截图区域无效")?;
+    if pixels == 0 || bgra.len() != pixels || width > 16_000 || height > 16_000 {
+        return Err("截图区域无效".into());
+    }
+    let mut bytes = vec![0u8; 8 + pixels];
+    bytes[..4].copy_from_slice(&width.to_le_bytes());
+    bytes[4..8].copy_from_slice(&height.to_le_bytes());
+    for (src, dst) in bgra.chunks_exact(4).zip(bytes[8..].chunks_exact_mut(4)) {
+        dst[0] = src[2];
+        dst[1] = src[1];
+        dst[2] = src[0];
+        dst[3] = src[3];
+    }
+    Ok(bytes)
+}
+
+#[cfg(test)]
 fn bmp_file(width: u32, height: u32, bgra: &[u8]) -> Result<Vec<u8>, String> {
     let pixels = (width as usize)
         .checked_mul(height as usize)
