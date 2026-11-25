@@ -30,6 +30,8 @@ function fallbackSettings(): Settings {
       idleMaxSeconds: 28,
       followInput: true,
       showKeyNames: true,
+      interaction: "normal",
+      look: { hair: "none", hairColor: "ink", palette: "celadon" },
     },
     repeat: { defaultSkipWeekends: true, holidays: [], workdays: [] },
     workHours: {
@@ -110,6 +112,10 @@ async function load() {
         frames: readFrames(),
         weekTemplate: readLocal("daodian-week-report-template") || undefined,
       }).catch(() => loaded);
+      settings.value.pet.look ??= { hair: "none", hairColor: "ink", palette: "celadon" };
+      settings.value.pet.look.hair ??= "none";
+      settings.value.pet.look.hairColor ??= "ink";
+      settings.value.pet.look.palette ??= "celadon";
       error.value = "";
     } catch (cause) {
       // 浏览器预览和旧版后端继续使用 localStorage 兼容值。

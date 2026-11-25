@@ -674,7 +674,7 @@ checksum = "914a755b7c2d4af2bdcff7ce1739e2db9a1b81a9b07123d8015786ae03c0980d"
 
 [[package]]
 name = "daodian"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "arboard",
  "base64 0.22.1",
@@ -706,7 +706,7 @@ dependencies = [
 
 [[package]]
 name = "daodian-shot"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "arboard",
  "serde_json",
@@ -3593,7 +3593,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "shot-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "image",
  "serde",

@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder,
 };
@@ -17,6 +17,15 @@ pub struct PetRuntime {
     compact_position: Mutex<Option<PhysicalPosition<i32>>>,
     opens_right: Mutex<bool>,
     mode: Mutex<String>,
+    /// 字块在窗口里的 CSS 像素坐标，由前端约每 100ms 上报。
+    spots: Mutex<Vec<(f64, f64)>>,
+    /// 必须画出来的圈外形状。SetWindowRgn 会裁掉区域外的像素，所以字块和激光得并进来。
+    patches: Mutex<Vec<ScenePatch>>,
+    /// 窗口外框的物理屏幕坐标，和 scale 一起把光标换算进窗口。
+    origin: Mutex<(i32, i32)>,
+    scale: Mutex<f64>,
+    /// 已经并进点击区域的热区，物理像素，相对窗口。
+    hotspots: Mutex<Vec<(i32, i32, i32, i32)>>,
 }
 
 impl Default for PetRuntime {
@@ -25,6 +34,11 @@ impl Default for PetRuntime {
             compact_position: Mutex::new(None),
             opens_right: Mutex::new(false),
             mode: Mutex::new("compact".into()),
+            spots: Mutex::new(Vec::new()),
+            patches: Mutex::new(Vec::new()),
+            origin: Mutex::new((0, 0)),
+            scale: Mutex::new(0.0),
+            hotspots: Mutex::new(Vec::new()),
         }
     }
 }
@@ -124,7 +138,8 @@ fn create(app: &AppHandle, remembered: Option<(i32, i32)>) -> Result<tauri::Webv
         .map_err(|err| err.to_string())?;
     let runtime = app.state::<PetRuntime>();
     *runtime.opens_right.lock().map_err(|err| err.to_string())? = opens_right;
-    apply_hit_region(&window, "compact", opens_right)?;
+    apply_hit_region(&window, "compact", opens_right, &[], &[])?;
+    remember_frame(&window, &runtime);
     *runtime
         .compact_position
         .lock()
@@ -221,7 +236,148 @@ pub fn pet_set_mode(
         .ok_or_else(|| "桌面珠子窗口不存在".to_string())?;
     *runtime.mode.lock().map_err(|err| err.to_string())? = mode.clone();
     let opens_right = *runtime.opens_right.lock().map_err(|err| err.to_string())?;
-    apply_hit_region(&window, &mode, opens_right)
+    let hotspots = runtime.hotspots.lock().map_err(|err| err.to_string())?.clone();
+    let patches = runtime.patches.lock().map_err(|err| err.to_string())?.clone();
+    remember_frame(&window, &runtime);
+    apply_hit_region(&window, &mode, opens_right, &hotspots, &patches)
+}
+
+#[derive(Deserialize)]
+pub struct GlyphSpot {
+    x: f64,
+    y: f64,
+}
+
+/// 圈外要留下来的像素。坐标是窗口 CSS 像素。
+/// `rect` 用对角 (x,y)-(x2,y2)；`beam` 用两端；`disk` 用圆心和半径 x2。
+#[derive(Deserialize, Clone)]
+pub struct ScenePatch {
+    kind: String,
+    x: f64,
+    y: f64,
+    x2: f64,
+    y2: f64,
+}
+
+#[tauri::command]
+pub fn pet_set_hotspots(
+    app: AppHandle,
+    runtime: State<PetRuntime>,
+    spots: Vec<GlyphSpot>,
+    patches: Vec<ScenePatch>,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window("pet")
+        .ok_or_else(|| "桌面珠子窗口不存在".to_string())?;
+    remember_frame(&window, &runtime);
+    {
+        let mut guard = runtime.spots.lock().map_err(|err| err.to_string())?;
+        guard.clear();
+        for spot in spots.into_iter().take(16) {
+            guard.push((spot.x, spot.y));
+        }
+    }
+    let patches: Vec<ScenePatch> = patches.into_iter().take(64).collect();
+    *runtime.patches.lock().map_err(|err| err.to_string())? = patches.clone();
+    let hotspots = runtime.hotspots.lock().map_err(|err| err.to_string())?.clone();
+    let mode = runtime.mode.lock().map_err(|err| err.to_string())?.clone();
+    let opens_right = *runtime.opens_right.lock().map_err(|err| err.to_string())?;
+    apply_hit_region(&window, &mode, opens_right, &hotspots, &patches)
+}
+
+fn remember_frame(window: &tauri::WebviewWindow, runtime: &PetRuntime) {
+    if let Ok(pos) = window.outer_position() {
+        if let Ok(mut origin) = runtime.origin.lock() {
+            *origin = (pos.x, pos.y);
+        }
+    }
+    if let Ok(scale) = window.scale_factor() {
+        if let Ok(mut slot) = runtime.scale.lock() {
+            *slot = scale;
+        }
+    }
+}
+
+#[cfg(windows)]
+fn union_scene_patches(
+    region: windows_sys::Win32::Graphics::Gdi::HRGN,
+    scale: f64,
+    patches: &[ScenePatch],
+) {
+    use windows_sys::Win32::Graphics::Gdi::{
+        CombineRgn, CreateEllipticRgn, CreatePolygonRgn, CreateRectRgn, DeleteObject, ALTERNATE, RGN_OR,
+    };
+
+    let px = |value: f64| (value * scale).round() as i32;
+    for patch in patches.iter().take(64) {
+        let extra = match patch.kind.as_str() {
+            "rect" => {
+                let left = px(patch.x.min(patch.x2));
+                let top = px(patch.y.min(patch.y2));
+                let right = px(patch.x.max(patch.x2));
+                let bottom = px(patch.y.max(patch.y2));
+                if right <= left || bottom <= top {
+                    continue;
+                }
+                unsafe { CreateRectRgn(left, top, right, bottom) }
+            }
+            "disk" => {
+                let radius = px(patch.x2);
+                if radius <= 0 {
+                    continue;
+                }
+                let cx = px(patch.x);
+                let cy = px(patch.y);
+                unsafe { CreateEllipticRgn(cx - radius, cy - radius, cx + radius, cy + radius) }
+            }
+            "beam" => {
+                let half = ((7.0 * scale).round() as i32).max(4);
+                let points = beam_quad(px(patch.x), px(patch.y), px(patch.x2), px(patch.y2), half);
+                unsafe { CreatePolygonRgn(points.as_ptr(), 4, ALTERNATE) }
+            }
+            _ => continue,
+        };
+        if extra.is_null() {
+            continue;
+        }
+        unsafe {
+            CombineRgn(region, region, extra, RGN_OR);
+            DeleteObject(extra);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn beam_quad(x1: i32, y1: i32, x2: i32, y2: i32, half: i32) -> [windows_sys::Win32::Foundation::POINT; 4] {
+    use windows_sys::Win32::Foundation::POINT;
+
+    let dx = (x2 - x1) as f64;
+    let dy = (y2 - y1) as f64;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len < 1.0 {
+        return [
+            POINT { x: x1 - half, y: y1 - half },
+            POINT { x: x1 + half, y: y1 - half },
+            POINT { x: x1 + half, y: y1 + half },
+            POINT { x: x1 - half, y: y1 + half },
+        ];
+    }
+    let ux = dx / len;
+    let uy = dy / len;
+    let px = -uy * half as f64;
+    let py = ux * half as f64;
+    let ox = ux * half as f64;
+    let oy = uy * half as f64;
+    let ax = x1 as f64 - ox;
+    let ay = y1 as f64 - oy;
+    let bx = x2 as f64 + ox;
+    let by = y2 as f64 + oy;
+    [
+        POINT { x: (ax + px).round() as i32, y: (ay + py).round() as i32 },
+        POINT { x: (bx + px).round() as i32, y: (by + py).round() as i32 },
+        POINT { x: (bx - px).round() as i32, y: (by - py).round() as i32 },
+        POINT { x: (ax - px).round() as i32, y: (ay - py).round() as i32 },
+    ]
 }
 
 #[cfg(windows)]
@@ -229,6 +385,8 @@ fn apply_hit_region(
     window: &tauri::WebviewWindow,
     mode: &str,
     opens_right: bool,
+    hotspots: &[(i32, i32, i32, i32)],
+    patches: &[ScenePatch],
 ) -> Result<(), String> {
     use windows_sys::Win32::Graphics::Gdi::{
         CombineRgn, CreateEllipticRgn, CreateRectRgn, DeleteObject, RGN_OR, SetWindowRgn,
@@ -257,8 +415,8 @@ fn apply_hit_region(
         "hover" => Some((0.0, 160.0, WINDOW_WIDTH, WINDOW_HEIGHT)),
         "card" => Some((0.0, 16.0, WINDOW_WIDTH, 208.0)),
         "menu" => Some((0.0, 4.0, WINDOW_WIDTH, 208.0)),
-        // 有字块在飞时临时盖住 300×260 场景，打完回到珠子。
-        "effect" => Some((0.0, 40.0, WINDOW_WIDTH, WINDOW_HEIGHT)),
+        // 只有拖着字块时才盖住场景，松手立刻收回，避免平时吃掉桌面点击。
+        "drag" => Some((0.0, 40.0, WINDOW_WIDTH, WINDOW_HEIGHT)),
         _ => None,
     };
     if let Some((left, top, right, bottom)) = bounds {
@@ -277,6 +435,22 @@ fn apply_hit_region(
             }
         }
     }
+    for (left, top, right, bottom) in hotspots {
+        if *right <= *left || *bottom <= *top {
+            continue;
+        }
+        let patch = unsafe { CreateRectRgn(*left, *top, *right, *bottom) };
+        if patch.is_null() {
+            continue;
+        }
+        unsafe {
+            CombineRgn(region, region, patch, RGN_OR);
+            DeleteObject(patch);
+        }
+    }
+    // 字块、激光、墨点在珠子圆外。区域外的像素不会画出来，所以按它们的形状并进去，
+    // 而不是把整块场景打开——空白处仍然点得穿桌面。
+    union_scene_patches(region, scale, patches);
     if unsafe { SetWindowRgn(hwnd, region, 1) } == 0 {
         unsafe {
             DeleteObject(region);
@@ -292,8 +466,102 @@ fn apply_hit_region(
     _window: &tauri::WebviewWindow,
     _mode: &str,
     _opens_right: bool,
+    _hotspots: &[(i32, i32, i32, i32)],
+    _patches: &[ScenePatch],
 ) -> Result<(), String> {
     Ok(())
+}
+
+#[cfg(windows)]
+pub(crate) fn sync_pointer_hotspots(app: &AppHandle, sent: &mut Vec<(i32, i32, i32, i32)>) {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    let runtime = app.state::<PetRuntime>();
+    let scale = runtime.scale.lock().map(|slot| *slot).unwrap_or(0.0);
+    if scale < 0.5 {
+        return;
+    }
+    let origin = runtime.origin.lock().map(|slot| *slot).unwrap_or((0, 0));
+    let spots = runtime.spots.lock().map(|slot| slot.clone()).unwrap_or_default();
+    let mut cursor = POINT { x: 0, y: 0 };
+    if unsafe { GetCursorPos(&mut cursor) } == 0 {
+        return;
+    }
+    let cx = (cursor.x - origin.0) as f64 / scale;
+    let cy = (cursor.y - origin.1) as f64 / scale;
+    let mut ranked: Vec<(i64, f64, f64)> = spots
+        .iter()
+        .filter_map(|(x, y)| {
+            let dx = cx - *x;
+            let dy = cy - *y;
+            let dist = (dx * dx + dy * dy).sqrt();
+            (dist <= 20.0).then_some(((dist * 100.0) as i64, *x, *y))
+        })
+        .collect();
+    ranked.sort_by_key(|(dist, _, _)| *dist);
+    ranked.truncate(2);
+    let half = (20.0 * scale).round() as i32;
+    let next: Vec<(i32, i32, i32, i32)> = ranked
+        .iter()
+        .map(|(_, x, y)| {
+            let left = (*x * scale).round() as i32 - half;
+            let top = (*y * scale).round() as i32 - half;
+            (left, top, left + half * 2, top + half * 2)
+        })
+        .collect();
+    if next == *sent {
+        return;
+    }
+    *sent = next.clone();
+    let app_for_task = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let runtime = app_for_task.state::<PetRuntime>();
+        if let Ok(mut slot) = runtime.hotspots.lock() {
+            *slot = next.clone();
+        }
+        let Some(window) = app_for_task.get_webview_window("pet") else {
+            return;
+        };
+        let mode = runtime
+            .mode
+            .lock()
+            .map(|slot| slot.clone())
+            .unwrap_or_else(|_| "compact".into());
+        let opens_right = runtime.opens_right.lock().map(|slot| *slot).unwrap_or(false);
+        let patches = runtime.patches.lock().map(|slot| slot.clone()).unwrap_or_default();
+        let _ = apply_hit_region(&window, &mode, opens_right, &next, &patches);
+    });
+}
+
+#[cfg(windows)]
+pub(crate) fn clear_pointer_hotspots(app: &AppHandle) {
+    let runtime = app.state::<PetRuntime>();
+    if let Ok(mut spots) = runtime.spots.lock() {
+        spots.clear();
+    }
+    let empty = runtime.hotspots.lock().map(|slot| slot.is_empty()).unwrap_or(true);
+    if empty {
+        return;
+    }
+    let app_for_task = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let runtime = app_for_task.state::<PetRuntime>();
+        if let Ok(mut slot) = runtime.hotspots.lock() {
+            slot.clear();
+        }
+        let Some(window) = app_for_task.get_webview_window("pet") else {
+            return;
+        };
+        let mode = runtime
+            .mode
+            .lock()
+            .map(|slot| slot.clone())
+            .unwrap_or_else(|_| "compact".into());
+        let opens_right = runtime.opens_right.lock().map(|slot| *slot).unwrap_or(false);
+        let patches = runtime.patches.lock().map(|slot| slot.clone()).unwrap_or_default();
+        let _ = apply_hit_region(&window, &mode, opens_right, &[], &patches);
+    });
 }
 
 #[tauri::command]
@@ -316,7 +584,31 @@ pub fn pet_move_to(
         .compact_position
         .lock()
         .map_err(|err| err.to_string())? = Some(position);
+    remember_frame(&window, &runtime);
     Ok(())
+}
+
+/// 松手吸附：从当前窗口位置缓动到目标位置，最后一帧由调用方补精确值。
+/// 150ms / 九帧，够让 90–200px 的位移看起来是"滑过去"而不是"瞬移"。
+fn ease_position(
+    window: &tauri::WebviewWindow,
+    from: PhysicalPosition<i32>,
+    to: PhysicalPosition<i32>,
+    ms: u64,
+) {
+    let distance = ((to.x - from.x).abs() + (to.y - from.y).abs()) as f64;
+    if distance < 2.0 {
+        return;
+    }
+    let steps = (ms / 16).max(2) as i32;
+    for index in 1..=steps {
+        let t = index as f64 / steps as f64;
+        let eased = 1.0 - (1.0 - t).powi(3);
+        let x = from.x + (((to.x - from.x) as f64) * eased).round() as i32;
+        let y = from.y + (((to.y - from.y) as f64) * eased).round() as i32;
+        let _ = window.set_position(PhysicalPosition::new(x, y));
+        std::thread::sleep(Duration::from_millis(16));
+    }
 }
 
 #[tauri::command]
@@ -359,16 +651,21 @@ pub fn pet_snap(app: AppHandle, runtime: State<PetRuntime>) -> Result<PetLayout,
     };
     let opens_right = opens_right_at(&window, target)?;
     let scale = window.scale_factor().map_err(|err| err.to_string())?;
-    window
-        .set_position(window_origin(target, opens_right, scale))
-        .map_err(|err| err.to_string())?;
+    let to = window_origin(target, opens_right, scale);
+    if let Ok(from) = window.outer_position() {
+        ease_position(&window, from, to, 150);
+    }
+    window.set_position(to).map_err(|err| err.to_string())?;
     *runtime
         .compact_position
         .lock()
         .map_err(|err| err.to_string())? = Some(target);
     *runtime.opens_right.lock().map_err(|err| err.to_string())? = opens_right;
     let mode = runtime.mode.lock().map_err(|err| err.to_string())?.clone();
-    apply_hit_region(&window, &mode, opens_right)?;
+    let hotspots = runtime.hotspots.lock().map_err(|err| err.to_string())?.clone();
+    let patches = runtime.patches.lock().map_err(|err| err.to_string())?.clone();
+    remember_frame(&window, &runtime);
+    apply_hit_region(&window, &mode, opens_right, &hotspots, &patches)?;
     emit_layout(&app, opens_right);
     app.state::<SharedSettings>()
         .lock()

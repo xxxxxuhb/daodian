@@ -67,7 +67,7 @@ html.pin-host #app {
 .pet-progress-bg,
 .pet-progress {
   fill: none;
-  stroke: rgba(21, 99, 123, .18);
+  stroke: var(--pet-ring, rgba(21, 99, 123, .18));
   stroke-width: 1.5;
 }
 
@@ -89,7 +89,7 @@ html.pin-host #app {
 
 .pet-creature {
   transform-origin: 48px 52px;
-  animation: pet-breathe 3.6s ease-in-out infinite;
+  animation: pet-breathe var(--pulse-dur, 3.6s) ease-in-out infinite;
   transition: transform .18s cubic-bezier(.2, .9, .3, 1.25);
 }
 
@@ -101,7 +101,7 @@ html.pin-host #app {
 
 .pet-antenna {
   fill: none;
-  stroke: #15637b;
+  stroke: var(--pet-body, #15637b);
   stroke-width: 2.8;
   stroke-linecap: round;
   opacity: .55;
@@ -109,11 +109,12 @@ html.pin-host #app {
 
 .pet-tip,
 .pet-body {
-  fill: #15637b;
+  fill: var(--pet-body, #15637b);
 }
 
 .pet-tip {
   opacity: .78;
+  filter: drop-shadow(0 0 var(--tip-glow, 4px) var(--pet-halo, rgba(21, 99, 123, .35)));
 }
 
 .is-boom:not(.is-pressed):not(.is-pinched) .pet-creature {
@@ -125,18 +126,24 @@ html.pin-host #app {
   filter: drop-shadow(0 0 6px rgba(243, 193, 90, .95));
 }
 
-.is-slack:not(.is-pressed):not(.is-pinched) .pet-creature {
-  animation: pet-slack 1.4s cubic-bezier(.3, .7, .3, 1) forwards;
-}
-
-.is-slack .pet-antenna,
-.is-slack .pet-tip {
-  transform-origin: 48px 40px;
-  animation: pet-slack-antenna 1.4s ease-in-out forwards;
-}
-
 .is-still:not(.is-pressed):not(.is-pinched) .pet-creature {
   animation: pet-still .4s ease forwards;
+}
+
+/* 头发：本体之后、眼睛之前。发帽轻摆 3.6s。 */
+.pet-hair {
+  transform-origin: 48px 38px;
+  animation: pet-hair-sway 3.6s ease-in-out infinite;
+}
+
+.pet-hair path {
+  fill: var(--pet-hair, #0e1613);
+}
+
+.is-action-stamp .pet-hair,
+.is-action-shrink .pet-hair,
+.is-sleep .pet-hair {
+  animation: none;
 }
 
 .pet-eyes {
@@ -167,12 +174,24 @@ html.pin-host #app {
   --ink: #0e1613;
   --paper: #fafcfb;
   --glow: #b97818;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.is-sleep .pet-glyph {
+  pointer-events: none;
+  cursor: default;
 }
 
 .pet-glyph rect {
   fill: var(--paper);
   stroke: var(--ink);
   stroke-width: 1.1;
+}
+
+.pet-glyph rect.pet-glyph-hit {
+  fill: none;
+  stroke: none;
 }
 
 .pet-glyph text {
@@ -418,6 +437,132 @@ html.pin-host #app {
   animation: pet-hop .72s cubic-bezier(.2, .8, .3, 1) both;
 }
 
+.is-action-stamp:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-stamp .4s cubic-bezier(.2, .9, .3, 1.25) both;
+}
+
+.is-action-stamp .pet-progress,
+.is-action-stamp .pet-progress-bg {
+  transform-origin: 48px 52px;
+  animation: pet-ring-press .4s ease both;
+}
+
+.is-action-shrink:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-shrink .28s ease both;
+}
+
+.is-action-shrink .pet-eyes {
+  transform-origin: 48px 50px;
+  animation: pet-eye-pop .28s ease both;
+}
+
+.is-action-nibble .pet-tip {
+  fill: #f6d48a;
+  filter: drop-shadow(0 0 5px rgba(243, 193, 90, .95));
+}
+
+.is-action-flinch:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-flinch .06s ease both;
+}
+
+.is-action-fed:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-fed .28s cubic-bezier(.2, .9, .3, 1.25) both;
+}
+
+.is-action-puff:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-puff 1.1s ease both;
+}
+
+.is-action-puff .pet-progress-bg {
+  transform-origin: 48px 52px;
+  animation: pet-ring-bloom .6s ease .5s both;
+}
+
+.is-action-burp:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-slack .9s cubic-bezier(.3, .7, .3, 1) both;
+}
+
+.is-action-burp .pet-antenna,
+.is-action-burp .pet-tip {
+  transform-origin: 48px 40px;
+  animation: pet-slack-antenna .9s ease-in-out both;
+}
+
+/* —— 待机小动作 —— */
+.is-action-hop:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-hop-idle 1.1s cubic-bezier(.25, .8, .3, 1) both;
+}
+
+.is-action-hop .pet-antenna,
+.is-action-hop .pet-tip {
+  transform-origin: 48px 40px;
+  animation: pet-hop-antenna 1.1s ease-in-out both;
+}
+
+.is-action-look:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-look-body 1.7s ease-in-out both;
+}
+
+.is-action-look .pet-eyes {
+  animation: pet-look-eyes 1.7s ease-in-out both;
+}
+
+.is-action-nod:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-nod 1.2s ease-in-out both;
+}
+
+.is-action-sway:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-sway 2.4s ease-in-out both;
+}
+
+.is-action-shake:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-shake .7s cubic-bezier(.3, .8, .3, 1) both;
+}
+
+.is-action-shake .pet-antenna,
+.is-action-shake .pet-tip {
+  transform-origin: 48px 40px;
+  animation: pet-shake-antenna .7s ease-in-out both;
+}
+
+.is-action-sneeze:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-sneeze .9s cubic-bezier(.3, .1, .2, 1) both;
+}
+
+.is-action-sneeze .pet-antenna,
+.is-action-sneeze .pet-tip {
+  transform-origin: 48px 40px;
+  animation: pet-sneeze-antenna .9s ease-in-out both;
+}
+
+/* 松手吸附：天线朝空的一侧探一下，落定时压一下再回弹 */
+.is-snapped-left .pet-antenna,
+.is-snapped-left .pet-tip,
+.is-snapped-right .pet-antenna,
+.is-snapped-right .pet-tip {
+  transition: transform .18s ease-out;
+}
+
+.is-snapped-left .pet-antenna,
+.is-snapped-left .pet-tip {
+  transform: rotate(-9deg);
+}
+
+.is-snapped-right .pet-antenna,
+.is-snapped-right .pet-tip {
+  transform: rotate(9deg);
+}
+
+.is-snapped:not(.is-pressed):not(.is-pinched) .pet-creature {
+  animation: pet-land .34s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+
+@keyframes pet-land {
+  0% { transform: scale(1.04, .95); }
+  55% { transform: scale(.99, 1.01); }
+  100% { transform: scale(1); }
+}
+
 .pet-card {
   position: absolute;
   left: 4px;
@@ -623,7 +768,48 @@ html.pin-host #app {
 
 @keyframes pet-breathe {
   0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-2px) scale(1.025); }
+  50% { transform: translateY(-2px) scale(var(--pulse-amp, 1.02)); }
+}
+
+@keyframes pet-stamp {
+  0% { transform: scale(1); }
+  38% { transform: scale(1.2, .76); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pet-ring-press {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(.92); }
+}
+
+@keyframes pet-shrink {
+  0%, 100% { transform: scale(1); }
+  42% { transform: scale(.86); }
+}
+
+@keyframes pet-eye-pop {
+  0%, 100% { transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)) scale(1); }
+  40% { transform: translate(var(--eye-x, 0px), var(--eye-y, 0px)) scale(1.2); }
+}
+
+@keyframes pet-flinch {
+  50% { transform: scale(.96); }
+}
+
+@keyframes pet-fed {
+  40% { transform: scale(1.05); }
+}
+
+@keyframes pet-puff {
+  0% { transform: scale(1); }
+  27% { transform: scale(1.06); }
+  45% { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pet-ring-bloom {
+  from { opacity: .8; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.52); }
 }
 
 @keyframes pet-due {
@@ -686,6 +872,86 @@ html.pin-host #app {
   42% { transform: translateY(1px) scale(.98); }
 }
 
+@keyframes pet-hop-idle {
+  0%, 100% { transform: translateY(0) scale(1); }
+  10% { transform: translateY(1px) scale(1.05, .93); }
+  24% { transform: translateY(-7px) scale(.97, 1.04); }
+  38% { transform: translateY(0) scale(1.04, .95); }
+  52% { transform: translateY(-4px) scale(.98, 1.02); }
+  66% { transform: translateY(0) scale(1.02, .98); }
+  80% { transform: translateY(-1.4px) scale(1, 1); }
+}
+
+@keyframes pet-hop-antenna {
+  0%, 100% { transform: rotate(0); }
+  14% { transform: rotate(6deg); }
+  30% { transform: rotate(-7deg); }
+  44% { transform: rotate(4deg); }
+  58% { transform: rotate(-3deg); }
+  72% { transform: rotate(1.6deg); }
+}
+
+@keyframes pet-look-body {
+  0%, 100% { transform: rotate(0); }
+  18%, 42% { transform: rotate(-2.4deg); }
+  58%, 82% { transform: rotate(2.4deg); }
+}
+
+@keyframes pet-look-eyes {
+  0%, 8% { transform: translate(0, 0); }
+  18%, 42% { transform: translate(-3.2px, -.6px); }
+  58%, 82% { transform: translate(3.2px, -.4px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes pet-nod {
+  0%, 100% { transform: translateY(0) scale(1); }
+  22%, 34% { transform: translateY(2.6px) scale(1.02, .96); }
+  46%, 58% { transform: translateY(0) scale(1); }
+  70%, 80% { transform: translateY(2.2px) scale(1.02, .97); }
+}
+
+@keyframes pet-sway {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-2.6deg); }
+  75% { transform: rotate(2.6deg); }
+}
+
+@keyframes pet-shake {
+  0%, 100% { transform: rotate(0); }
+  12% { transform: rotate(-6deg); }
+  26% { transform: rotate(5deg); }
+  40% { transform: rotate(-4deg); }
+  54% { transform: rotate(3deg); }
+  68% { transform: rotate(-1.6deg); }
+  84% { transform: rotate(.8deg); }
+}
+
+@keyframes pet-shake-antenna {
+  0%, 100% { transform: rotate(0); }
+  16% { transform: rotate(-8deg); }
+  30% { transform: rotate(7deg); }
+  46% { transform: rotate(-5deg); }
+  62% { transform: rotate(3deg); }
+}
+
+@keyframes pet-sneeze {
+  0%, 100% { transform: translateY(0) scale(1); }
+  22% { transform: translateY(-1.6px) scale(.97, 1.05) rotate(-2deg); }
+  34% { transform: translateY(-2.2px) scale(.96, 1.06) rotate(-3deg); }
+  48% { transform: translateY(2.4px) scale(1.06, .92) rotate(2deg); }
+  62% { transform: translateY(0) scale(1.01, .99) rotate(1deg); }
+  78% { transform: translateY(0) scale(1); }
+}
+
+@keyframes pet-sneeze-antenna {
+  0%, 100% { transform: rotate(0); }
+  30% { transform: rotate(-6deg); }
+  48% { transform: rotate(14deg); }
+  64% { transform: rotate(-4deg); }
+  80% { transform: rotate(1.6deg); }
+}
+
 @keyframes pet-celebrate {
   0%, 100% { transform: rotate(0) scale(1); }
   45% { transform: rotate(360deg) scale(1.08); }
@@ -702,7 +968,13 @@ html.pin-host #app {
   28%, 72% { opacity: 1; transform: scale(1) rotate(90deg); }
 }
 
+@keyframes pet-hair-sway {
+  0%, 100% { transform: rotate(-1.4deg); }
+  50% { transform: rotate(1.4deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .pet-hair,
   .pet-creature,
   .pet-progress-bg,
   .pet-progress,

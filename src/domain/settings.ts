@@ -26,6 +26,12 @@ export interface Settings {
     idleMaxSeconds: number;
     followInput: boolean;
     showKeyNames: boolean;
+    interaction: "calm" | "normal" | "playful";
+    look: {
+      hair?: string | null;
+      hairColor?: string | null;
+      palette?: string | null;
+    };
   };
   repeat: {
     defaultSkipWeekends: boolean;

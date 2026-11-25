@@ -12,7 +12,7 @@ const CHROME = [
   "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
 ].find(existsSync);
 
-const SIZES = { "spec.html": [1400, 680], "overview.html": [1400, 660] };
+const SIZES = { "spec.html": [1400, 680], "overview.html": [1400, 660], "interact.html": [1400, 1480], "skins.html": [1400, 1442] };
 const targets = process.argv.slice(2);
 if (targets.length === 0) { console.error("usage: node render.mjs <file.html> ..."); process.exit(1); }
 

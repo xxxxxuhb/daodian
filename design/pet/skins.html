@@ -1,0 +1,324 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>到点 · 桌面珠子 · 皮肤与配件</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--acc:#15637B;--amber:#9C640E;--paper:#FDFEFD;--sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;--mono:Consolas,"Cascadia Mono",monospace}
+body{background:#0B0D10;color:#E7ECF2;font-family:var(--sans);padding:30px 34px 34px}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.head{display:flex;align-items:flex-end;gap:18px;margin-bottom:22px}
+.kicker{font-size:9.5px;letter-spacing:.24em;color:#59636E}
+h1{margin:7px 0 0;font-size:23px;font-weight:600;letter-spacing:-.01em}
+.head p{margin-left:auto;text-align:right;font-size:10.5px;color:#8B95A1;line-height:1.95}
+.head p b{color:#C3CCD6;font-weight:600}
+.rows{display:flex;flex-direction:column;gap:22px}
+.row{display:flex;gap:20px;align-items:flex-start}
+.cell{width:300px;flex:none}
+.card{width:620px;flex:none}
+.cell__t{display:flex;align-items:baseline;gap:8px;margin-bottom:9px;height:16px}
+.cell__t b{font-size:12px;font-weight:600;color:#E7ECF2}
+.cell__t em{font-style:normal;font-size:9px;letter-spacing:.14em;color:#59636E}
+.cell__t i{margin-left:auto;font-style:normal;font-size:9px;color:#6C7A87;font-family:var(--mono)}
+.cap{margin-top:9px;font-size:9.5px;line-height:1.7;color:#8B95A1}
+.cap b{color:#C3CCD6;font-weight:600}
+.desk{position:relative;width:300px;height:300px;border-radius:12px;overflow:hidden;border:1px solid #C9D6CF;
+  background:radial-gradient(125% 95% at 78% 4%,#D3E0DA 0%,#BBCFC7 32%,#A1B9AF 66%,#8AA79D 100%)}
+.desk.dim{background:radial-gradient(125% 95% at 78% 4%,#2C3A44 0%,#22303A 34%,#18242D 70%,#121C24 100%);border-color:#2A323C}
+.desk::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),inset 0 -22px 34px -22px rgba(21,99,123,.28)}
+.desk.dim::after{box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 -22px 34px -24px rgba(0,0,0,.6)}
+.pet{position:absolute;right:0;bottom:0;width:96px;height:96px;display:grid;place-items:center}
+.pet svg{width:92px;height:92px;overflow:visible}
+.zoom{position:absolute;inset:12px;display:grid;place-items:center}
+.zoom svg{width:276px;height:276px;overflow:visible}
+.rain{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.g rect{fill:var(--paper);stroke:#0E1613;stroke-width:1.15}
+.g text{fill:#0E1613;font-family:var(--mono);font-size:11px;font-weight:600;text-anchor:middle}
+
+/* 接触表 */
+.grid6{display:grid;grid-template-columns:repeat(6,96px);gap:14px 10px}
+.tile{width:96px}
+.tile__s{width:96px;height:96px;border-radius:9px;overflow:hidden;position:relative;
+  background:radial-gradient(120% 100% at 76% 8%,#DCE7E1 0%,#C4D6CE 42%,#A7BEB5 100%);border:1px solid #B9C9C1}
+.tile__s svg{width:96px;height:96px;display:block}
+.tile b{display:block;margin-top:5px;font-size:9.5px;font-weight:600;color:#D8E0E8}
+.tile span{display:block;font-size:7.5px;letter-spacing:.1em;color:#5E6A76;font-family:var(--mono)}
+.tile-note{margin-top:12px;font-size:9px;color:#6B7784;line-height:1.7}
+
+/* 技术卡 */
+.tech{border:1px solid #1C222A;border-radius:12px;background:#101419;padding:14px 16px}
+.tech h4{font-size:9.5px;letter-spacing:.18em;color:#59636E;font-weight:600;margin-bottom:8px}
+.tech p{font-size:9px;line-height:1.7;color:#8B95A1}
+
+/* 逐层 */
+.stack{display:flex;align-items:center;gap:0;margin-top:2px}
+.step{width:96px;text-align:center}
+.step + .step{margin-left:5px}
+.step__s{width:96px;height:96px;border-radius:9px;overflow:hidden;
+  background:radial-gradient(120% 100% at 76% 8%,#DCE7E1 0%,#C4D6CE 42%,#A7BEB5 100%)}
+.step__s svg{width:96px;height:96px;display:block}
+.plus{width:20px;text-align:center;color:#4E5B68;font-size:11px}
+.step b{display:block;margin-top:6px;font-size:9px;font-weight:600;color:#C3CCD6}
+.step i{display:block;font-style:normal;font-size:8px;color:#5E6A76;font-family:var(--mono)}
+.zlist{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px dashed #1A1F26}
+.zlist span{font-size:8.5px;color:#7C8B99;font-family:var(--mono)}
+.zlist b{color:#C3CCD6;font-weight:600}
+
+/* 设置 */
+.set{display:flex;gap:16px}
+.set__prev{width:170px;flex:none}
+.set__box{width:150px;height:150px;border-radius:10px;position:relative;overflow:hidden;
+  background:radial-gradient(120% 100% at 76% 6%,#DCE7E1 0%,#C4D6CE 42%,#A7BEB5 100%)}
+.set__box svg{position:absolute;right:0;bottom:0;width:92px;height:92px}
+.set__grid{flex:1}
+.tabs{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap}
+.tabs span{height:22px;padding:0 9px;border-radius:999px;border:1px solid #262E38;color:#8B95A1;font-size:9px;display:inline-flex;align-items:center}
+.tabs span.on{background:#1C2734;border-color:#3D6DCC;color:#DCE6F5}
+.opts{display:grid;grid-template-columns:repeat(6,44px);gap:8px}
+.opt{width:44px;height:44px;border-radius:8px;background:radial-gradient(120% 100% at 76% 8%,#DCE7E1 0%,#C4D6CE 45%,#A7BEB5 100%);position:relative;overflow:hidden;border:1px solid #2A333D}
+.opt svg{position:absolute;right:-14px;bottom:-12px;width:62px;height:62px}
+.opt.on{outline:2px solid #3D6DCC;outline-offset:1px}
+
+/* 页脚 */
+.foot{display:flex;gap:20px;margin-top:24px}
+.fcard{flex:1;border:1px solid #1C222A;border-radius:12px;background:#101419;padding:14px 16px}
+.fcard h4{font-size:9.5px;letter-spacing:.18em;color:#59636E;font-weight:600;margin-bottom:9px}
+.fcard table{width:100%;border-collapse:collapse;font-size:9.5px}
+.fcard td{padding:4px 0;border-top:1px dashed #1A1F26;color:#A9B4C2}
+.fcard tr:first-child td{border-top:0}
+.fcard td:first-child{color:#E7ECF2;font-weight:600;width:96px}
+.fcard li{list-style:none;font-size:9.5px;line-height:1.6;color:#A9B4C2;padding:3px 0 3px 12px;position:relative}
+.fcard li::before{content:"";position:absolute;left:0;top:9px;width:4px;height:4px;border-radius:50%;background:#3D6DCC}
+.fcard li b{color:#E7ECF2;font-weight:600}
+.sw{display:flex;gap:6px;margin-top:2px}
+.sw i{width:26px;height:26px;border-radius:7px;display:block;border:1px solid rgba(255,255,255,.08)}
+.sw div{text-align:center}
+.sw span{display:block;font-size:7px;color:#5E6A76;margin-top:3px;font-family:var(--mono)}
+</style></head><body>
+
+<svg class="sprite" aria-hidden="true"><defs>
+<g id="b-celadon"><circle cx="48" cy="52" r="25" fill="none" stroke="rgba(21,99,123,.22)" stroke-width="1.5"/><path d="M48 39.5V26.5" fill="none" stroke="#15637B" stroke-width="3" stroke-linecap="round" opacity=".72"/><circle cx="48" cy="24" r="3.5" fill="#15637B" opacity=".78"/><circle cx="48" cy="52" r="16" fill="#15637B"/><circle cx="42.5" cy="50" r="2.25" fill="#fff"/><circle cx="53.5" cy="50" r="2.25" fill="#fff"/></g>
+<g id="b-clay"><circle cx="48" cy="52" r="25" fill="none" stroke="rgba(150,88,56,.28)" stroke-width="1.5"/><path d="M48 39.5V26.5" fill="none" stroke="#C0704A" stroke-width="3" stroke-linecap="round" opacity=".75"/><circle cx="48" cy="24" r="3.5" fill="#C0704A" opacity=".8"/><circle cx="48" cy="52" r="16" fill="#C0704A"/><circle cx="42.5" cy="50" r="2.25" fill="#FFF6EC"/><circle cx="53.5" cy="50" r="2.25" fill="#FFF6EC"/></g>
+<g id="b-glow"><circle cx="48" cy="52" r="19" fill="rgba(127,209,200,.10)"/><circle cx="48" cy="52" r="25" fill="none" stroke="rgba(127,209,200,.3)" stroke-width="1.5"/><path d="M48 39.5V26.5" fill="none" stroke="#3E7E93" stroke-width="3" stroke-linecap="round" opacity=".8"/><circle cx="48" cy="24" r="3.5" fill="#7FD1C8" opacity=".9"/><circle cx="48" cy="52" r="16" fill="#17324F"/><circle cx="48" cy="52" r="16" fill="none" stroke="rgba(127,209,200,.22)" stroke-width="1"/><circle cx="42.5" cy="50" r="2.25" fill="#EAFBFF"/><circle cx="53.5" cy="50" r="2.25" fill="#EAFBFF"/></g>
+<g id="b-star"><circle cx="48" cy="52" r="25" fill="none" stroke="rgba(180,160,240,.25)" stroke-width="1.5"/><path d="M48 39.5V26.5" fill="none" stroke="#3B3260" stroke-width="3" stroke-linecap="round" opacity=".85"/><circle cx="48" cy="24" r="3.5" fill="#6E5FA8"/><circle cx="48" cy="52" r="16" fill="#2A2440"/><path d="M43 45.5l.9 1.8 1.8 .9-1.8 .9-.9 1.8-.9-1.8-1.8-.9 1.8-.9z" fill="#C9B8FF" opacity=".9"/><path d="M53 55l.7 1.4 1.4 .7-1.4 .7-.7 1.4-.7-1.4-1.4-.7 1.4-.7z" fill="#C9B8FF" opacity=".7"/><circle cx="44" cy="59" r=".9" fill="#C9B8FF" opacity=".8"/><circle cx="42.5" cy="50" r="2.25" fill="#F4EEFF"/><circle cx="53.5" cy="50" r="2.25" fill="#F4EEFF"/></g>
+<g id="b-water"><circle cx="48" cy="52" r="25" fill="none" stroke="rgba(21,99,123,.25)" stroke-width="1.5"/><path d="M48 39.5V26.5" fill="none" stroke="#1C6E86" stroke-width="3" stroke-linecap="round" opacity=".75"/><circle cx="48" cy="24" r="3.5" fill="#1C6E86" opacity=".8"/><circle cx="48" cy="52" r="16" fill="#1C6E86"/><path d="M36 56q4-2.2 8 0t8 0M38 61q3.5-1.8 7 0t7 0" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.2" stroke-linecap="round"/><circle cx="42.5" cy="50" r="2.25" fill="#fff"/><circle cx="53.5" cy="50" r="2.25" fill="#fff"/></g>
+<g id="b-paper"><circle cx="48" cy="52" r="25" fill="none" stroke="rgba(120,110,90,.3)" stroke-width="1.5"/><path d="M48 39.5V26.5" fill="none" stroke="#B6AA92" stroke-width="3" stroke-linecap="round" opacity=".9"/><circle cx="48" cy="24" r="3.5" fill="#CFC3A8"/><circle cx="48" cy="52" r="16" fill="#EFE7D8" stroke="#B6AA92" stroke-width="1"/><path d="M37 58q9-5 20-1" fill="none" stroke="rgba(14,22,19,.13)" stroke-width="1.1"/><circle cx="42.5" cy="50" r="2.25" fill="#0E1613"/><circle cx="53.5" cy="50" r="2.25" fill="#0E1613"/></g>
+
+<g id="a-ahoge"><path d="M43.5 37.5C41 31.5 36.8 29.4 35.8 23.2" fill="none" stroke="#0E1613" stroke-width="2.2" stroke-linecap="round"/></g>
+<g id="a-bob"><path d="M31.6 50A16.4 16.4 0 0 1 64.4 50Q62 45.2 56.6 43.4Q51 41.6 47.6 43.4Q42 46.4 36.8 44.2Q33.2 46 31.6 50Z" fill="#0E1613"/><path d="M31.6 50q-1.6 5.6 1.4 8.8" fill="none" stroke="#0E1613" stroke-width="2.4" stroke-linecap="round"/></g>
+<g id="a-braid"><path d="M31.6 50A16.4 16.4 0 0 1 64.4 50Q58 44 48 44Q38 44 31.6 50Z" fill="#0E1613"/><circle cx="32.8" cy="52.4" r="2.5" fill="#0E1613"/><circle cx="31.4" cy="57.6" r="2.2" fill="#0E1613"/><circle cx="31" cy="62.2" r="1.8" fill="#0E1613"/></g>
+<g id="a-antler"><path d="M42.6 36.6C40.6 30.5 35 28.4 34 22.6M37.8 27.2L32.6 25M53.4 36.6C55.4 30.5 61 28.4 62 22.6M58.2 27.2L63.4 25" fill="none" stroke="#D9C6A4" stroke-width="1.9" stroke-linecap="round"/></g>
+<g id="a-flag"><path d="M48 31.6L58.4 28.6 48 25.6Z" fill="#E0703C"/></g>
+<g id="a-bulb"><circle cx="48" cy="21" r="7" fill="rgba(240,196,106,.28)"/><path d="M43.8 23.2h8.4l-2.2-6h-4z" fill="#20303a"/></g>
+<g id="a-halo"><ellipse cx="48" cy="28.4" rx="12.6" ry="4.2" fill="none" stroke="#F0C46A" stroke-width="2"/><ellipse cx="48" cy="28.4" rx="12.6" ry="4.2" fill="none" stroke="#FFF3D2" stroke-width=".7" opacity=".9"/></g>
+<g id="a-moon"><path d="M34 25.6A7.4 7.4 0 1 0 34 40.4A8.4 8.4 0 1 1 34 25.6Z" fill="#F3D89A"/><path d="M34 25.6A7.4 7.4 0 0 1 38.6 38" fill="none" stroke="#FFF6DE" stroke-width=".7" opacity=".5"/></g>
+<g id="a-stars"><path d="M32 33l.8 1.6 1.6 .8-1.6 .8-.8 1.6-.8-1.6-1.6-.8 1.6-.8z" fill="#E8DCA8"/><path d="M64 30l.7 1.4 1.4 .7-1.4 .7-.7 1.4-.7-1.4-1.4-.7 1.4-.7z" fill="#E8DCA8" opacity=".8"/><circle cx="58" cy="24" r=".9" fill="#E8DCA8" opacity=".7"/></g>
+<g id="a-wing"><path d="M40.5 51C33 44.5 24 43.5 17.5 39.5 21 49 28.5 55.5 40 57Z" fill="#EDF3F1" stroke="#0E1613" stroke-width=".9"/><path d="M55.5 51C63 44.5 72 43.5 78.5 39.5 75 49 67.5 55.5 56 57Z" fill="#FFFFFF" stroke="#0E1613" stroke-width=".9"/><path d="M36 48.5L26 44.5M36 53L27 51.5" fill="none" stroke="#0E1613" stroke-width=".7" opacity=".3"/></g>
+<g id="a-bow"><path d="M36.5 38.6L29 34.4v8.4z" fill="#D4537E"/><path d="M36.5 38.6L44 34.4v8.4z" fill="#D4537E"/><circle cx="36.5" cy="38.6" r="1.7" fill="#B23A60"/></g>
+<g id="a-moss"><path d="M33 86q3-6 6.5 0q3.5-7 7 0q4-5.5 7.5 0q3-5 6 0" fill="none" stroke="#6FA36C" stroke-width="2.6" stroke-linecap="round"/></g>
+<g id="a-cloud"><ellipse cx="42" cy="86" rx="9" ry="3.6" fill="rgba(255,255,255,.62)"/><ellipse cx="54.5" cy="87" rx="7" ry="3" fill="rgba(255,255,255,.45)"/></g>
+<g id="a-firefly"><circle cx="148" cy="176" r="6" fill="rgba(240,220,140,.13)"/><circle cx="148" cy="176" r="1.6" fill="#F0DC8C"/><circle cx="206" cy="132" r="5" fill="rgba(240,220,140,.11)"/><circle cx="206" cy="132" r="1.3" fill="#F0DC8C"/><circle cx="116" cy="218" r="4.5" fill="rgba(240,220,140,.1)"/><circle cx="116" cy="218" r="1.1" fill="#F0DC8C"/></g>
+</defs></svg>
+
+<div class="head">
+  <div><div class="kicker">到点 · 桌面珠子 · 皮肤与配件</div><h1>珠子可以换衣服，但不能换掉自己</h1></div>
+  <p>本体永远是标志上那颗珠：材质 6 种、挂点 6 个、现成搭配 12 套<br>
+  <b>配件不出圈</b> · 全部落在 r40 内 · Rust 一行不用改</p>
+</div>
+
+<div class="rows">
+
+<!-- ================= 第一行 ================= -->
+<div class="row">
+
+  <div class="cell">
+    <div class="cell__t"><b>装上去</b><em>ON DESK</em><i>真尺寸</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <g class="g" transform="translate(126 74) rotate(-6)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">K</text></g>
+        <g class="g wide" transform="translate(198 56) rotate(5)"><rect x="-22" y="-11" width="44" height="22" rx="6"/><text y="4">Enter</text></g>
+      </svg>
+      <div class="pet"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-celadon"/><use href="#a-halo"/><use href="#a-moss"/></svg></div>
+    </div>
+    <p class="cap">桌面上的样子：<b>纸翼 + 光圈 + 苔藓</b>。配件全在本体周围，仍然只有珠子那一块能点。</p>
+  </div>
+
+  <div class="cell">
+    <div class="cell__t"><b>放大 3×</b><em>DETAIL</em><i>92 → 276</i></div>
+    <div class="desk">
+      <div class="zoom"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-celadon"/><use href="#a-halo"/><use href="#a-moss"/></svg></div>
+    </div>
+    <p class="cap">工艺都在这一层：纸翼的折痕、光圈的双线、苔藓的三段弧。<b>没有渐变，没有模糊</b>。</p>
+  </div>
+
+  <div class="card">
+    <div class="cell__t"><b>十二套现成的</b><em>LINEUP</em><i>96px 实际大小</i></div>
+    <div class="grid6">
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-celadon"/></svg></div><b>原味</b><span>DEFAULT</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-celadon"/><use href="#a-ahoge"/></svg></div><b>呆毛</b><span>HAIR</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-celadon"/><use href="#a-halo"/></svg></div><b>光圈</b><span>ORBIT</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-celadon"/></svg></div><b>纸翼</b><span>BACK</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-clay"/><use href="#a-bob"/></svg></div><b>侧分</b><span>CLAY · HAIR</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-glow"/><use href="#a-moon"/></svg></div><b>月相</b><span>GLOW · ORBIT</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-star"/></svg></div><b>星尘</b><span>STAR · BACK</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-water"/><use href="#a-moss"/></svg></div><b>苔藓</b><span>WATER · BASE</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-paper"/><use href="#a-flag"/></svg></div><b>旗子</b><span>PAPER · ANT</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-clay"/><use href="#a-antler"/></svg></div><b>鹿角</b><span>CLAY · HAIR</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-glow"/><use href="#a-stars"/></svg></div><b>小星</b><span>GLOW · ORBIT</span></div>
+      <div class="tile"><div class="tile__s"><svg viewBox="0 0 96 96"><use href="#b-star"/><use href="#a-halo"/><use href="#a-bow"/></svg></div><b>过节</b><span>STAR · 2 件</span></div>
+    </div>
+    <p class="tile-note">把这张图缩到 100% 看：<b>每一套都得在 96px 下认得出</b>。认不出的那一套就是该删的那一套。</p>
+  </div>
+
+</div>
+
+<!-- ================= 第二行 ================= -->
+<div class="row">
+
+  <div class="cell">
+    <div class="cell__t"><b>到点</b><em>DUE WINS</em><i>状态优先</i></div>
+    <div class="desk">
+      <div class="pet"><svg viewBox="0 0 96 96">
+        <use href="#a-wing"/>
+        <circle cx="48" cy="52" r="25" fill="none" stroke="rgba(156,100,14,.45)" stroke-width="2"/>
+        <path d="M48 39.5V26.5" fill="none" stroke="#9C640E" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+        <circle cx="48" cy="24" r="3.5" fill="#9C640E"/>
+        <circle cx="48" cy="52" r="16" fill="#9C640E"/>
+        <circle cx="42.5" cy="50" r="2.25" fill="#fff"/><circle cx="53.5" cy="50" r="2.25" fill="#fff"/>
+        <text x="57" y="28" font-family="Georgia,serif" font-size="13" fill="#9C640E">!</text>
+      </svg></div>
+    </div>
+    <p class="cap">到点、逾期：本体临时变琥珀，<b>材质让位</b>，配件照旧。提醒卡压在珠子上方，不被遮。</p>
+  </div>
+
+  <div class="cell">
+    <div class="cell__t"><b>深夜</b><em>NIGHT</em><i>发光变静态</i></div>
+    <div class="desk dim">
+      <svg class="rain" viewBox="0 0 300 300"><use href="#a-firefly"/></svg>
+      <div class="pet"><svg viewBox="0 0 96 96"><use href="#b-glow"/><use href="#a-moon"/></svg></div>
+    </div>
+    <p class="cap">22 点后：发光类降为静态，萤火只是三颗不动的光点。<b>睡着时全停</b>。</p>
+  </div>
+
+  <div class="cell">
+    <div class="cell__t"><b>收起</b><em>FOCUS</em><i>一件不留</i></div>
+    <div class="desk">
+      <div class="pet"><svg viewBox="0 0 96 96"><use href="#b-celadon"/></svg></div>
+    </div>
+    <p class="cap">专注 / 演示：一键回到裸珠。<b>裸珠永远是回得去的状态</b>，也是默认值。</p>
+  </div>
+
+  <div class="card" style="width:300px">
+    <div class="cell__t"><b>不出圈</b><em>BUDGET</em><i>r40</i></div>
+    <div class="tech" style="height:300px;position:relative">
+      <svg width="270" height="270" viewBox="0 0 96 96" style="position:absolute;left:15px;top:14px">
+        <rect x="0.6" y="0.6" width="94.8" height="94.8" rx="6" fill="none" stroke="#2A333D" stroke-dasharray="2 2.6"/>
+        <circle cx="48" cy="48" r="43" fill="none" stroke="#B97818" stroke-dasharray="3 2.4" stroke-width=".7"/>
+        <circle cx="48" cy="48" r="40" fill="rgba(21,99,123,.1)" stroke="rgba(21,99,123,.45)" stroke-width=".5"/>
+        <use href="#a-wing"/>
+        <use href="#b-celadon"/>
+        <use href="#a-halo"/>
+        <circle cx="60" cy="6" r="3.2" fill="none" stroke="#E9646B" stroke-width=".7" stroke-dasharray="1.4 1.2"/>
+        <path d="M60 9.4V14" stroke="#E9646B" stroke-width=".6"/>
+        <path d="M63 6.4L70 9" stroke="#E9646B" stroke-width=".5"/>
+        <text x="71" y="10.4" font-family="Consolas,monospace" font-size="3.2" fill="#C97A7E">被裁</text>
+      </svg>
+    </div>
+    <p class="cap" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span><i style="display:inline-block;width:14px;height:0;border-top:1px dashed #B97818;vertical-align:2px"></i> r43 窗口区域</span>
+      <span><i style="display:inline-block;width:14px;height:0;border-top:1px solid rgba(21,99,123,.6);vertical-align:2px"></i> r40 配件预算</span>
+      <span style="width:100%">SetWindowRgn 是<b>裁剪</b>不是遮罩：出圈的像素不是透明，是不存在。</span>
+    </p>
+  </div>
+
+</div>
+
+<!-- ================= 第三行 ================= -->
+<div class="row">
+
+  <div class="card">
+    <div class="cell__t"><b>一层一层加</b><em>STACK</em><i>7 层 z-index</i></div>
+    <div class="tech" style="padding:14px 16px 12px">
+      <div class="stack">
+        <div class="step"><div class="step__s"><svg viewBox="0 0 96 96"><use href="#b-celadon"/></svg></div><b>本体</b><i>body</i></div>
+        <div class="plus">+</div>
+        <div class="step"><div class="step__s"><svg viewBox="0 0 96 96"><use href="#b-star"/></svg></div><b>材质</b><i>body.z3</i></div>
+        <div class="plus">+</div>
+        <div class="step"><div class="step__s"><svg viewBox="0 0 96 96"><use href="#b-star"/><use href="#a-ahoge"/></svg></div><b>头发</b><i>hair.z4</i></div>
+        <div class="plus">+</div>
+        <div class="step"><div class="step__s"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-star"/><use href="#a-ahoge"/><use href="#a-halo"/></svg></div><b>背 + 环轨</b><i>back.z1 · orbit.z6</i></div>
+        <div class="plus">+</div>
+        <div class="step"><div class="step__s"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-star"/><use href="#a-ahoge"/><use href="#a-halo"/><use href="#a-moss"/></svg></div><b>底座</b><i>base.z7</i></div>
+      </div>
+      <div class="zlist"><span><b>z1</b> 背</span><span><b>z2</b> 环</span><span><b>z3</b> 材质</span><span><b>z4</b> 头发</span><span><b>z5</b> 天线</span><span><b>z6</b> 环轨</span><span><b>z7</b> 底座</span><span style="margin-left:auto;color:#4E5B68">同槽位互斥 · 最多 3 件</span></div>
+    </div>
+    <p class="cap">七层固定，配件只是往对应层里塞一个 <b>&lt;g&gt;</b>。环（z2）不参与换装——它表示时间。</p>
+  </div>
+
+  <div class="card">
+    <div class="cell__t"><b>设置</b><em>SETTINGS</em><i>抽屉里加一段</i></div>
+    <div class="tech" style="height:300px">
+      <div class="set">
+        <div class="set__prev">
+          <div class="set__box"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-celadon"/><use href="#a-halo"/></svg></div>
+          <span style="display:inline-flex;align-items:center;height:26px;margin-top:8px;padding:0 10px;border-radius:7px;background:#1C2734;border:1px solid #3D6DCC;color:#DCE6F5;font-size:9.5px">随机一套</span>
+        </div>
+        <div class="set__grid">
+          <div class="tabs"><span class="on">材质</span><span>头发</span><span>天线</span><span>环轨</span><span>背</span><span>底座</span></div>
+          <div class="opts">
+            <div class="opt on"><svg viewBox="0 0 96 96"><use href="#b-celadon"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-clay"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-glow"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-star"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-water"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-paper"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-celadon"/><use href="#a-ahoge"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-celadon"/><use href="#a-halo"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#a-wing"/><use href="#b-celadon"/></svg></div>
+            <div class="opt"><svg viewBox="0 0 96 96"><use href="#b-celadon"/><use href="#a-moss"/></svg></div>
+            <div class="opt" style="display:grid;place-items:center;color:#5E6A76;font-size:16px">×</div>
+            <div class="opt" style="display:grid;place-items:center;color:#5E6A76;font-size:9px">无</div>
+          </div>
+          <p style="margin-top:12px;font-size:9px;line-height:1.7;color:#6B7784">预览就是桌面上那颗，真尺寸 96。<br>换装立刻生效，没有过渡动画。</p>
+        </div>
+      </div>
+    </div>
+    <p class="cap">存在 <b>settings.json</b> 的 pet.look 里，六字段全可选；清空就是裸珠。</p>
+  </div>
+
+</div>
+</div>
+
+<div class="foot">
+  <div class="fcard">
+    <h4>怎么解锁 · 只挂已有的数据</h4>
+    <table>
+      <tr><td>捏 10 次</td><td>呆毛 · pet.pinches</td></tr>
+      <tr><td>连续 3 天完成</td><td>光圈 · todos.completedAt</td></tr>
+      <tr><td>22 点后用过 5 次</td><td>夜光 · 内存时段</td></tr>
+      <tr><td>完成第一份计划</td><td>纸翼 · plans</td></tr>
+      <tr><td>其余</td><td>设置里直接可选</td></tr>
+    </table>
+  </div>
+  <div class="fcard">
+    <h4>六种材质</h4>
+    <div class="sw">
+      <div><i style="background:#15637B"></i><span>青瓷</span></div>
+      <div><i style="background:#C0704A"></i><span>陶土</span></div>
+      <div><i style="background:#17324F"></i><span>夜光</span></div>
+      <div><i style="background:#2A2440"></i><span>星尘</span></div>
+      <div><i style="background:#1C6E86"></i><span>水波</span></div>
+      <div><i style="background:#EFE7D8"></i><span>纸糊</span></div>
+    </div>
+    <p style="margin-top:10px;font-size:9px;line-height:1.7;color:#8B95A1">眼睛颜色跟着材质走（白 / 墨 / 冷白）。到点时本体临时变琥珀 #9C640E，材质让位。</p>
+  </div>
+  <div class="fcard">
+    <h4>验收</h4>
+    <ul>
+      <li><b>96px 可读</b>：十二套并排都能叫出名字</li>
+      <li><b>不出圈</b>：包围盒 ≤ r40，git diff src-tauri 为空</li>
+      <li><b>状态优先</b>：到点琥珀、配件不变、卡不被遮</li>
+      <li><b>归零</b>：清空 look 与现在逐像素一致</li>
+    </ul>
+  </div>
+</div>
+
+</body></html>

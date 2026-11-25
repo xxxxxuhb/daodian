@@ -18,6 +18,7 @@ import { cloudStatusLabel, cloudSyncAgo, useCloud } from "../../data/useCloud";
 import { useSettings } from "../../data/useSettings";
 import { errorText } from "../../domain/feedback";
 import { repeatLabel } from "../../domain/repeat";
+import { HAIR_COLORS, HAIR_OPTIONS, PET_PALETTES } from "../pet/look";
 import type { Settings } from "../../domain/settings";
 
 const props = defineProps<{ open: boolean }>();
@@ -694,6 +695,37 @@ function sheetWithWidths(rows: Record<string, unknown>[], headers: string[]) {
             <span>显示按键名</span>
           </label>
           <p class="settings-note">只读取按下的键名，不读取输入内容。关闭按键名后只显示墨点。</p>
+          <label class="settings-field">
+            <span>互动</span>
+            <select v-model="draft.pet.interaction" :disabled="!draft.pet.enabled || !draft.pet.followInput">
+              <option value="calm">安静</option>
+              <option value="normal">平常</option>
+              <option value="playful">活泼</option>
+            </select>
+          </label>
+          <p class="settings-note">安静少触发，活泼更容易跟着节奏走。平常连打约 20 秒会慢下来。</p>
+          <label class="settings-field">
+            <span>配色</span>
+            <select v-model="draft.pet.look.palette" :disabled="!draft.pet.enabled">
+              <option v-for="palette in PET_PALETTES" :key="palette.id" :value="palette.id">{{ palette.name }}</option>
+            </select>
+          </label>
+          <label class="settings-field">
+            <span>发型</span>
+            <select v-model="draft.pet.look.hair" :disabled="!draft.pet.enabled">
+              <option v-for="hair in HAIR_OPTIONS" :key="hair.id" :value="hair.id">{{ hair.name }}</option>
+            </select>
+          </label>
+          <label class="settings-field">
+            <span>发色</span>
+            <select
+              v-model="draft.pet.look.hairColor"
+              :disabled="!draft.pet.enabled || draft.pet.look.hair === 'none'"
+            >
+              <option v-for="color in HAIR_COLORS" :key="color.id" :value="color.id">{{ color.name }}</option>
+            </select>
+          </label>
+          <p class="settings-note">只换样子，不影响提醒和互动。默认不戴。</p>
           <label class="settings-field">
             <span>最短间隔（秒）</span>
             <input v-model.number="draft.pet.idleMinSeconds" type="number" min="5" max="1800" step="1" />

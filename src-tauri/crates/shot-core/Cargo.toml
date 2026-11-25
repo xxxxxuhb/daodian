@@ -1,6 +1,6 @@
 [package]
 name = "shot-core"
-version = "0.4.0"
+version = "0.4.1"
 description = "到点截屏协议：主进程和 daodian-shot 共用"
 edition = "2024"
 publish = false

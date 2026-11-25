@@ -220,6 +220,7 @@ pub fn run() {
             backup::list_backups,
             backup::restore_backup,
             pet::pet_set_mode,
+            pet::pet_set_hotspots,
             pet::pet_layout,
             pet::pet_move_to,
             pet::pet_snap,

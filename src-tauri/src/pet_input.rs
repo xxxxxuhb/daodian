@@ -8,8 +8,12 @@ use crate::settings::SharedSettings;
 const POLL: Duration = Duration::from_millis(30);
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct PetKeyEvent {
     id: u64,
+    vk: u16,
+    edge: &'static str,
+    mods: u8,
     #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<&'static str>,
 }
@@ -34,6 +38,7 @@ fn run(app: AppHandle) {
     let mut down = [false; 256];
     let mut running = false;
     let mut next_id = 0u64;
+    let mut hotspots = Vec::new();
 
     loop {
         std::thread::sleep(POLL);
@@ -41,6 +46,10 @@ fn run(app: AppHandle) {
             if running {
                 running = false;
                 crate::logging::info(format_args!("输入跟随暂停"));
+            }
+            if !hotspots.is_empty() {
+                hotspots.clear();
+                crate::pet::clear_pointer_hotspots(&app);
             }
             continue;
         };
@@ -50,27 +59,56 @@ fn run(app: AppHandle) {
             crate::logging::info(format_args!("输入跟随启动"));
         }
 
-        let mut events = Vec::new();
+        let mut edges = Vec::new();
         for vk in 1u16..256 {
             let pressed = unsafe { GetAsyncKeyState(i32::from(vk)) } < 0;
             let was = down[vk as usize];
+            if pressed != was {
+                edges.push((vk, pressed));
+            }
             down[vk as usize] = pressed;
-            if !pressed || was {
+        }
+        let mods = modifier_bits(&down);
+        let mut events = Vec::new();
+        for (vk, pressed) in edges {
+            let label = key_label(vk);
+            if label.is_none() && !is_modifier(vk) {
                 continue;
             }
-            let Some(label) = key_label(vk) else {
-                continue;
-            };
-            next_id = next_id.saturating_add(1);
+            let mut id = 0;
+            if pressed && !is_modifier(vk) {
+                next_id = next_id.saturating_add(1);
+                id = next_id;
+            }
             events.push(PetKeyEvent {
-                id: next_id,
-                label: gate.show_names.then_some(label),
+                id,
+                vk,
+                edge: if pressed { "down" } else { "up" },
+                mods,
+                label: if is_modifier(vk) {
+                    None
+                } else {
+                    gate.show_names.then_some(label).flatten()
+                },
             });
         }
         for event in events {
             let _ = app.emit_to("pet", "pet-key", event);
         }
+        crate::pet::sync_pointer_hotspots(&app, &mut hotspots);
     }
+}
+
+fn is_modifier(vk: u16) -> bool {
+    // 0x10 / 0x11 是左右键的汇总，和 0xA0..=0xA3 会同时按下。只听左右键，避免一次按出两块。
+    matches!(vk, 0x10 | 0x11 | 0x12 | 0x5B | 0x5C | 0xA4 | 0xA5)
+}
+
+fn modifier_bits(down: &[bool; 256]) -> u8 {
+    let shift = down[0x10] || down[0xA0] || down[0xA1];
+    let ctrl = down[0x11] || down[0xA2] || down[0xA3];
+    let alt = down[0x12] || down[0xA4] || down[0xA5];
+    u8::from(shift) | (u8::from(ctrl) << 1) | (u8::from(alt) << 2)
 }
 
 #[cfg(windows)]
@@ -113,7 +151,8 @@ pub(crate) fn key_label(vk: u16) -> Option<&'static str> {
         0x08 => Some("Bksp"),
         0x09 => Some("Tab"),
         0x0D => Some("Enter"),
-        0x11 => Some("Ctrl"),
+        0x10 | 0xA0 | 0xA1 => Some("Shift"),
+        0x11 | 0xA2 | 0xA3 => Some("Ctrl"),
         0x12 => Some("Alt"),
         0x13 => Some("Pause"),
         0x14 => Some("Caps"),
@@ -165,9 +204,25 @@ mod tests {
         assert_eq!(key_label(0x20), Some("Space"));
         assert_eq!(key_label(0x0D), Some("Enter"));
         assert_eq!(key_label(0x70), Some("F1"));
-        assert_eq!(key_label(0x10), None);
+        assert_eq!(key_label(0x10), Some("Shift"));
+        assert_eq!(key_label(0xA0), Some("Shift"));
+        assert_eq!(key_label(0xA1), Some("Shift"));
+        assert_eq!(key_label(0x11), Some("Ctrl"));
+        assert_eq!(key_label(0xA2), Some("Ctrl"));
+        assert_eq!(key_label(0xA3), Some("Ctrl"));
         assert_eq!(key_label(0x01), None);
         assert_eq!(key_label(0x02), None);
-        assert_eq!(key_label(0xA0), None);
+    }
+
+    #[test]
+    fn modifiers_do_not_become_glyphs() {
+        assert!(super::is_modifier(0x10));
+        assert!(super::is_modifier(0x11));
+        assert!(!super::is_modifier(0xA0));
+        assert!(!super::is_modifier(0xA2));
+        assert!(super::is_modifier(0x12));
+        assert!(super::is_modifier(0xA4));
+        assert!(!super::is_modifier(0x41));
+        assert!(!super::is_modifier(0x20));
     }
 }

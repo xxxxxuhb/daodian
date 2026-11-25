@@ -206,6 +206,8 @@ cargo check --tests
 - [design/logo/README.md](design/logo/README.md) —— 标志的概念、构造、尺寸与用法
 - [design/notify/方案.md](design/notify/方案.md) —— 提醒方案：系统通知、珠子落盘、打扰预算
 - [design/pet/sheet.html](design/pet/sheet.html) —— 桌面珠子的状态与交互
+- [design/pet/互动方案.md](design/pet/互动方案.md) —— 珠子接键盘之后的互动：节奏调度、键位人格、心率与热区
+- [design/pet/皮肤方案.md](design/pet/皮肤方案.md) —— 皮肤与配件：六种材质、六个挂点、十二套搭配、r40 预算
 - [design/history/方案.md](design/history/方案.md) —— 版本历史与回滚
 - [design/notes/方案.md](design/notes/方案.md) —— 备忘录
 - [design/notes/云同步方案.md](design/notes/云同步方案.md) —— Gitee 私有库同步

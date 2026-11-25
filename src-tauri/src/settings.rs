@@ -52,6 +52,15 @@ impl Default for Settings {
     }
 }
 
+/// 珠子的外观。每个槽位一个 id，空表示不戴；渲染只在页面上做，Rust 只负责存。
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PetLook {
+    pub hair: Option<String>,
+    pub hair_color: Option<String>,
+    pub palette: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PetSettings {
@@ -68,6 +77,9 @@ pub struct PetSettings {
     pub follow_input: bool,
     #[serde(default = "default_true")]
     pub show_key_names: bool,
+    #[serde(default = "default_interaction")]
+    pub interaction: String,
+    pub look: PetLook,
 }
 
 fn default_true() -> bool {
@@ -82,6 +94,10 @@ fn default_idle_max_seconds() -> u32 {
     28
 }
 
+fn default_interaction() -> String {
+    "normal".into()
+}
+
 impl Default for PetSettings {
     fn default() -> Self {
         Self {
@@ -94,6 +110,8 @@ impl Default for PetSettings {
             idle_max_seconds: default_idle_max_seconds(),
             follow_input: true,
             show_key_names: true,
+            interaction: default_interaction(),
+            look: PetLook::default(),
         }
     }
 }
@@ -204,6 +222,9 @@ fn validate_pet_idle(settings: &PetSettings) -> Result<(), String> {
     }
     if settings.idle_max_seconds > 30 * 60 {
         return Err("随机动画最长间隔不能超过 30 分钟".into());
+    }
+    if !matches!(settings.interaction.as_str(), "calm" | "normal" | "playful") {
+        return Err("珠子互动档位不正确".into());
     }
     Ok(())
 }
@@ -1041,6 +1062,7 @@ mod tests {
         assert_eq!(legacy.idle_min_seconds, 12);
         assert!(legacy.follow_input);
         assert!(legacy.show_key_names);
+        assert_eq!(legacy.interaction, "normal");
         assert!(validate_pet_idle(&legacy).is_ok());
 
         let mut too_short = PetSettings::default();

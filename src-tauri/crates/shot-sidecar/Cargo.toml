@@ -1,6 +1,6 @@
 [package]
 name = "daodian-shot"
-version = "0.4.0"
+version = "0.4.1"
 description = "到点截屏 sidecar"
 edition = "2024"
 publish = false

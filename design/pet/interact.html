@@ -1,0 +1,454 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>到点 · 桌面珠子 · 输入互动</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0E1613;--ink2:#47564F;--ink3:#74847C;--acc:#15637B;--amber:#9C640E;--paper:#FDFEFD;
+  --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --mono:Consolas,"Cascadia Mono",monospace;
+}
+body{background:#0B0D10;color:#E7ECF2;font-family:var(--sans);padding:30px 34px 34px}
+.head{display:flex;align-items:flex-end;gap:18px;margin-bottom:22px}
+.kicker{font-size:9.5px;letter-spacing:.24em;color:#59636E}
+h1{margin:7px 0 0;font-size:23px;font-weight:600;letter-spacing:-.01em}
+.head p{margin-left:auto;text-align:right;font-size:10.5px;color:#8B95A1;line-height:1.95}
+.head p b{color:#C3CCD6;font-weight:600}
+
+.rows{display:flex;flex-direction:column;gap:22px}
+.row{display:flex;gap:20px;align-items:flex-start}
+.cell{width:300px;flex:none}
+.cell__t{display:flex;align-items:baseline;gap:8px;margin-bottom:9px;height:16px}
+.cell__t b{font-size:12px;font-weight:600;color:#E7ECF2}
+.cell__t em{font-style:normal;font-size:9px;letter-spacing:.14em;color:#59636E}
+.cell__t i{margin-left:auto;font-style:normal;font-size:9px;color:#6C7A87;font-family:var(--mono)}
+.cap{margin-top:9px;font-size:9.5px;line-height:1.7;color:#8B95A1}
+.cap b{color:#C3CCD6;font-weight:600}
+.cap code{font-family:var(--mono);font-size:9px;color:#9FB0BE}
+
+/* 桌面 */
+.desk{position:relative;width:300px;height:300px;border-radius:12px;overflow:hidden;border:1px solid #C9D6CF;
+  background:radial-gradient(125% 95% at 78% 4%,#D3E0DA 0%,#BBCFC7 32%,#A1B9AF 66%,#8AA79D 100%)}
+.desk::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75),inset 0 -22px 34px -22px rgba(21,99,123,.28)}
+.rain{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.rain *{pointer-events:none}
+
+/* 字块 */
+.g rect{fill:var(--paper);stroke:#0E1613;stroke-width:1.15}
+.g text{fill:#0E1613;font-family:var(--mono);font-size:11px;font-weight:600;text-anchor:middle}
+.g.wide text{font-size:7.2px}
+.g.target{filter:drop-shadow(0 0 4px rgba(185,120,24,.6))}
+.g.faint{opacity:.5}
+
+/* 激光 / 爆点 / 波 */
+.beam-glow{stroke:#E7B05A;stroke-width:3.2;stroke-linecap:round;opacity:.45}
+.beam-core{stroke:#FFF3E2;stroke-width:.95;stroke-linecap:round;opacity:.95}
+.beam-core.bold{stroke-width:1.5}
+.beam-glow.bold{stroke-width:5;opacity:.4}
+.burst-ring{fill:none;stroke:#B97818;stroke-width:1.1}
+.burst-dot{fill:#9A5F10}
+.impact{fill:none;stroke:#9A5F10;stroke-width:.9;opacity:.5}
+.wave-fill{fill:rgba(243,193,90,.16)}
+.wave-ring{fill:none;stroke:#E0A83E;stroke-width:2.6}
+.breath{fill:none;stroke:rgba(21,99,123,.16);stroke-width:1.2;stroke-dasharray:3 5}
+
+/* 珠子：尺寸结构照搬 PetApp.vue / pet.css */
+.pet{position:absolute;right:0;bottom:0;width:96px;height:96px;display:grid;place-items:center}
+.art{width:92px;height:92px;overflow:visible;filter:drop-shadow(0 6px 7px rgba(12,20,17,.18))}
+.ring{fill:none;stroke:rgba(21,99,123,.32);stroke-width:1.5}
+.ring.amber{stroke:rgba(156,100,14,.6);stroke-width:2.2}
+.ant{fill:none;stroke:var(--acc);stroke-width:3;stroke-linecap:round;opacity:.72}
+.tip{fill:var(--acc);opacity:.78}
+.body{fill:var(--acc)}
+.eyes circle{fill:#fff}
+.ground{position:absolute;left:31px;bottom:7px;width:34px;height:5px;border-radius:50%;background:rgba(12,20,17,.2);filter:blur(1px)}
+.crea-origin{transform-origin:48px 52px}
+
+/* 气泡 */
+.bubble{position:absolute;right:44px;bottom:76px;padding:7px 10px;border-radius:9px;background:rgba(12,20,17,.92);color:#EAF2ED;
+  font-size:10.5px;white-space:nowrap;box-shadow:0 10px 22px -12px rgba(0,0,0,.6)}
+.bubble::after{content:"";position:absolute;right:52px;bottom:-4px;width:8px;height:8px;background:rgba(12,20,17,.92);transform:rotate(45deg)}
+.bubble b{color:#F0C089;font-weight:600;font-family:var(--mono)}
+
+/* 热区卡 */
+.card{width:620px;flex:none;height:100%}
+.card__body{display:flex;gap:22px;border:1px solid #1C222A;border-radius:12px;background:#101419;padding:16px 18px;height:300px}
+.schema{width:262px;flex:none;position:relative}
+.rules{flex:1;display:flex;flex-direction:column;gap:0}
+.rules h4{font-size:9.5px;letter-spacing:.18em;color:#59636E;font-weight:600;margin-bottom:4px}
+.rules .r{display:flex;gap:8px;font-size:10px;line-height:1.65;color:#A9B4C2;padding:5px 0;border-bottom:1px dashed #1A1F26}
+.rules .r:last-child{border-bottom:0}
+.rules .r b{flex:none;width:58px;color:#E7ECF2;font-weight:600}
+
+/* 页脚 */
+.foot{display:flex;gap:20px;margin-top:24px}
+.fcard{flex:1;border:1px solid #1C222A;border-radius:12px;background:#101419;padding:14px 16px}
+.fcard h4{font-size:9.5px;letter-spacing:.18em;color:#59636E;font-weight:600;margin-bottom:9px}
+.fcard table{width:100%;border-collapse:collapse;font-size:9.5px}
+.fcard th{text-align:left;font-weight:600;color:#59636E;font-size:8.5px;letter-spacing:.1em;padding:0 0 6px}
+.fcard td{padding:4px 0;border-top:1px dashed #1A1F26;color:#A9B4C2;vertical-align:top}
+.fcard td:first-child{color:#E7ECF2;font-weight:600;white-space:nowrap;padding-right:8px}
+.fcard pre{font-family:var(--mono);font-size:9px;line-height:1.75;color:#A9B4C2;white-space:pre}
+.fcard pre b{color:#E7ECF2;font-weight:600}
+.fcard pre i{color:#5C6B78;font-style:normal}
+.fcard li{list-style:none;font-size:9.5px;line-height:1.6;color:#A9B4C2;padding:4px 0 4px 12px;position:relative;border-top:1px dashed #1A1F26}
+.fcard li:first-child{border-top:0}
+.fcard li::before{content:"";position:absolute;left:0;top:10px;width:4px;height:4px;border-radius:50%;background:#3D6DCC}
+.fcard li b{color:#E7ECF2;font-weight:600}
+</style></head><body>
+
+<div class="head">
+  <div><div class="kicker">到点 · 桌面珠子 · 输入互动 v2</div><h1>不只是射击：让每一键都有回应</h1></div>
+  <p>三种已有的大招改成由节奏触发，再加五个只用现有像素的互动<br>
+  <b>珠子本身一个像素不改</b> · 300 × 300 透明窗，珠子 96 锚定右下</p>
+</div>
+
+<div class="rows">
+
+<!-- ========== 第一行：基线 + 键位人格 ========== -->
+<div class="row">
+
+  <!-- 1 基线 -->
+  <div class="cell">
+    <div class="cell__t"><b>打字</b><em>BASELINE</em><i>150ms</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <g class="g" transform="translate(106 128) rotate(5)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">A</text></g>
+        <g class="g wide" transform="translate(226 100) rotate(4)"><rect x="-22" y="-11" width="44" height="22" rx="6"/><text y="4">Enter</text></g>
+        <line class="beam-glow" x1="252" y1="229" x2="150" y2="64"/>
+        <line class="beam-core" x1="252" y1="229" x2="150" y2="64"/>
+        <circle class="impact" cx="150" cy="64" r="6"/>
+        <circle class="burst-dot" cx="159" cy="56" r="1.5"/><circle class="burst-dot" cx="143" cy="54" r="1.2"/>
+        <circle class="burst-dot" cx="161" cy="70" r="1.2"/><circle class="burst-dot" cx="141" cy="74" r="1.4"/>
+        <circle class="burst-dot" cx="151" cy="48" r="1.2"/><circle class="burst-dot" cx="148" cy="80" r="1.1"/>
+        <g class="g target" transform="translate(150 64) rotate(-6)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">K</text></g>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <g class="crea-origin">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="3.5"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(-2.4px,-2px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap">每敲一键落一块；眼睛先看过去，尖端 0.2s 拉一条激光，<b>字块炸成 6 颗小点</b>。</p>
+  </div>
+
+  <!-- 2 Bksp -->
+  <div class="cell">
+    <div class="cell__t"><b>Bksp 回收</b><em>ABSORB</em><i>320ms</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <path d="M190 124 Q 254 152 251 222" fill="none" stroke="#B97818" stroke-width=".9" stroke-dasharray="3 4" opacity=".5"/>
+        <circle class="burst-dot" cx="207" cy="141" r="1.1" opacity=".55"/>
+        <circle class="burst-dot" cx="222" cy="158" r="1.1" opacity=".45"/>
+        <circle class="burst-dot" cx="235" cy="176" r="1.1" opacity=".35"/>
+        <g class="g faint" transform="translate(170 100) rotate(12) scale(.96)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">K</text></g>
+        <g class="g" transform="translate(190 124) rotate(24) scale(.8)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">K</text></g>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <g class="crea-origin">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="4.4"/>
+          <circle cx="48" cy="24" r="9" fill="rgba(185,120,24,.14)"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(2.4px,-1.4px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap"><b>不炸，吃掉</b>：最近一块沿弧线缩回尖端，中途缩小旋转；只吃已落定的块。</p>
+  </div>
+
+  <!-- 3 Enter -->
+  <div class="cell">
+    <div class="cell__t"><b>Enter 盖章</b><em>STAMP</em><i>400ms</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <g class="g" transform="translate(118 74) rotate(-8)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">S</text></g>
+        <path d="M100 68 l-5 -3 M100 80 l-5 3" stroke="#0E1613" stroke-width=".9" opacity=".3" stroke-linecap="round"/>
+        <g class="g" transform="translate(94 126) rotate(6)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">T</text></g>
+        <path d="M76 120 l-5 -3 M76 132 l-5 3" stroke="#0E1613" stroke-width=".9" opacity=".3" stroke-linecap="round"/>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <circle cx="48" cy="52" r="23" fill="rgba(21,99,123,.07)" stroke="#0B4E62" stroke-width="2.2" opacity=".8"/>
+        <ellipse cx="48" cy="88" rx="30" ry="4.4" fill="rgba(12,20,17,.16)"/>
+        <ellipse cx="48" cy="85" rx="39" ry="3.4" fill="none" stroke="rgba(21,99,123,.42)" stroke-width="1.1"/>
+        <g class="crea-origin" style="transform:translate(0,4px) scale(1.2,.76)">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="3.5"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(0,-1px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap"><b>沉一下</b>：珠体 scale(1.2,.76)，环 25→23 再弹回；全场字块 ±2px 震一下。</p>
+  </div>
+
+  <!-- 4 Space -->
+  <div class="cell">
+    <div class="cell__t"><b>Space 吹散</b><em>PUFF</em><i>600ms</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <defs><linearGradient id="wind" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".55" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity=".8"/></linearGradient></defs>
+        <path d="M246 236 q -84 -2 -140 -26" fill="none" stroke="url(#wind)" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M246 246 q -92 4 -150 -14" fill="none" stroke="url(#wind)" stroke-width="1.8" stroke-linecap="round" opacity=".8"/>
+        <path d="M238 226 q -60 -8 -96 -28" fill="none" stroke="url(#wind)" stroke-width="1.4" stroke-linecap="round" opacity=".7"/>
+        <g class="g wide faint" transform="translate(126 58) rotate(-14)"><rect x="-22" y="-11" width="44" height="22" rx="6"/><text y="4">Space</text></g>
+        <g class="g faint" transform="translate(88 96) rotate(-22)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">W</text></g>
+        <path d="M108 90 l22 -1 M110 102 l18 1" stroke="#0E1613" stroke-width="1" opacity=".18" stroke-linecap="round"/>
+        <g class="g faint" transform="translate(70 132) rotate(-30)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">D</text></g>
+        <path d="M90 128 l24 -1 M92 140 l20 1" stroke="#0E1613" stroke-width="1" opacity=".15" stroke-linecap="round"/>
+        <g class="g faint" transform="translate(104 166) rotate(-26)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">E</text></g>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <g class="crea-origin">
+          <g style="transform-origin:48px 40px;transform:rotate(-6deg)">
+            <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="3.5"/>
+          </g>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(2.6px,1px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap"><b>一口横风</b>：天线朝左压 6°，字块 vx −180 推向左下并淡出；只推不炸。</p>
+  </div>
+
+</div>
+
+<!-- ========== 第二行：心率 + 蓄力 + 收工 ========== -->
+<div class="row">
+
+  <!-- 5 心率慢 -->
+  <div class="cell">
+    <div class="cell__t"><b>心率 · 慢</b><em>PULSE 3/s</em><i>呼吸 3.0s</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <path class="breath" d="M214 178 q38 -22 0 -44"/>
+        <path class="breath" d="M224 186 q50 -30 0 -60" opacity=".6"/>
+        <g class="g" transform="translate(120 140) rotate(5)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">M</text></g>
+        <line class="beam-glow" x1="252" y1="229" x2="170" y2="90"/>
+        <line class="beam-core" x1="252" y1="229" x2="170" y2="90"/>
+        <g class="g target" transform="translate(170 90) rotate(-4)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">N</text></g>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <g class="crea-origin">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="3.5"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(-1.6px,-1.2px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap">3 键/秒 → 呼吸 3.0s、尖端余晖 5px、发射间隔 140ms。<b>呼吸是它的情绪</b>。</p>
+  </div>
+
+  <!-- 6 心率快 -->
+  <div class="cell">
+    <div class="cell__t"><b>心率 · 快</b><em>PULSE 11/s</em><i>呼吸 1.5s</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <g class="g" transform="translate(96 118) rotate(-10)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">J</text></g>
+        <g class="g" transform="translate(150 152) rotate(8)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">F</text></g>
+        <g class="g wide" transform="translate(196 176) rotate(-4)"><rect x="-22" y="-11" width="44" height="22" rx="6"/><text y="4">Tab</text></g>
+        <line class="beam-glow" x1="252" y1="229" x2="120" y2="58"/>
+        <line class="beam-core" x1="252" y1="229" x2="120" y2="58"/>
+        <line class="beam-glow" x1="252" y1="229" x2="218" y2="104"/>
+        <line class="beam-core" x1="252" y1="229" x2="218" y2="104"/>
+        <circle class="impact" cx="120" cy="58" r="7"/>
+        <circle class="impact" cx="218" cy="104" r="5.5"/>
+        <circle class="burst-dot" cx="226" cy="97" r="1.3"/><circle class="burst-dot" cx="210" cy="96" r="1.1"/>
+        <circle class="burst-dot" cx="228" cy="112" r="1.1"/>
+        <circle class="burst-dot" cx="129" cy="49" r="1.5"/><circle class="burst-dot" cx="112" cy="47" r="1.2"/>
+        <circle class="burst-dot" cx="131" cy="65" r="1.2"/><circle class="burst-dot" cx="110" cy="69" r="1.3"/>
+        <g class="g target" transform="translate(120 58) rotate(-6)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">G</text></g>
+        <g class="g target" transform="translate(218 104) rotate(5)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">Q</text></g>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <circle cx="42" cy="52" r="16" fill="none" stroke="rgba(21,99,123,.13)" stroke-width="1.4"/>
+        <circle cx="54" cy="52" r="16" fill="none" stroke="rgba(21,99,123,.13)" stroke-width="1.4"/>
+        <g class="crea-origin" style="transform:scale(1.03)">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="4"/>
+          <circle cx="48" cy="24" r="8" fill="rgba(185,120,24,.18)"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(-2.6px,-1.6px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap">11 键/秒 → 呼吸 1.5s、余晖 9px、间隔压到 110ms。<b>停手 4 秒线性回落</b>，不跳变。</p>
+  </div>
+
+  <!-- 7 蓄力 -->
+  <div class="cell">
+    <div class="cell__t"><b>蓄力穿透</b><em>CHARGE</em><i>松手 280ms</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <path d="M150 120 L 248 222" stroke="rgba(156,100,14,.4)" stroke-width=".9"/>
+        <path d="M186 178 L 249 226" stroke="rgba(156,100,14,.32)" stroke-width=".9"/>
+        <path d="M122 152 L 246 230" stroke="rgba(156,100,14,.26)" stroke-width=".9"/>
+        <g class="g" transform="translate(210 64) rotate(4)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">H</text></g>
+        <g class="g" transform="translate(140 96) rotate(-5)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">Y</text></g>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25.5" stroke-dasharray="2 5" opacity=".35"/>
+        <circle cx="48" cy="52" r="21" fill="rgba(21,99,123,.08)" stroke="#0B4E62" stroke-width="2.6"/>
+        <g class="crea-origin">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="4.6"/>
+          <circle cx="48" cy="24" r="14" fill="rgba(185,120,24,.09)"/>
+          <circle cx="48" cy="24" r="8" fill="rgba(185,120,24,.16)"/>
+          <circle cx="48" cy="24" r="3.6" fill="#B97818"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(-1.4px,-2.4px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap">按住 Ctrl/Shift ≥240ms：环 25→21 加深，尖端发热长到 4.6。<b>松手穿 3 块</b>，2.4s 封顶。</p>
+  </div>
+
+  <!-- 8 收工 -->
+  <div class="cell">
+    <div class="cell__t"><b>收工 · 消化</b><em>SETTLE</em><i>停手 6s</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <path d="M150 140 Q 210 172 250 222" fill="none" stroke="#B97818" stroke-width=".9" stroke-dasharray="3 5" opacity=".4"/>
+        <path d="M176 168 Q 220 186 250 224" fill="none" stroke="#B97818" stroke-width=".9" stroke-dasharray="3 5" opacity=".3"/>
+        <path d="M196 192 Q 228 206 251 226" fill="none" stroke="#B97818" stroke-width=".9" stroke-dasharray="3 5" opacity=".22"/>
+        <circle class="burst-dot" cx="214" cy="196" r="1" opacity=".5"/><circle class="burst-dot" cx="232" cy="208" r="1" opacity=".4"/>
+        <g class="g faint" transform="translate(150 140) rotate(8) scale(.66)" opacity=".8"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">R</text></g>
+        <g class="g faint" transform="translate(176 168) rotate(-6) scale(.56)" opacity=".62"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">U</text></g>
+        <g class="g faint" transform="translate(196 192) rotate(12) scale(.46)" opacity=".45"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">I</text></g>
+      </svg>
+      <div class="bubble">刚才 12 分钟 · <b>640</b> 下</div>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle cx="48" cy="52" r="36" fill="none" stroke="rgba(21,99,123,.22)" stroke-width="1.2"/>
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <g class="crea-origin" style="transform:scale(1.06)">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="3.5"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(-1.8px,-1.2px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap">剩下的收回尖端，珠子鼓起再落；<b>环外扩一圈淡墨</b>。悬停才报这一句，4 秒消失。</p>
+  </div>
+
+</div>
+
+<!-- ========== 第三行：手动参与 + 热区 ========== -->
+<div class="row">
+
+  <!-- 9 点掉 -->
+  <div class="cell">
+    <div class="cell__t"><b>自己点掉</b><em>CATCH</em><i>命中 18px</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <circle class="impact" cx="166" cy="92" r="11"/>
+        <circle class="burst-dot" cx="154" cy="82" r="1.4"/><circle class="burst-dot" cx="180" cy="80" r="1.2"/>
+        <circle class="burst-dot" cx="178" cy="104" r="1.2"/><circle class="burst-dot" cx="152" cy="102" r="1.1"/>
+        <g class="g" transform="translate(166 92) rotate(3)">
+          <rect x="-11" y="-11" width="22" height="22" rx="6"/>
+          <text y="4">P</text>
+          <path d="M-3 -7 L1 -1 L-2 2 L3 7" fill="none" stroke="#0E1613" stroke-width=".9" opacity=".55"/>
+        </g>
+        <path d="M0 0 L0 12.5 L3.3 9.8 L5.3 14.2 L7.6 13.1 L5.6 8.9 L9.8 8.7 Z" fill="#0E1613" stroke="#FDFEFD" stroke-width=".9" transform="translate(176 106) scale(1.3)"/>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <g class="crea-origin" style="transform:scale(.97)">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="3.5"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(-3px,-2.6px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap">指针探进 18px 才开热区；打掉一个墨爆，珠体缩 60ms——<b>像被抢了</b>。</p>
+  </div>
+
+  <!-- 10 喂食 -->
+  <div class="cell">
+    <div class="cell__t"><b>拖去喂它</b><em>FEED</em><i>连喂 5 块</i></div>
+    <div class="desk">
+      <svg class="rain" viewBox="0 0 300 300">
+        <path d="M198 206 Q 226 222 244 240" fill="none" stroke="#B97818" stroke-width=".9" stroke-dasharray="3 5" opacity=".5"/>
+        <g class="g" transform="translate(198 206) rotate(-8) scale(.9)"><rect x="-11" y="-11" width="22" height="22" rx="6"/><text y="4">Z</text></g>
+        <path d="M0 0 L0 12.5 L3.3 9.8 L5.3 14.2 L7.6 13.1 L5.6 8.9 L9.8 8.7 Z" fill="#0E1613" stroke="#FDFEFD" stroke-width=".9" transform="translate(208 214) scale(1.3)"/>
+        <circle cx="252" cy="256" r="30" fill="none" stroke="rgba(185,120,24,.3)" stroke-width="1.1"/>
+      </svg>
+      <div class="pet"><svg class="art" viewBox="0 0 96 96">
+        <circle class="ring" cx="48" cy="52" r="25"/>
+        <g class="crea-origin" style="transform:scale(1.05)">
+          <path class="ant" d="M48 39.5V26.5"/><circle class="tip" cx="48" cy="24" r="3.5"/>
+          <circle class="body" cx="48" cy="52" r="16"/>
+          <g class="eyes" style="transform:translate(-2.4px,-1px)"><circle cx="42.5" cy="50" r="2.25"/><circle cx="53.5" cy="50" r="2.25"/></g>
+        </g></svg><span class="ground"></span></div>
+    </div>
+    <p class="cap">拖到珠子上松手＝吃掉；喂到 5 块<b>打个饱嗝</b>（轻 slack 0.9s）。</p>
+  </div>
+
+  <!-- 11 热区 -->
+  <div class="card">
+    <div class="cell__t"><b>热区怎么开</b><em>HOTSPOT</em><i>30ms 轮询</i></div>
+    <div class="card__body">
+      <div class="schema">
+        <svg width="262" height="262" viewBox="0 0 262 262">
+          <rect x="6" y="6" width="250" height="250" rx="10" fill="rgba(21,99,123,.05)" stroke="#2A333D" stroke-dasharray="4 4"/>
+          <ellipse cx="200" cy="204" rx="44" ry="44" fill="rgba(21,99,123,.15)" stroke="#4E8BA3" stroke-dasharray="3 3"/>
+          <rect x="86" y="62" width="40" height="40" rx="8" fill="rgba(185,120,24,.13)" stroke="#B97818" stroke-dasharray="3 3"/>
+          <rect x="140" y="112" width="40" height="40" rx="8" fill="rgba(185,120,24,.09)" stroke="#B97818" stroke-dasharray="3 3" opacity=".6"/>
+          <path d="M152 54 L 118 80" stroke="#5F7183" stroke-width=".9"/>
+          <path d="M134 244 L 162 228" stroke="#5F7183" stroke-width=".9"/>
+          <text x="9" y="20" font-size="9" fill="#7C8B99" font-family="Consolas,monospace">窗口 300 × 300</text>
+          <text x="154" y="52" font-size="8.5" fill="#C9A66C" font-family="Consolas,monospace">40 × 40 热区</text>
+          <text x="9" y="248" font-size="8.5" fill="#7FB4C8" font-family="Consolas,monospace">珠子 96 · 常驻可点</text>
+        </svg>
+      </div>
+      <div class="rules">
+        <h4>只在手伸过去时接管</h4>
+        <div class="r"><b>扫描</b><span>30ms 循环里读 GetCursorPos，前端每 100ms 上报字块的屏幕坐标</span></div>
+        <div class="r"><b>判定</b><span>只保留距指针 &lt; 18px 的<b>最多 2 块</b>，生成 40×40 矩形</span></div>
+        <div class="r"><b>合并</b><span>矩形并进 SetWindowRgn；指针离开即撤回，其余完全穿透</span></div>
+        <div class="r"><b>修 bug</b><span>现在 effect 模式把整块场景并进窗口，打字时会吃掉桌面点击——这里一并修掉</span></div>
+        <div class="r"><b>边界</b><span>深夜睡着、卡片/菜单打开、拖拽珠子时不开放</span></div>
+      </div>
+    </div>
+    <p class="cap">不常驻、不扩大：<b>手不靠近，桌面就是桌面</b>。热区只在有字块时存在，最多两块。</p>
+  </div>
+
+</div>
+</div>
+
+<!-- ========== 页脚 ========== -->
+<div class="foot">
+
+  <div class="fcard">
+    <h4>什么时候放哪种 · 由节奏决定，不掷骰子</h4>
+    <table>
+      <tr><th>状态</th><th>判据</th><th>反应</th></tr>
+      <tr><td>打字</td><td>rate ≤ 4</td><td>一发一块</td></tr>
+      <tr><td>连发</td><td>≥4 键/秒 · 12s</td><td>间隔 150 → 110ms</td></tr>
+      <tr><td>爆发</td><td>1.5s 内 12 键</td><td>冲击波 · 冷却 90s</td></tr>
+      <tr><td>心流</td><td>连发 40s 且节奏稳</td><td>时滞 · 冷却 120s</td></tr>
+      <tr><td>泄气</td><td>停 6s · 还剩 ≥4 块</td><td>松劲 · 冷却 60s</td></tr>
+      <tr><td>收工</td><td>停 6s · 还剩 1–3 块</td><td>吸收 · 冷却 12s</td></tr>
+    </table>
+  </div>
+
+  <div class="fcard">
+    <h4>要加的字段 · pet_input.rs</h4>
+    <pre>PetKeyEvent {
+  <b>id</b>:    1287,
+  <b>vk</b>:    0x08,        <i>// 物理键码</i>
+  <b>label</b>: "Bksp",      <i>// 关掉键名时 null</i>
+  <b>edge</b>:  "down",      <i>// 新增 up</i>
+  <b>mods</b>:  0b0011,      <i>// Ctrl | Shift</i>
+  <b>t</b>:     18432,       <i>// 相对毫秒</i>
+}</pre>
+    <pre style="margin-top:6px"><i>// 修饰键不落字块，改驱动蓄力</i></pre>
+  </div>
+
+  <div class="fcard">
+    <h4>验收</h4>
+    <ul>
+      <li><b>形象</b>：与 pet-sheet.png 逐像素一致，只多字块、激光、波</li>
+      <li><b>因果</b>：连打 20s 必出时滞；1.5s 12 键必出冲击波</li>
+      <li><b>心率</b>：10 键/秒呼吸 ≈1.5s；停手 4s 回到 3.6s</li>
+      <li><b>热区</b>：指针离字块 &gt;40px 时，场景对桌面完全穿透</li>
+      <li><b>性能</b>：20 键/秒 ≥55fps；无输入 0 帧</li>
+    </ul>
+  </div>
+
+</div>
+
+</body></html>

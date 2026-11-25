@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { savePlan, saveTodo, setStageDone, setTodoDone } from "../../api/library";
 import { useLibrary } from "../../data/useLibrary";
 import { useSettings } from "../../data/useSettings";
@@ -10,6 +10,8 @@ import { clockTime, relative, upcoming } from "../../domain/present";
 import { REMINDER_SETTLED, reminderStillPending, type ReminderSettled } from "../../domain/reminderSync";
 import type { Settings } from "../../domain/settings";
 import { usePetShots } from "./usePetShots";
+import PetLook from "./PetLook.vue";
+import { petPalette } from "./look";
 
 interface PetItem {
   key: string;
@@ -46,11 +48,33 @@ type PetAction =
   | "roll"
   | "peek"
   | "startled"
-  | "celebrate";
+  | "celebrate"
+  | "stamp"
+  | "shrink"
+  | "nibble"
+  | "flinch"
+  | "fed"
+  | "puff"
+  | "burp"
+  | "hop"
+  | "look"
+  | "nod"
+  | "sway"
+  | "shake"
+  | "sneeze";
 
-const COMMON_ACTIONS: PetAction[] = ["tilt", "yawn", "antenna", "tap"];
-const RARE_ACTIONS: PetAction[] = ["stretch", "roll", "peek", "startled"];
+const COMMON_ACTIONS: PetAction[] = ["tilt", "yawn", "antenna", "tap", "look", "nod", "sway"];
+const RARE_ACTIONS: PetAction[] = ["stretch", "roll", "peek", "startled", "hop", "shake", "sneeze"];
 const RARE_COOLDOWN = 3 * 60_000;
+// 动作时长要和 pet.css 里的 animation-duration 对上，否则类名会早摘或晚摘。
+const ACTION_MS: Partial<Record<PetAction, number>> = {
+  peek: 2_000,
+  look: 1_700,
+  sway: 2_400,
+  hop: 1_100,
+  shake: 700,
+  sneeze: 900,
+};
 
 const { todos, plans, reload } = useLibrary();
 const { settings, load: loadSettings } = useSettings();
@@ -64,6 +88,7 @@ const activeReminder = ref<PetItem | null>(null);
 const wheelBase = ref<number | null>(null);
 const wheelOffset = ref(0);
 const moving = ref(false);
+const snapped = ref<"" | "left" | "right">("");
 const hopping = ref(false);
 const blinking = ref(false);
 const action = ref<PetAction | "">("");
@@ -81,6 +106,7 @@ let randomTimer = 0;
 let blinkTimer = 0;
 let actionTimer = 0;
 let hopTimer = 0;
+let snapTimer = 0;
 let rareAvailableAt = 0;
 let recentActions: PetAction[] = [];
 let completionBaseline: number | null = null;
@@ -105,12 +131,23 @@ const next = computed<PetItem | null>(() => {
 const item = computed(() => activeReminder.value ?? next.value);
 const followInput = computed(() => settings.value.pet.followInput !== false);
 const stageRight = shallowRef(new URLSearchParams(location.search).get("stage") === "right");
-const shots = usePetShots(followInput, stageRight);
 const night = computed(() => {
   const hour = new Date(now.value).getHours();
   return hour >= 22 || hour < 8;
 });
+const shotGate = computed(() => ({
+  hovered: hovered.value,
+  blocked: panel.value !== "none",
+  night: night.value,
+}));
+const interaction = computed(() => settings.value.pet.interaction || "normal");
+const shots = usePetShots(followInput, stageRight, shotGate, interaction);
 const sleeping = computed(() => night.value && !shots.engaged.value);
+const rainEl = useTemplateRef<SVGSVGElement>("rain");
+const anchorEl = useTemplateRef<HTMLElement>("anchor");
+let drag: { id: number; x: number; y: number; moved: number } | null = null;
+let spotTimer = 0;
+let spotKey = "";
 const isDue = computed(() => item.value != null && item.value.at <= now.value);
 const isSoon = computed(() => {
   const delta = (item.value?.at ?? Infinity) - now.value;
@@ -122,10 +159,11 @@ const mode = computed(() => {
   if (action.value === "peek") return "hover";
   return hovered.value ? "hover" : "compact";
 });
+const dragging = shallowRef(false);
 const hitMode = computed(() => {
   if (panel.value === "card") return "card";
   if (panel.value === "menu") return "menu";
-  if (shots.shooting.value) return "effect";
+  if (dragging.value) return "drag";
   if (hovered.value || action.value === "peek") return "hover";
   return "compact";
 });
@@ -149,10 +187,17 @@ const completedCount = computed(
     todos.value.filter((todo) => todo.done).length +
     plans.value.flatMap((plan) => plan.stages).filter((stage) => stage.done).length,
 );
+const palette = computed(() => petPalette(settings.value.pet.look?.palette));
 const petStyle = computed(() => ({
+  "--pet-body": palette.value.body,
+  "--pet-ring": palette.value.ring,
+  "--pet-halo": palette.value.halo,
   "--ring-offset": `${157 * (1 - ringProgress.value)}`,
   "--eye-x": eyesOpen.value ? `${shots.eye.value.x.toFixed(2)}px` : "0px",
   "--eye-y": eyesOpen.value ? `${shots.eye.value.y.toFixed(2)}px` : "0px",
+  "--pulse-dur": `${shots.pulse.value.dur.toFixed(2)}s`,
+  "--pulse-amp": shots.pulse.value.amp.toFixed(3),
+  "--tip-glow": `${shots.pulse.value.glow.toFixed(1)}px`,
 }));
 
 watch(hitMode, (value) => {
@@ -236,7 +281,7 @@ async function runRandomAction() {
   const choices = available.length ? available : source;
   const selected = choices[Math.floor(Math.random() * choices.length)] ?? "tilt";
   if (useRare) rareAvailableAt = Date.now() + RARE_COOLDOWN;
-  playAction(selected, selected === "peek" ? 2_000 : 1_200);
+  playAction(selected, ACTION_MS[selected] ?? 1_200);
 }
 
 function playAction(name: PetAction, duration = 1_200) {
@@ -257,21 +302,160 @@ function interruptAction() {
   scheduleRandomAction();
 }
 
+watch(
+  () => shots.cue.value,
+  (next) => {
+    if (!next) return;
+    if (next.name === "hop") {
+      interruptAction();
+      startHop(next.ms);
+      return;
+    }
+    playAction(next.name, next.ms);
+  },
+);
+
+function rainPoint(event: PointerEvent) {
+  const svg = rainEl.value;
+  if (!svg) return null;
+  const rect = svg.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * 300,
+    y: ((event.clientY - rect.top) / rect.height) * 300,
+  };
+}
+
+function stopGlyphDrag() {
+  window.removeEventListener("pointermove", onGlyphMove);
+  window.removeEventListener("pointerup", onGlyphUp);
+  window.removeEventListener("pointercancel", onGlyphUp);
+  dragging.value = false;
+}
+
+function onGlyphDown(event: PointerEvent, id: number) {
+  if (event.button !== 0 || sleeping.value || panel.value !== "none" || drag) return;
+  const point = rainPoint(event);
+  if (!point) return;
+  drag = { id, x: point.x, y: point.y, moved: 0 };
+  dragging.value = true;
+  window.addEventListener("pointermove", onGlyphMove);
+  window.addEventListener("pointerup", onGlyphUp);
+  window.addEventListener("pointercancel", onGlyphUp);
+  shots.holdGlyph(id);
+}
+
+function onGlyphMove(event: PointerEvent) {
+  if (!drag) return;
+  const point = rainPoint(event);
+  if (!point) return;
+  drag.moved += Math.hypot(point.x - drag.x, point.y - drag.y);
+  drag.x = point.x;
+  drag.y = point.y;
+  shots.moveGlyph(drag.id, point.x, point.y);
+}
+
+function onGlyphUp(event: PointerEvent) {
+  if (!drag) return;
+  const current = drag;
+  drag = null;
+  stopGlyphDrag();
+  const box = anchorEl.value?.getBoundingClientRect();
+  const over =
+    !!box &&
+    event.clientX >= box.left &&
+    event.clientX <= box.right &&
+    event.clientY >= box.top &&
+    event.clientY <= box.bottom;
+  if (over) shots.feedGlyph(current.id);
+  else if (current.moved < 6) shots.popGlyph(current.id);
+  else shots.dropGlyph(current.id);
+}
+
+function windowPoint(rect: DOMRect, x: number, y: number) {
+  return {
+    x: rect.left + (x / 300) * rect.width,
+    y: rect.top + (y / 300) * rect.height,
+  };
+}
+
+function windowLen(rect: DOMRect, n: number) {
+  return (n / 300) * rect.width;
+}
+
+function reportSpots() {
+  const svg = rainEl.value;
+  if (!svg || sleeping.value || document.hidden) {
+    if (spotKey) {
+      spotKey = "";
+      void invoke("pet_set_hotspots", { spots: [], patches: [] }).catch(() => {});
+    }
+    return;
+  }
+  const rect = svg.getBoundingClientRect();
+  const glyphs = shots.glyphs.value.filter((glyph) => glyph.opacity > 0.15);
+  const spots = glyphs.map((glyph) => windowPoint(rect, glyph.x, glyph.y));
+  const patches: { kind: string; x: number; y: number; x2: number; y2: number }[] = [];
+  const wave = shots.wave.value;
+  if (wave && wave.opacity > 0.05 && wave.r > 1) {
+    const tip = windowPoint(rect, shots.tip.value.x, shots.tip.value.y);
+    patches.push({ kind: "disk", x: tip.x, y: tip.y, x2: windowLen(rect, wave.r + 8), y2: 0 });
+  }
+  for (const beam of shots.beams.value) {
+    if (beam.opacity <= 0.05) continue;
+    const from = windowPoint(rect, beam.fromX, beam.fromY);
+    const to = windowPoint(rect, beam.x, beam.y);
+    patches.push({ kind: "beam", x: from.x, y: from.y, x2: to.x, y2: to.y });
+  }
+  for (const glyph of glyphs) {
+    const point = windowPoint(rect, glyph.x, glyph.y);
+    const halfW = windowLen(rect, (glyph.wide ? 22 : 11) + 16);
+    const halfH = windowLen(rect, 11 + 16);
+    patches.push({
+      kind: "rect",
+      x: point.x - halfW,
+      y: point.y - halfH,
+      x2: point.x + halfW,
+      y2: point.y + halfH,
+    });
+    if (glyph.job) {
+      const tip = windowPoint(rect, shots.tip.value.x, shots.tip.value.y);
+      patches.push({ kind: "beam", x: point.x, y: point.y, x2: tip.x, y2: tip.y });
+    }
+  }
+  for (const burst of shots.bursts.value) {
+    if (burst.opacity <= 0.05) continue;
+    const point = windowPoint(rect, burst.x, burst.y);
+    patches.push({ kind: "disk", x: point.x, y: point.y, x2: windowLen(rect, 28), y2: 0 });
+  }
+  const key = patches
+    .map((patch) => `${patch.kind}:${patch.x.toFixed(0)},${patch.y.toFixed(0)},${patch.x2.toFixed(0)},${patch.y2.toFixed(0)}`)
+    .join(";");
+  if (key === spotKey) return;
+  spotKey = key;
+  void invoke("pet_set_hotspots", { spots, patches }).catch(() => {});
+}
+
 function leavePet() {
   hovered.value = false;
 }
 
-function enterPet() {
-  hovered.value = true;
-  interruptAction();
+function startHop(ms = 720) {
   window.clearTimeout(hopTimer);
   hopping.value = false;
   requestAnimationFrame(() => {
     hopping.value = true;
     hopTimer = window.setTimeout(() => {
       hopping.value = false;
-    }, 720);
+    }, ms);
   });
+}
+
+function enterPet() {
+  hovered.value = true;
+  shots.showRecap();
+  interruptAction();
+  startHop();
 }
 
 function openTarget() {
@@ -352,7 +536,13 @@ async function onPointerUp() {
     flushMove();
     await moveChain.catch(() => undefined);
     const layout = await invoke<{ opensRight: boolean }>("pet_snap").catch(() => null);
-    if (layout) stageRight.value = layout.opensRight;
+    if (layout) {
+      stageRight.value = layout.opensRight;
+      // 吸附到位：天线朝空的一侧探一下，身体压一下再回弹。
+      snapped.value = layout.opensRight ? "right" : "left";
+      window.clearTimeout(snapTimer);
+      snapTimer = window.setTimeout(() => (snapped.value = ""), 420);
+    }
     window.setTimeout(() => (moving.value = false), 80);
   }
   if (pinched.value) window.setTimeout(() => (pinched.value = false), 180);
@@ -478,6 +668,7 @@ onMounted(async () => {
   document.documentElement.dataset.theme = settings.value.theme;
   scheduleBlink();
   scheduleRandomAction();
+  spotTimer = window.setInterval(reportSpots, 100);
   unlistenData = await listen("data-changed", () => reload()).catch(() => null);
   unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
     settings.value = payload;
@@ -520,6 +711,11 @@ onBeforeUnmount(() => {
   window.clearTimeout(blinkTimer);
   window.clearTimeout(actionTimer);
   window.clearTimeout(hopTimer);
+  window.clearTimeout(snapTimer);
+  stopGlyphDrag();
+  window.clearInterval(spotTimer);
+  spotKey = "";
+  void invoke("pet_set_hotspots", { spots: [], patches: [] }).catch(() => {});
   if (frame) cancelAnimationFrame(frame);
 });
 </script>
@@ -533,8 +729,9 @@ onBeforeUnmount(() => {
       action && `is-action-${action}`,
       { 'is-stage-right': stageRight },
       { 'is-firing': shots.beams.value.length > 0 },
-      { 'is-boom': shots.mood.value === 'boom', 'is-slack': shots.mood.value === 'slack', 'is-still': shots.mood.value === 'still' },
+      { 'is-boom': shots.mood.value === 'boom', 'is-still': shots.mood.value === 'still' },
       { 'is-pressed': pressed, 'is-pinched': pinched, 'is-blinking': blinking, 'is-hop': hopping },
+      { 'is-snapped': snapped, 'is-snapped-left': snapped === 'left', 'is-snapped-right': snapped === 'right' },
     ]"
     :style="petStyle"
     @mouseleave="leavePet"
@@ -568,7 +765,7 @@ onBeforeUnmount(() => {
       <button type="button" class="pet-menu__close" @click="panel = 'none'">返回</button>
     </section>
 
-    <svg class="pet-rain" viewBox="0 0 300 300" aria-hidden="true">
+    <svg ref="rain" class="pet-rain" viewBox="0 0 300 300" aria-hidden="true">
       <g
         v-for="glyph in shots.glyphs.value"
         :key="glyph.id"
@@ -576,8 +773,10 @@ onBeforeUnmount(() => {
         :class="{ 'is-wide': glyph.wide, 'is-target': glyph.targeted, 'is-loose': glyph.loose, 'is-frozen': glyph.frozen }"
         :opacity="glyph.opacity"
         :style="{ '--ink': glyph.ink.ink, '--paper': glyph.ink.paper, '--glow': glyph.ink.glow }"
-        :transform="`translate(${glyph.x} ${glyph.y}) rotate(${glyph.rot})`"
+        :transform="`translate(${glyph.x + glyph.jolt} ${glyph.y}) rotate(${glyph.rot}) scale(${glyph.scale})`"
+        @pointerdown.stop="onGlyphDown($event, glyph.id)"
       >
+        <rect class="pet-glyph-hit" x="-20" y="-20" width="40" height="40" />
         <template v-if="glyph.label">
           <rect :x="glyph.wide ? -22 : -11" y="-11" :width="glyph.wide ? 44 : 22" height="22" rx="6" />
           <text y="4">{{ glyph.label }}</text>
@@ -609,8 +808,9 @@ onBeforeUnmount(() => {
         />
       </g>
     </svg>
-    <div v-if="mode === 'hover' && action !== 'peek'" class="pet-bubble">{{ bubble }}</div>
+    <div v-if="mode === 'hover' && action !== 'peek'" class="pet-bubble">{{ shots.recap.value || bubble }}</div>
     <div
+      ref="anchor"
       class="pet-anchor"
       @mouseenter="enterPet"
       @click="onClick"
@@ -629,6 +829,7 @@ onBeforeUnmount(() => {
           <path class="pet-antenna" d="M48 39.5V26.5" />
           <circle class="pet-tip" cx="48" cy="24" r="3.5" />
           <circle class="pet-body" cx="48" cy="52" r="16" />
+          <PetLook :look="settings.pet.look" />
           <g class="pet-eyes">
             <circle v-if="!sleeping && !pinched && !blinking && action !== 'yawn'" cx="42.5" cy="50" r="2.25" />
             <circle v-if="!sleeping && !pinched && !blinking && action !== 'yawn'" cx="53.5" cy="50" r="2.25" />
